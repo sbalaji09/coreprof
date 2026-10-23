@@ -1,0 +1,107 @@
+{
+ "args": {
+  "only": "bf16",
+  "fp32_prompts": 16,
+  "fp32_tokens": 32,
+  "fp32_slots": 4,
+  "fp32_qs": [
+   0.3,
+   0.5,
+   1.0
+  ],
+  "bf16_prompts": 128,
+  "bf16_tokens": 128,
+  "bf16_slots": 32,
+  "bf16_qs": [
+   0.5,
+   0.3
+  ],
+  "out_dir": "results"
+ },
+ "timestamp": "2026-10-23T07:44:41",
+ "gpu": "NVIDIA RTX A6000",
+ "bf16": {
+  "bf16_q0.5": {
+   "reference": {
+    "hist": [
+     0,
+     902,
+     12702,
+     2257
+    ],
+    "summary": "reference: 15989 tokens, 128 seqs, 48938 block calls, utilization 100.0%, decode 849.98 s + prefill 8.87 s, exit loops 1/2/3/4 = 0.0 / 5.7 / 80.1 / 14.2 %"
+   },
+   "baseline": {
+    "exact_sequences_pct": 10.15625,
+    "mean_prefix_agreement_pct": 41.24790921185515,
+    "exit_agreement_on_shared_tokens_pct": 98.78542510121457,
+    "max_logit_diff_shared_prefix": 10.375,
+    "hist": [
+     0,
+     927,
+     12603,
+     2357
+    ],
+    "block_calls": 2023,
+    "utilization": 0.7583261245674741,
+    "summary": "baseline: 16015 tokens, 128 seqs, 2023 block calls, utilization 75.8%, decode 43.75 s + prefill 8.70 s, exit loops 1/2/3/4 = 0.0 / 5.8 / 79.3 / 14.8 %"
+   },
+   "cdb": {
+    "exact_sequences_pct": 7.03125,
+    "mean_prefix_agreement_pct": 37.24225547212064,
+    "exit_agreement_on_shared_tokens_pct": 98.70431893687707,
+    "max_logit_diff_shared_prefix": 7.625,
+    "hist": [
+     0,
+     917,
+     12517,
+     2335
+    ],
+    "block_calls": 1638,
+    "utilization": 0.9295825702075702,
+    "summary": "cdb: 15897 tokens, 128 seqs, 1638 block calls, utilization 93.0%, decode 36.07 s + prefill 8.66 s, exit loops 1/2/3/4 = 0.0 / 5.8 / 79.4 / 14.8 %"
+   }
+  },
+  "bf16_q0.3": {
+   "reference": {
+    "hist": [
+     0,
+     10386,
+     4796,
+     865
+    ],
+    "summary": "reference: 16175 tokens, 128 seqs, 38620 block calls, utilization 100.0%, decode 680.64 s + prefill 8.74 s, exit loops 1/2/3/4 = 0.0 / 64.7 / 29.9 / 5.4 %"
+   },
+   "baseline": {
+    "exact_sequences_pct": 42.96875,
+    "mean_prefix_agreement_pct": 59.54277424234014,
+    "exit_agreement_on_shared_tokens_pct": 99.65635738831615,
+    "max_logit_diff_shared_prefix": 4.984375,
+    "hist": [
+     0,
+     10387,
+     4848,
+     799
+    ],
+    "block_calls": 1892,
+    "utilization": 0.636132399577167,
+    "summary": "baseline: 16162 tokens, 128 seqs, 1892 block calls, utilization 63.6%, decode 41.33 s + prefill 8.79 s, exit loops 1/2/3/4 = 0.0 / 64.8 / 30.2 / 5.0 %"
+   },
+   "cdb": {
+    "exact_sequences_pct": 39.0625,
+    "mean_prefix_agreement_pct": 59.37640784058008,
+    "exit_agreement_on_shared_tokens_pct": 99.58307275380446,
+    "max_logit_diff_shared_prefix": 3.5390625,
+    "hist": [
+     0,
+     10359,
+     4850,
+     799
+    ],
+    "block_calls": 1321,
+    "utilization": 0.9099167297501892,
+    "summary": "cdb: 16136 tokens, 128 seqs, 1321 block calls, utilization 91.0%, decode 29.19 s + prefill 8.60 s, exit loops 1/2/3/4 = 0.0 / 64.7 / 30.3 / 5.0 %"
+   }
+  }
+ }
+}

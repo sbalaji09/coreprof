@@ -117,6 +117,74 @@ res.steps                                   # one StepRecord per block call: row
   syncs). `record_logits=True` keeps per-token logits.
 - Design and rationale are in DESIGN_CDB.md and NOTES.md ("Week 2").
 
+### Equivalence results (RTX A6000, 2026-10-23)
+
+**fp32 (`results/equivalence_20261023-074428.json`): ALL PASS.** Workload:
+16 GSM8K prompts × 32 tokens, 4 slots, so the queue forces refills.
+- At q = 1, the reference matches HF `generate()` on 16/16 sequences.
+- At q = 0.3, 0.5 and 1.0, baseline and CDB match the reference on 16/16
+  sequences, both **tokens and per-token exit loops**.
+- At q = 1, both batchers also equal HF `generate()`.
+
+**bf16 (`results/equivalence_20261023-081338.json`):** 128 prompts × 128
+tokens, 32 slots. These numbers are reported, not pass/fail.
+
+| q | exit loops 1/2/3/4 (reference) | batcher | exact seqs | mean prefix agreement | exit agreement on shared tokens | max logit diff, shared prefix |
+|---|---|---|---|---|---|---|
+| 0.5 | 0 / 5.7 / 80.1 / 14.2 % | baseline | 10.2% | 41.2% | 98.8% | 10.4 (one isolated position, see below) |
+| 0.5 | | CDB | 7.0% | 37.2% | 98.7% | 7.6 |
+| 0.3 | 0 / 64.7 / 29.9 / 5.4 % | baseline | 43.0% | 59.5% | 99.7% | 5.0 |
+| 0.3 | | CDB | 39.1% | 59.4% | 99.6% | 3.5 |
+
+Why bf16 differs, from one-off diagnostics on 32 prompts × 32 tokens unless
+noted:
+- **The reference itself is faithful.** HF's own `generate()` at B=1
+  matches it 100% in bf16.
+- **Most divergence comes from the attention kernel, not from batching.**
+  - The engine diverges from the reference **even with `max_slots=1`**:
+    87.5% exact at q = 1, about the same as 32 slots.
+  - At one slot there is no padding, but the engine passes SDPA an explicit
+    mask and the reference doesn't, so PyTorch picks a different attention
+    kernel with different rounding.
+  - The first decode token's logits differ by a median of 0.125 and at most
+    0.3. That is about 1 bf16 ULP at logit magnitudes 16–32, or 0.05 of a
+    logit standard deviation.
+- **Greedy decoding and the threshold amplify it.** A 1-ULP difference that
+  flips an argmax near-tie, or a CDF sitting right at q, changes every later
+  token in that sequence. q = 0.5 sits near the mode of the loop-3 CDF, so
+  exit flips are more common there. 128-token sequences give many more
+  chances to flip than 32-token ones.
+- **Baseline vs CDB, compared directly** (128 × 128, same engine; only the
+  number of rows per block call differs):
+  - q = 0.5: 60.9% exact sequences, 99.9% exit agreement, max logit diff 1.4.
+  - q = 0.3: 57.0% exact sequences, 99.9% exit agreement, max logit diff 2.5.
+- **The 10.4 maximum is one isolated position** (baseline, q = 0.5).
+  Neighbouring positions differ by only 0.1–0.8, the argmax and exit loop
+  are unchanged, and the whole top of the logit vector is about 1.2×
+  larger. That looks like a final-norm scale effect at one token, not a
+  persistent state error, which fp32 would also have caught. The exact
+  mechanism was not pinned down.
+
+**Consequence for Week 3:** in bf16, baseline and CDB generate slightly
+different token sequences (different EOS points and different exit loops).
+Compare throughput per generated token and per row-loop, not wall time per
+run.
+
+**Exit spread at the chosen thresholds** (bf16, 128 × 128, generated text
+with copy-forward KV): q = 0.5 gives 0 / 5.7 / 80.1 / 14.2 %; q = 0.3 gives
+0 / 64.7 / 29.9 / 5.4 %. Both have real spread. They differ from the
+DESIGN_CDB.md probe, which was teacher-forced on gold answers.
+
+**Early block-call counts (not a benchmark).** These runs had logit
+recording on and were single runs:
+
+| q | baseline: calls (utilization) | CDB: calls (utilization) |
+|---|---|---|
+| 0.5 | 2023 (76%) | 1638 (93%) |
+| 0.3 | 1892 (64%) | 1321 (91%) |
+
+CDB needs 19% fewer block calls at q = 0.5 and 30% fewer at q = 0.3.
+
 ## Results
 
 ### `results/20261023-064159` — NVIDIA RTX A6000 (48 GB), not the A10
