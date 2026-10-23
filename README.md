@@ -13,7 +13,11 @@ references into the model code.
 | `harness.py` | the timing sweep. Writes `results/<timestamp>.csv` and `.json` (metadata and raw per-rep times) |
 | `plot.py` | turns a CSV into `<timestamp>_latency.png` and `<timestamp>_tokens_per_s.png` |
 | `selfcheck.py` | run before any sweep: GPU repeatability, plus the check that calling the block directly reproduces the model's forward |
-| `NOTES.md` | how the Ouro loop, exit gate and per-loop KV cache work |
+| `NOTES.md` | how the Ouro loop, exit gate and per-loop KV cache work, plus the Week 2 batching decisions |
+| `DESIGN_CDB.md` | the approved design for the baseline batcher and Continuous Depth Batching |
+| `batching/` | `reference.py` (B=1 ground truth), `baseline.py`, `cdb.py`, plus the shared `engine.py`, `kv_store.py`, `common.py`, `workload.py` |
+| `equivalence_test.py` | proves reference, baseline and CDB produce the same output (fp32 strict, bf16 reported) |
+| `tests/` | unit tests: KV store scatter/gather/copy-forward, slot refill edge cases (tiny random Ouro) |
 
 ## Running on the NRP JupyterHub pod from scratch
 
@@ -80,6 +84,38 @@ its 4 loops, which costs about 0.79 MB per token in bf16. B=64 at C=512 needs
 - A new sweep axis: add a CLI arg and extend `sweep()`.
 - A new metric: compute it in `run_config()` and add the column to
   `CSV_FIELDS`.
+
+## Week 2: baseline batcher and Continuous Depth Batching
+
+```bash
+python selfcheck.py                         # must print ALL OK first
+python -m pytest tests -q                   # unit tests, ~5 s
+python equivalence_test.py --only fp32      # strict checks, ~5 min; must print "ALL PASS"
+python equivalence_test.py --only bf16      # agreement numbers, ~35 min (B=1 reference dominates)
+python equivalence_test.py                  # both; bf16 is skipped if fp32 fails
+```
+
+Each batcher has the same entry point:
+
+```python
+from batching import baseline, cdb, reference
+from batching.workload import gsm8k_prompts
+
+prompts = gsm8k_prompts(128)                # first 128 GSM8K test questions, tokenized
+res = cdb.run(prompts, max_new_tokens=128, max_slots=32, exit_threshold=0.5, dtype="bf16")
+res.outputs, res.exit_loops                 # per request: token ids, 1-based exit loop per token
+res.stats.summary()                         # tokens, block calls, slot utilization, timings, exit histogram
+res.steps                                   # one StepRecord per block call: rows, rows per loop depth, exits, refills
+```
+
+- **Exit threshold `q`:** a token stops at the first loop where its
+  cumulative exit probability reaches q. The default 1.0 means no early
+  exit. Use 0.5 or 0.3 to get a spread of exit loops; anything at or above
+  0.8 gives no early exits on GSM8K. A run warns if more than 95% of tokens
+  ran all 4 loops.
+- **Week 3 hooks:** `time_calls=True` adds per-block-call timing (it adds
+  syncs). `record_logits=True` keeps per-token logits.
+- Design and rationale are in DESIGN_CDB.md and NOTES.md ("Week 2").
 
 ## Results
 

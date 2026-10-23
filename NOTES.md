@@ -112,3 +112,54 @@ embedding, rotary/mask setup, all 4 steps, the exit-gate selection and
 to the cache. Before each repetition, untimed, the slots are sliced back to
 length C (a view, no copy). Every repetition therefore sees exactly C past
 tokens and pays the same `torch.cat` cost that real decode at length C pays.
+
+# Week 2: batching design decisions (and why)
+
+The full design is in DESIGN_CDB.md (approved 2026-10-23). Code is in `batching/`. These are the
+decisions that shape the Week 3 numbers.
+
+- **Exit rule = Q-exit, really stopping.** Exit at the first loop m with
+  CDF(m) = 1 − ∏(1 − λ_j) ≥ q, decided per token (Ouro paper §3). HF only
+  *selects* the exit after running all 4 loops (lines 721–800), so it saves
+  no compute. We stop at the exit loop. The CDF is computed in fp32 from the
+  gate logit (`batching/common.py:QExit`). At q ≥ 1 nothing exits early.
+- **Thresholds: q = 0.5 (primary) and 0.3.** The gate is conservative. The
+  CDF at loop 3 has p90 ≈ 0.73, so q ≥ 0.8 never exits early and CDB would
+  have nothing to gain. Measured spread on GSM8K:
+  - q = 0.5: about 1/69/30 % exit at loops 2/3/4.
+  - q = 0.3: about 41/48/11 %.
+  - Loop 1 never fires naturally.
+- **KV for skipped loops = copy forward.** A token that exits at loop k gets
+  loop k's K/V copied into loops k+1..4 at its position
+  (`KVStore.fill_skipped`; the reference uses `cache.update`).
+  - It saves compute, and with no exits it *is* the original model. That's
+    why the batchers can be checked against HF `generate()` at q = 1.
+  - The paper supports decode-time cross-loop KV reuse (§5.4.2: last-step
+    reuse loses 0.07 points on GSM8K) but warns that loop-1 KV is a poor
+    substitute (18.7 points). Loop-1 exits don't occur at our thresholds.
+- **One static store, gather + SDPA.** K and V are each
+  `[loops, layers, slots, heads, max_len, head_dim]`.
+  - Each block call scatters every row's new k/v at (its loop, its slot,
+    its position). It then gathers each row's cache padded to the longest
+    row, with a boolean mask.
+  - Ouro's own layers are reused unchanged: `MixedDepthCache` stands in for
+    HF's cache inside `OuroAttention`. Rows are at different loops, so the
+    layers get `current_ut=0` and the adapter supplies each row's real loop.
+- **Prefill alone (B=1), all 4 loops, outside block calls.** The paper says
+  prefill needs every loop's KV. Prefilling alone makes prefill
+  bit-identical across batchers. It is timed separately.
+- **Baseline = depth-synchronous steps with compaction and step-boundary
+  refill.**
+  - Exited rows leave the remaining block calls of the step instead of
+    computing garbage.
+  - Finished sequences are replaced at step boundaries.
+  - So baseline and CDB do the *same* row-loops. The only difference is how
+    many block calls they need to do them, which is slot utilization.
+- **Shared engine.** `batching/engine.py` does all numerics, KV and
+  bookkeeping for both batchers. `baseline.py` and `cdb.py` only choose
+  which rows go into each call and when to refill. This is why fp32 outputs
+  are identical, and why a Week 3 difference can only come from scheduling.
+- **Two host syncs per block call:** the exit flags, then the exiting rows'
+  tokens. The exit decision forces the first: the host must know who exits
+  to run `lm_head` only on those rows and to refill slots. Both batchers pay
+  the same.

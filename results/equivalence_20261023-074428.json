@@ -1,0 +1,132 @@
+{
+ "args": {
+  "only": "fp32",
+  "fp32_prompts": 16,
+  "fp32_tokens": 32,
+  "fp32_slots": 4,
+  "fp32_qs": [
+   0.3,
+   0.5,
+   1.0
+  ],
+  "bf16_prompts": 128,
+  "bf16_tokens": 128,
+  "bf16_slots": 32,
+  "bf16_qs": [
+   0.5,
+   0.3
+  ],
+  "out_dir": "results"
+ },
+ "timestamp": "2026-10-23T07:41:39",
+ "gpu": "NVIDIA RTX A6000",
+ "fp32": {
+  "check0_reference_vs_hf": {
+   "identical": 16,
+   "total": 16,
+   "pass": true
+  },
+  "fp32_q0.3": {
+   "reference_hist": [
+    0,
+    201,
+    232,
+    63
+   ],
+   "baseline": {
+    "tokens_identical": 16,
+    "exits_identical": 16,
+    "pass": true,
+    "hist": [
+     0,
+     201,
+     232,
+     63
+    ],
+    "block_calls": 411,
+    "utilization": 0.8211678832116789
+   },
+   "cdb": {
+    "tokens_identical": 16,
+    "exits_identical": 16,
+    "pass": true,
+    "hist": [
+     0,
+     201,
+     232,
+     63
+    ],
+    "block_calls": 352,
+    "utilization": 0.9588068181818182
+   }
+  },
+  "fp32_q0.5": {
+   "reference_hist": [
+    0,
+    16,
+    321,
+    159
+   ],
+   "baseline": {
+    "tokens_identical": 16,
+    "exits_identical": 16,
+    "pass": true,
+    "hist": [
+     0,
+     16,
+     321,
+     159
+    ],
+    "block_calls": 465,
+    "utilization": 0.8768817204301075
+   },
+   "cdb": {
+    "tokens_identical": 16,
+    "exits_identical": 16,
+    "pass": true,
+    "hist": [
+     0,
+     16,
+     321,
+     159
+    ],
+    "block_calls": 419,
+    "utilization": 0.9731503579952268
+   }
+  },
+  "fp32_q1.0": {
+   "reference_hist": [
+    0,
+    0,
+    0,
+    496
+   ],
+   "baseline": {
+    "tokens_identical": 16,
+    "exits_identical": 16,
+    "pass": true,
+    "hist": [
+     0,
+     0,
+     0,
+     496
+    ],
+    "block_calls": 496,
+    "utilization": 1.0
+   },
+   "cdb": {
+    "tokens_identical": 16,
+    "exits_identical": 16,
+    "pass": true,
+    "hist": [
+     0,
+     0,
+     0,
+     496
+    ],
+    "block_calls": 496,
+    "utilization": 1.0
+   }
+  }
+ }
+}
