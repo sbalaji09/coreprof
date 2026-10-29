@@ -3,6 +3,7 @@
 The two batchers differ only in *which* active rows they put into each block call and *when*
 free slots are refilled; everything numerical happens here, so it is identical for both.
 """
+import time
 from collections import deque
 from dataclasses import dataclass
 from typing import Optional
@@ -98,6 +99,7 @@ class Engine:
         """Run one loop for each row (slot) at its own depth. Returns the host list of exit flags."""
         S = self.slots
         loops = [S[s].loop for s in rows]
+        queue_len, prefill_before = len(self.queue), self.prefill_timer.total
         timer = Timer() if self.time_calls else None
         if timer:
             timer.__enter__()
@@ -145,7 +147,8 @@ class Engine:
         self.steps.append(StepRecord(
             call_idx=len(self.steps), decode_step=decode_step, n_rows=len(rows),
             max_slots=len(S), rows_per_loop=per_loop, n_exits=len(ex), n_refills=self._refills,
-            n_finished=finished, call_ms=timer.total * 1e3 if timer else None))
+            n_finished=finished, call_ms=timer.total * 1e3 if timer else None,
+            queue_len=queue_len, prefill_s_before=prefill_before, t_end=time.perf_counter()))
         self._refills = self._finished = 0
         self.stats.block_calls += 1
         self.stats.row_loops += len(rows)

@@ -81,6 +81,10 @@ class StepRecord:
     n_refills: int
     n_finished: int
     call_ms: Optional[float] = None     # only with time_calls=True
+    # Host-side bookkeeping for Week 3 windowing; perf_counter reads only, no extra syncs.
+    queue_len: int = 0                  # requests still queued when the call started
+    prefill_s_before: float = 0.0       # cumulative prefill time when the call started
+    t_end: float = 0.0                  # perf_counter after the call's last host sync
 
 
 @dataclass
