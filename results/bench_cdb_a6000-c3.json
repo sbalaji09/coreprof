@@ -1,0 +1,37 @@
+{
+  "run_id": "a6000-c3",
+  "sessions": [
+    {
+      "started": "2026-10-30T17:06:06",
+      "gpu": "NVIDIA RTX A6000",
+      "gpu_uuid": "GPU-cd122016-801a-b89c-e398-94852a5496ea",
+      "torch": "2.5.1+cu124",
+      "transformers": "4.57.1",
+      "python": "3.12.8",
+      "model_revision": "574fa66cb8bf5abdc979642d01cf2b79b16bfab1",
+      "gsm8k_revision": "740312add88f781978c0658806c59bc2815b9866",
+      "dtype": "bf16",
+      "git_commit": "49e9f6fc632b36ab4cb181d094251501a276597a",
+      "git_dirty": false,
+      "args": {
+        "slots": [
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64
+        ],
+        "q": [
+          1.0
+        ],
+        "repeats": 3,
+        "cycles": 8,
+        "max_new_tokens": 128,
+        "out_dir": "results",
+        "run_id": "a6000-c3"
+      }
+    }
+  ]
+}
