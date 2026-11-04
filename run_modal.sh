@@ -7,10 +7,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-if [ ! -x .venv/bin/python ]; then
-  python3 -m venv .venv
-  .venv/bin/pip install -q --upgrade pip
-  .venv/bin/pip install -q "modal>=1.6,<2"
+if [ ! -x .venv/bin/modal ]; then
+  [ -x .venv/bin/python ] || python3 -m venv .venv
+  echo "== Installing the Modal client into .venv =="
+  .venv/bin/python -m pip install --upgrade pip
+  .venv/bin/python -m pip install "modal>=1.6,<2"
 fi
 MODAL=.venv/bin/modal
 
