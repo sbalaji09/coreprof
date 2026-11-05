@@ -94,10 +94,10 @@ def run(task: str, run_id: str) -> int:
         vol.commit()  # make partial results durable after every command
         return rc
 
-    sh("echo task=$RID; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version "
-       "--format=csv; lscpu | grep -E 'Model name|^CPU\\(s\\)'; "
+    sh("{ echo task=$RID; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version "
+       "--format=csv; lscpu | grep -E 'Model name|^CPU\\(s\\)'; nproc; "
        "python -c 'import torch,transformers;print(\"torch\",torch.__version__,"
-       "\"transformers\",transformers.__version__)' | tee $OUT/env.txt")
+       "\"transformers\",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt")
     for cmd in TASKS[task]:
         rc = sh(cmd)
         if rc != 0:
