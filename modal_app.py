@@ -73,10 +73,10 @@ TASKS = {
 
 @app.function(image=image, gpu="L40S", cpu=8, memory=32768, volumes={"/vol": vol},
               timeout=12 * 3600)
-def run(task: str, run_id: str) -> int:
+def run(task: str, run_id: str, git: str = "") -> int:
     out = f"/vol/results/{run_id}"
     os.makedirs(out, exist_ok=True)
-    env = {**os.environ, "OUT": out, "RID": run_id}
+    env = {**os.environ, "OUT": out, "RID": run_id, "GIT": git}
     log_path = f"{out}/log.txt"
 
     def sh(cmd: str) -> int:
@@ -94,7 +94,7 @@ def run(task: str, run_id: str) -> int:
         vol.commit()  # make partial results durable after every command
         return rc
 
-    sh("{ echo task=$RID; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version "
+    sh("{ echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version "
        "--format=csv; lscpu | grep -E 'Model name|^CPU\\(s\\)'; nproc; "
        "python -c 'import torch,transformers;print(\"torch\",torch.__version__,"
        "\"transformers\",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt")
@@ -119,7 +119,15 @@ def main(task: str = "check", gpu: str = "L40S", run_id: str = "", pull: bool = 
             raise SystemExit("--pull needs --run-id")
     else:
         print(f"run id: {rid}  (gpu {gpu})")
-        rc = run.with_options(gpu=gpu).remote(task, rid)
+        try:
+            head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=REPO,
+                                  capture_output=True, text=True).stdout.strip()
+            dirty = subprocess.run(["git", "status", "--porcelain"], cwd=REPO,
+                                   capture_output=True, text=True).stdout.strip()
+            git = head + ("-dirty" if dirty else "")
+        except OSError:
+            git = ""
+        rc = run.with_options(gpu=gpu).remote(task, rid, git)
 
     # Pull everything this run wrote back into the repo.
     dest = REPO / "results" / "modal" / rid

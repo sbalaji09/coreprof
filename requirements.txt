@@ -9,5 +9,7 @@ safetensors==0.8.0
 huggingface-hub==0.36.2
 numpy==2.0.2
 pandas==2.2.3
+# read_parquet for the GSM8K workload (was preinstalled in the NRP image)
+pyarrow==18.1.0
 matplotlib==3.10.0
 pytest==8.3.4
