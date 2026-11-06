@@ -1,0 +1,36 @@
+{
+  "run_id": "bench_q03-l40s-20261104-213000",
+  "sessions": [
+    {
+      "started": "2026-11-05T05:30:54",
+      "gpu": "NVIDIA L40S",
+      "gpu_uuid": "GPU-0bc1ae90-d9a4-bbc9-8ba3-8a753776a3a3",
+      "torch": "2.5.1+cu124",
+      "transformers": "4.57.1",
+      "python": "3.11.12",
+      "model_revision": "574fa66cb8bf5abdc979642d01cf2b79b16bfab1",
+      "gsm8k_revision": "740312add88f781978c0658806c59bc2815b9866",
+      "dtype": "bf16",
+      "git_commit": "",
+      "git_dirty": false,
+      "args": {
+        "slots": [
+          2,
+          4,
+          8,
+          16,
+          32,
+          64
+        ],
+        "q": [
+          0.3
+        ],
+        "repeats": 3,
+        "cycles": 8,
+        "max_new_tokens": 128,
+        "out_dir": "/vol/results/bench_q03-l40s-20261104-213000",
+        "run_id": "bench_q03-l40s-20261104-213000"
+      }
+    }
+  ]
+}

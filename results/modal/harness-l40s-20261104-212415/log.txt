@@ -1,0 +1,62 @@
+
+$ { echo task=$RID; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=harness-l40s-20261104-212415
+Thu Nov  5 05:24:19 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-2bb00205-3525-5a3e-0d75-eb9ed3f94c92, 46068 MiB, 610.57.04
+CPU(s):              21
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python harness.py --out-dir $OUT
+{
+ "timestamp": "2026-11-05T05:24:40",
+ "gpu": "NVIDIA L40S",
+ "nvidia_smi": "NVIDIA L40S, 610.57.04, 2520 MHz, 350.00 W",
+ "torch": "2.5.1+cu124",
+ "cuda": "12.4",
+ "transformers": "4.57.1",
+ "python": "3.11.12",
+ "model": "ByteDance/Ouro-1.4B",
+ "model_revision": "574fa66cb8bf5abdc979642d01cf2b79b16bfab1",
+ "attn_implementation": "sdpa",
+ "total_ut_steps": 4,
+ "dtype": "bf16",
+ "git_commit": null,
+ "git_dirty": null,
+ "hostname": "modal"
+}
+    ut_step  B=1   C=512   median=  20.584 ms  p10-p90=[20.146, 21.277]       48.6 tok/s  peak=3.06 GB  sm=2520 MHz
+decode_step  B=1   C=512   median=  83.863 ms  p10-p90=[82.647, 85.568]       11.9 tok/s  peak=3.06 GB  sm=2520 MHz
+    ut_step  B=2   C=512   median=  21.484 ms  p10-p90=[21.226, 21.747]       93.1 tok/s  peak=3.44 GB  sm=2520 MHz
+decode_step  B=2   C=512   median=  86.580 ms  p10-p90=[85.615, 87.605]       23.1 tok/s  peak=3.44 GB  sm=2520 MHz
+    ut_step  B=4   C=512   median=  21.186 ms  p10-p90=[20.841, 21.427]      188.8 tok/s  peak=4.20 GB  sm=2520 MHz
+decode_step  B=4   C=512   median=  85.306 ms  p10-p90=[84.169, 86.506]       46.9 tok/s  peak=4.20 GB  sm=2520 MHz
+    ut_step  B=8   C=512   median=  21.254 ms  p10-p90=[21.088, 21.689]      376.4 tok/s  peak=5.71 GB  sm=2520 MHz
+decode_step  B=8   C=512   median=  86.992 ms  p10-p90=[86.137, 88.692]       92.0 tok/s  peak=5.72 GB  sm=2520 MHz
+    ut_step  B=16  C=512   median=  21.432 ms  p10-p90=[20.986, 22.025]      746.6 tok/s  peak=8.75 GB  sm=2520 MHz
+decode_step  B=16  C=512   median=  86.253 ms  p10-p90=[85.321, 87.210]      185.5 tok/s  peak=8.76 GB  sm=2520 MHz
+    ut_step  B=32  C=512   median=  22.794 ms  p10-p90=[22.778, 22.888]     1403.9 tok/s  peak=14.81 GB  sm=2520 MHz
+decode_step  B=32  C=512   median=  91.101 ms  p10-p90=[91.047, 91.157]      351.3 tok/s  peak=14.83 GB  sm=2520 MHz
+    ut_step  B=64  C=512   median=  38.809 ms  p10-p90=[38.768, 38.998]     1649.1 tok/s  peak=26.94 GB  sm=2520 MHz
+decode_step  B=64  C=512   median= 155.317 ms  p10-p90=[155.112, 155.508]      412.1 tok/s  peak=26.98 GB  sm=2520 MHz
+wrote /vol/results/harness-l40s-20261104-212415/20261105-052440.csv and /vol/results/harness-l40s-20261104-212415/20261105-052440.json
+[exit 0]
+
+$ python plot.py $(ls $OUT/*.csv | head -1)
+wrote /vol/results/harness-l40s-20261104-212415/20261105-052440_latency.png
+wrote /vol/results/harness-l40s-20261104-212415/20261105-052440_tokens_per_s.png
+[exit 0]

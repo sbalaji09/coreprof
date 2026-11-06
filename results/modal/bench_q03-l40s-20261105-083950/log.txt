@@ -1,0 +1,207 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=bench_q03-l40s-20261105-083950
+git=6809f71-dirty
+Thu Nov  5 16:39:53 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-962cbc18-245f-4f1d-ff41-b6353a46f8d2, 46068 MiB, 610.57.04
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python bench_cdb.py --q 0.3 --slots 2 4 8 16 32 64 --repeats 3 --run-id $RID --out-dir $OUT
+{"started": "2026-11-05T16:40:11", "gpu": "NVIDIA L40S", "gpu_uuid": "GPU-962cbc18-245f-4f1d-ff41-b6353a46f8d2", "torch": "2.5.1+cu124", "transformers": "4.57.1", "python": "3.11.12", "model_revision": "574fa66cb8bf5abdc979642d01cf2b79b16bfab1", "gsm8k_revision": "740312add88f781978c0658806c59bc2815b9866", "dtype": "bf16", "git_commit": "", "git_dirty": false, "args": {"slots": [2, 4, 8, 16, 32, 64], "q": [0.3], "repeats": 3, "cycles": 8, "max_new_tokens": 128, "out_dir": "/vol/results/bench_q03-l40s-20261105-083950", "run_id": "bench_q03-l40s-20261105-083950"}}
+fresh run
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[    44s] S= 2 q=0.3 rep=0 baseline steady    51.4 tok/s   127.4 row-loops/s  14.1 ms/call util 0.90 | full    51.7 tok/s | prefill 0.7s
+[    78s] S= 2 q=0.3 rep=0 cdb      steady    59.6 tok/s   148.1 row-loops/s  13.5 ms/call util 1.00 | full    59.2 tok/s | prefill 0.7s
+[   117s] S= 2 q=0.3 rep=1 baseline steady    53.0 tok/s   131.4 row-loops/s  13.7 ms/call util 0.90 | full    53.4 tok/s | prefill 0.7s
+[   153s] S= 2 q=0.3 rep=1 cdb      steady    56.9 tok/s   141.5 row-loops/s  14.1 ms/call util 1.00 | full    56.8 tok/s | prefill 0.7s
+[   190s] S= 2 q=0.3 rep=2 baseline steady    54.4 tok/s   134.9 row-loops/s  13.3 ms/call util 0.90 | full    54.6 tok/s | prefill 0.7s
+[   225s] S= 2 q=0.3 rep=2 cdb      steady    60.4 tok/s   150.3 row-loops/s  13.3 ms/call util 1.00 | full    59.8 tok/s | prefill 0.7s
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[   270s] S= 4 q=0.3 rep=0 baseline steady   102.4 tok/s   248.4 row-loops/s  12.9 ms/call util 0.80 | full   102.0 tok/s | prefill 1.3s
+[   307s] S= 4 q=0.3 rep=0 cdb      steady   117.8 tok/s   285.9 row-loops/s  14.0 ms/call util 1.00 | full   113.3 tok/s | prefill 1.4s
+[   353s] S= 4 q=0.3 rep=1 baseline steady    88.5 tok/s   214.8 row-loops/s  14.9 ms/call util 0.80 | full    89.6 tok/s | prefill 1.5s
+[   388s] S= 4 q=0.3 rep=1 cdb      steady   124.7 tok/s   302.7 row-loops/s  13.2 ms/call util 1.00 | full   121.1 tok/s | prefill 1.3s
+[   427s] S= 4 q=0.3 rep=2 baseline steady   105.9 tok/s   256.9 row-loops/s  12.5 ms/call util 0.80 | full   106.1 tok/s | prefill 1.2s
+[   460s] S= 4 q=0.3 rep=2 cdb      steady   131.5 tok/s   319.3 row-loops/s  12.5 ms/call util 1.00 | full   127.7 tok/s | prefill 1.2s
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[   508s] S= 8 q=0.3 rep=0 baseline steady   195.3 tok/s   473.9 row-loops/s  12.4 ms/call util 0.74 | full   193.1 tok/s | prefill 2.5s
+[   544s] S= 8 q=0.3 rep=0 cdb      steady   245.5 tok/s   595.3 row-loops/s  13.4 ms/call util 1.00 | full   240.2 tok/s | prefill 2.6s
+[   595s] S= 8 q=0.3 rep=1 baseline steady   170.8 tok/s   414.6 row-loops/s  14.2 ms/call util 0.74 | full   167.0 tok/s | prefill 2.8s
+[   639s] S= 8 q=0.3 rep=1 cdb      steady   201.3 tok/s   488.2 row-loops/s  16.4 ms/call util 1.00 | full   197.7 tok/s | prefill 3.2s
+[   692s] S= 8 q=0.3 rep=2 baseline steady   160.4 tok/s   389.4 row-loops/s  15.1 ms/call util 0.74 | full   158.7 tok/s | prefill 2.9s
+[   727s] S= 8 q=0.3 rep=2 cdb      steady   249.1 tok/s   604.1 row-loops/s  13.2 ms/call util 1.00 | full   243.3 tok/s | prefill 2.6s
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[   783s] S=16 q=0.3 rep=0 baseline steady   358.2 tok/s   863.5 row-loops/s  12.7 ms/call util 0.68 | full   351.6 tok/s | prefill 4.9s
+[   822s] S=16 q=0.3 rep=0 cdb      steady   488.0 tok/s  1176.4 row-loops/s  13.6 ms/call util 1.00 | full   466.6 tok/s | prefill 5.1s
+[   873s] S=16 q=0.3 rep=1 baseline steady   354.6 tok/s   854.9 row-loops/s  12.8 ms/call util 0.68 | full   348.2 tok/s | prefill 5.0s
+[   913s] S=16 q=0.3 rep=1 cdb      steady   490.2 tok/s  1181.9 row-loops/s  13.5 ms/call util 1.00 | full   464.2 tok/s | prefill 5.1s
+[   972s] S=16 q=0.3 rep=2 baseline steady   307.3 tok/s   740.8 row-loops/s  14.8 ms/call util 0.68 | full   302.3 tok/s | prefill 5.7s
+[  1014s] S=16 q=0.3 rep=2 cdb      steady   459.3 tok/s  1107.4 row-loops/s  14.4 ms/call util 1.00 | full   438.4 tok/s | prefill 5.5s
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[  1090s] S=32 q=0.3 rep=0 baseline steady   566.7 tok/s  1359.5 row-loops/s  15.0 ms/call util 0.64 | full   549.5 tok/s | prefill 11.4s
+[  1144s] S=32 q=0.3 rep=0 cdb      steady   801.7 tok/s  1926.4 row-loops/s  16.6 ms/call util 1.00 | full   770.4 tok/s | prefill 11.9s
+[  1220s] S=32 q=0.3 rep=1 baseline steady   516.1 tok/s  1238.2 row-loops/s  16.4 ms/call util 0.64 | full   506.3 tok/s | prefill 12.3s
+[  1273s] S=32 q=0.3 rep=1 cdb      steady   794.9 tok/s  1910.2 row-loops/s  16.8 ms/call util 1.00 | full   763.6 tok/s | prefill 12.0s
+[  1347s] S=32 q=0.3 rep=2 baseline steady   525.5 tok/s  1260.6 row-loops/s  16.2 ms/call util 0.64 | full   518.3 tok/s | prefill 12.1s
+[  1403s] S=32 q=0.3 rep=2 cdb      steady   768.4 tok/s  1846.4 row-loops/s  17.3 ms/call util 1.00 | full   735.1 tok/s | prefill 12.5s
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[  1512s] S=64 q=0.3 rep=0 baseline steady   877.9 tok/s  2102.2 row-loops/s  18.5 ms/call util 0.61 | full   864.9 tok/s | prefill 23.5s
+[  1592s] S=64 q=0.3 rep=0 cdb      steady  1178.2 tok/s  2829.0 row-loops/s  22.6 ms/call util 1.00 | full  1127.3 tok/s | prefill 23.4s
+[  1689s] S=64 q=0.3 rep=1 baseline steady   881.6 tok/s  2111.2 row-loops/s  18.4 ms/call util 0.61 | full   868.4 tok/s | prefill 23.5s
+[  1770s] S=64 q=0.3 rep=1 cdb      steady  1176.8 tok/s  2825.7 row-loops/s  22.6 ms/call util 1.00 | full  1121.6 tok/s | prefill 23.6s
+[  1870s] S=64 q=0.3 rep=2 baseline steady   867.2 tok/s  2076.6 row-loops/s  18.7 ms/call util 0.61 | full   853.8 tok/s | prefill 24.5s
+[  1953s] S=64 q=0.3 rep=2 cdb      steady  1168.1 tok/s  2804.7 row-loops/s  22.8 ms/call util 1.00 | full  1112.8 tok/s | prefill 25.6s
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+  q  S  speedup_row_loops_median  call_ratio_median  ideal_speedup_own_median  pct_ideal_own_median  ideal_speedup_full_median  pct_ideal_full_median  speedup_vs_noexit_tokens_median  paper_bound_median  pct_paper_bound_median
+0.3  2                     1.114              1.108                     1.114                 100.0                        NaN                    NaN                              NaN               1.625                     NaN
+0.3  4                     1.243              1.218                     1.243                 100.0                        NaN                    NaN                              NaN               1.654                     NaN
+0.3  8                     1.256              1.327                     1.256                 100.0                        NaN                    NaN                              NaN               1.656                     NaN
+0.3 16                     1.383              1.386                     1.383                 100.0                        NaN                    NaN                              NaN               1.661                     NaN
+0.3 32                     1.465              1.508                     1.465                 100.0                        NaN                    NaN                              NaN               1.665                     NaN
+0.3 64                     1.346              1.579                     1.346                 100.0                        NaN                    NaN                              NaN               1.668                     NaN
+wrote /vol/results/bench_q03-l40s-20261105-083950/bench_cdb_bench_q03-l40s-20261105-083950_runs.csv and _points/_speedup CSVs
+[exit 0]
+
+$ python bench_cdb.py --q 1.0 --slots 4 16 64 --repeats 2 --run-id $RID --out-dir $OUT
+{"started": "2026-11-05T17:12:50", "gpu": "NVIDIA L40S", "gpu_uuid": "GPU-962cbc18-245f-4f1d-ff41-b6353a46f8d2", "torch": "2.5.1+cu124", "transformers": "4.57.1", "python": "3.11.12", "model_revision": "574fa66cb8bf5abdc979642d01cf2b79b16bfab1", "gsm8k_revision": "740312add88f781978c0658806c59bc2815b9866", "dtype": "bf16", "git_commit": "", "git_dirty": false, "args": {"slots": [4, 16, 64], "q": [1.0], "repeats": 2, "cycles": 8, "max_new_tokens": 128, "out_dir": "/vol/results/bench_q03-l40s-20261105-083950", "run_id": "bench_q03-l40s-20261105-083950"}}
+resuming with 36 finished runs
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+[    68s] S= 4 q=1.0 rep=0 baseline steady    65.5 tok/s   262.0 row-loops/s  15.3 ms/call util 1.00 | full    64.1 tok/s | prefill 1.5s
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+[   131s] S= 4 q=1.0 rep=0 cdb      steady    66.0 tok/s   263.8 row-loops/s  15.2 ms/call util 1.00 | full    64.6 tok/s | prefill 1.6s
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+[   193s] S= 4 q=1.0 rep=1 baseline steady    67.7 tok/s   270.7 row-loops/s  14.8 ms/call util 1.00 | full    65.7 tok/s | prefill 1.5s
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+[   254s] S= 4 q=1.0 rep=1 cdb      steady    68.1 tok/s   272.2 row-loops/s  14.7 ms/call util 1.00 | full    66.1 tok/s | prefill 1.5s
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+[   327s] S=16 q=1.0 rep=0 baseline steady   267.9 tok/s  1071.2 row-loops/s  14.9 ms/call util 1.00 | full   257.2 tok/s | prefill 5.9s
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+[   392s] S=16 q=1.0 rep=0 cdb      steady   272.0 tok/s  1087.8 row-loops/s  14.7 ms/call util 1.00 | full   262.3 tok/s | prefill 5.8s
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+[   460s] S=16 q=1.0 rep=1 baseline steady   267.0 tok/s  1067.7 row-loops/s  15.0 ms/call util 1.00 | full   255.8 tok/s | prefill 6.0s
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+[   526s] S=16 q=1.0 rep=1 cdb      steady   267.9 tok/s  1071.4 row-loops/s  14.9 ms/call util 1.00 | full   259.4 tok/s | prefill 5.9s
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+[   646s] S=64 q=1.0 rep=0 baseline steady   769.8 tok/s  3078.2 row-loops/s  20.8 ms/call util 1.00 | full   753.4 tok/s | prefill 25.0s
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+[   755s] S=64 q=1.0 rep=0 cdb      steady   770.1 tok/s  3079.6 row-loops/s  20.8 ms/call util 1.00 | full   754.0 tok/s | prefill 25.0s
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+[   862s] S=64 q=1.0 rep=1 baseline steady   773.7 tok/s  3093.9 row-loops/s  20.7 ms/call util 1.00 | full   757.0 tok/s | prefill 23.0s
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+[   971s] S=64 q=1.0 rep=1 cdb      steady   769.6 tok/s  3077.4 row-loops/s  20.8 ms/call util 1.00 | full   753.1 tok/s | prefill 25.0s
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+/usr/local/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1231: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+  q  S  speedup_row_loops_median  call_ratio_median  ideal_speedup_own_median  pct_ideal_own_median  ideal_speedup_full_median  pct_ideal_full_median  speedup_vs_noexit_tokens_median  paper_bound_median  pct_paper_bound_median
+0.3  2                     1.114              1.108                     1.114                 100.0                        NaN                    NaN                              NaN               1.625                     NaN
+0.3  4                     1.243              1.218                     1.243                 100.0                      1.072                113.672                            1.872               1.654                 113.226
+0.3  8                     1.256              1.327                     1.256                 100.0                        NaN                    NaN                              NaN               1.656                     NaN
+0.3 16                     1.383              1.386                     1.383                 100.0                      1.251                110.005                            1.825               1.661                 109.865
+0.3 32                     1.465              1.508                     1.465                 100.0                        NaN                    NaN                              NaN               1.665                     NaN
+0.3 64                     1.346              1.579                     1.346                 100.0                      1.468                 91.562                            1.525               1.668                  91.431
+1.0  4                     1.006              1.000                     1.006                 100.0                      1.000                100.650                            1.006               1.000                 100.623
+1.0 16                     1.010              1.000                     1.010                 100.0                      1.000                100.953                            1.010               1.000                 100.953
+1.0 64                     0.998              1.000                     0.998                 100.0                      1.000                 99.755                            0.998               1.000                  99.754
+wrote /vol/results/bench_q03-l40s-20261105-083950/bench_cdb_bench_q03-l40s-20261105-083950_runs.csv and _points/_speedup CSVs
+[exit 0]
+
+$ python plot_bench.py $OUT/bench_cdb_$RID
+wrote /vol/results/bench_q03-l40s-20261105-083950/bench_cdb_bench_q03-l40s-20261105-083950_throughput.png
+wrote /vol/results/bench_q03-l40s-20261105-083950/bench_cdb_bench_q03-l40s-20261105-083950_pct_ideal.png
+[exit 0]

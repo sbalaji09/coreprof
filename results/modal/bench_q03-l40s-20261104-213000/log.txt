@@ -1,0 +1,45 @@
+
+$ { echo task=$RID; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=bench_q03-l40s-20261104-213000
+Thu Nov  5 05:30:33 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-0bc1ae90-d9a4-bbc9-8ba3-8a753776a3a3, 46068 MiB, 610.57.04
+CPU(s):              21
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python bench_cdb.py --q 0.3 --slots 2 4 8 16 32 64 --repeats 3 --run-id $RID --out-dir $OUT
+{"started": "2026-11-05T05:30:54", "gpu": "NVIDIA L40S", "gpu_uuid": "GPU-0bc1ae90-d9a4-bbc9-8ba3-8a753776a3a3", "torch": "2.5.1+cu124", "transformers": "4.57.1", "python": "3.11.12", "model_revision": "574fa66cb8bf5abdc979642d01cf2b79b16bfab1", "gsm8k_revision": "740312add88f781978c0658806c59bc2815b9866", "dtype": "bf16", "git_commit": "", "git_dirty": false, "args": {"slots": [2, 4, 8, 16, 32, 64], "q": [0.3], "repeats": 3, "cycles": 8, "max_new_tokens": 128, "out_dir": "/vol/results/bench_q03-l40s-20261104-213000", "run_id": "bench_q03-l40s-20261104-213000"}}
+Traceback (most recent call last):
+  File "/root/loopcore/bench_cdb.py", line 275, in <module>
+    main()
+  File "/root/loopcore/bench_cdb.py", line 233, in main
+    all_prompts = gsm8k_prompts(max(args.slots) * args.cycles)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/loopcore/batching/workload.py", line 20, in gsm8k_prompts
+    questions = pd.read_parquet(path)["question"].head(n).tolist()
+                ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/parquet.py", line 651, in read_parquet
+    impl = get_engine(engine)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/parquet.py", line 67, in get_engine
+    raise ImportError(
+ImportError: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - Missing optional dependency 'pyarrow'. pyarrow is required for parquet support. Use pip or conda to install pyarrow.
+ - Missing optional dependency 'fastparquet'. fastparquet is required for parquet support. Use pip or conda to install fastparquet.
+[exit 1]

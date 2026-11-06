@@ -7,6 +7,7 @@ Usage (from the repo root, after `modal setup`):
     modal run modal_app.py --task equivalence        # Week 2 fp32 equivalence test
     modal run modal_app.py --task tests              # pytest unit tests
     modal run modal_app.py --task quality            # GSM8K accuracy check
+    modal run modal_app.py --task loopprof           # Week 4: B x C sweep + fit (~30-45 min)
     modal run --detach modal_app.py --task bench_q03 # Week 3: q=0.3 sweep + q=1.0 control (hours)
     modal run modal_app.py --task check --gpu A100-80GB
     modal run modal_app.py --task bench_q03 --run-id <id> --pull   # download a detached run
@@ -63,6 +64,13 @@ TASKS = {
     "quality": CHECK + ["python quality_check.py --out-dir $OUT"],
     # Week 3 remainder: q=0.3 on this GPU (S=1 skipped: with one slot CDB == baseline by
     # construction), plus a q=1.0 control at a few slot counts to confirm the noise floor.
+    # Week 4: LoopProf sweep over batch x context, then fit t = δ + γB + αC (+ B·C variants).
+    # Re-running with the same --run-id resumes the sweep where it stopped.
+    "loopprof": CHECK + [
+        "python loopprof.py --out-dir $OUT",
+        "python fit_loopprof.py $OUT/loopprof.csv --target ut",
+        "python fit_loopprof.py $OUT/loopprof.csv --target decode",
+    ],
     "bench_q03": CHECK + [
         "python bench_cdb.py --q 0.3 --slots 2 4 8 16 32 64 --repeats 3 --run-id $RID --out-dir $OUT",
         "python bench_cdb.py --q 1.0 --slots 4 16 64 --repeats 2 --run-id $RID --out-dir $OUT",
