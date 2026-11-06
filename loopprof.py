@@ -152,10 +152,13 @@ def main():
     peak_spec = spec_gbps(gpu)
 
     hargs = SimpleNamespace(targets=["ut_step", "decode_step"], ut_step=args.ut_step, seed=args.seed,
-                            warmup=args.warmup, reps=args.reps)
+                            warmup=args.warmup, reps=args.reps, dtype=args.dtype)
     meta = harness.run_metadata(hargs, model)
     meta.update(
         tool="loopprof v0", args=vars(args), gpu_total_mem_gb=total_mem / 2**30,
+        # Contexts beyond the trained length are fine for timing (RoPE is computed per
+        # position), but outputs there are not meaningful; recorded so the write-up can say so.
+        max_position_embeddings=getattr(model.config, "max_position_embeddings", None),
         spec_peak_gbps=peak_spec, measured_peak_gbps=peak_meas,
         byte_model={k: v for k, v in vars(bm).items()},
         byte_model_notes=("bytes/ut_step = weight_bytes (looped block: 24 layers + norm + exit gate) "

@@ -239,8 +239,14 @@ def main():
             "mean_abs_rel_resid_pct": float(100 * rel.mean()),
             "worst_config": {"B": int(B[np.argmax(np.abs(resid))]), "C": int(C[np.argmax(np.abs(resid))])},
         }
-    best = min(report["models"], key=lambda k: report["models"][k]["aic"])
+    # Lowest AIC wins, but a model within 2 AIC units of the minimum is statistically tied; among
+    # tied models prefer the one with fewer parameters (MODELS is ordered simplest-first per k).
+    aics = {k: v["aic"] for k, v in report["models"].items()}
+    a_min = min(aics.values())
+    tied = [k for k in report["models"] if aics[k] - a_min < 2]
+    best = min(tied, key=lambda k: (report["models"][k]["k"], aics[k]))
     report["best_by_aic"] = best
+    report["aic_delta"] = {k: round(v - a_min, 2) for k, v in aics.items()}
 
     # Flat-region check: how much does time grow from the smallest B to each B, at fixed C?
     flat = {}
@@ -262,9 +268,10 @@ def main():
     lines = [f"# LoopProf fit: {args.target}_step time", "",
              f"{len(y)} configs; B in {report['B_values']}; C in {report['C_values']}.", ""]
     for name, mr in report["models"].items():
-        tag = "  ← best by AIC" if name == best else ""
+        tag = "  ← preferred (lowest AIC, or simplest within ΔAIC < 2)" if name == best else ""
         lines += [f"## {name}{tag}", "",
-                  f"R² = {mr['r2']:.4f}, adjusted R² = {mr['adj_r2']:.4f}, AIC = {mr['aic']:.1f}, "
+                  f"R² = {mr['r2']:.4f}, adjusted R² = {mr['adj_r2']:.4f}, AIC = {mr['aic']:.1f} "
+                  f"(Δ = {report['aic_delta'][name]:.1f}), "
                   f"max |residual| = {mr['max_abs_resid_ms']:.2f} ms (at B={mr['worst_config']['B']}, "
                   f"C={mr['worst_config']['C']}), mean |residual| = {mr['mean_abs_rel_resid_pct']:.1f} %", "",
                   "| parameter | estimate | ± SE | 95 % CI (OLS) | 95 % CI (bootstrap, configs) | 95 % CI (bootstrap, repeats) |",
