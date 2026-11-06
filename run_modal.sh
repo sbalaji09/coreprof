@@ -20,8 +20,9 @@ if ! "$MODAL" token info >/dev/null 2>&1 && [ ! -f "$HOME/.modal.toml" ]; then
   "$MODAL" setup
 fi
 
-# Long Week 3 job: detach so closing the laptop doesn't kill it.
-if [[ " $* " == *" bench_q03 "* ]]; then
+# Long jobs (Week 3 bench, Week 4 LoopProf): detach so closing the laptop doesn't kill them.
+# Results stay on the Modal volume; fetch them later with --run-id <id> --pull.
+if [[ " $* " == *" bench_q03 "* || " $* " == *" loopprof "* ]] && [[ " $* " != *" --pull "* ]]; then
   exec "$MODAL" run --detach modal_app.py "$@"
 fi
 exec "$MODAL" run modal_app.py "$@"
