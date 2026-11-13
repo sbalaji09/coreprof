@@ -1,0 +1,113 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=delta_split-l40s-20261112-170226
+git=ac46b4e
+Fri Nov 13 01:08:52 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-08236e2b-0281-7a70-17c1-d36c29fc6fde, 46068 MiB, 610.57.04
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python delta_split.py --out-dir $OUT
+GPU NVIDIA L40S: spec 864 GB/s, measured copy peak 659 GB/s; looped-block weights 2.467 GB -> predicted weight fetch 2.85 ms (spec), 3.74 ms (measured peak)
+static vs HF step: {'B': 2, 'C': 64, 'rel_err_hidden': 0.0, 'max_abs_err_gate': 0.0, 'ok': True}
+launch: {'eager_host_us_per_launch': 4.785, 'eager_total_us_per_launch': 4.787, 'eager_gpu_us_per_launch': 4.773, 'graph_us_per_op': 0.835}
+impl=eager_hf B=1 C=128 layers=24 median_ms=11.747 p10_ms=11.689 p90_ms=11.827 iqr_ms=0.045 n=50 gpu_ops_per_step=1379.000 launch_calls_per_step=1379.000
+impl=eager_static B=1 C=128 layers=24 median_ms=15.092 p10_ms=15.062 p90_ms=15.120 iqr_ms=0.026 n=50 gpu_ops_per_step=1379.000 launch_calls_per_step=1379.000
+impl=graph_static B=1 C=128 layers=24 median_ms=5.945 p10_ms=5.941 p90_ms=5.954 iqr_ms=0.005 n=50
+impl=eager_hf B=1 C=2048 layers=24 median_ms=15.351 p10_ms=15.310 p90_ms=15.441 iqr_ms=0.066 n=50
+impl=eager_static B=1 C=2048 layers=24 median_ms=15.008 p10_ms=14.978 p90_ms=15.050 iqr_ms=0.041 n=50
+impl=graph_static B=1 C=2048 layers=24 median_ms=6.508 p10_ms=6.502 p90_ms=6.519 iqr_ms=0.008 n=50
+impl=eager_hf B=8 C=512 layers=24 median_ms=15.514 p10_ms=15.469 p90_ms=15.561 iqr_ms=0.047 n=50
+impl=eager_static B=8 C=512 layers=24 median_ms=15.251 p10_ms=15.227 p90_ms=15.286 iqr_ms=0.024 n=50
+impl=graph_static B=8 C=512 layers=24 median_ms=7.507 p10_ms=7.499 p90_ms=7.516 iqr_ms=0.007 n=50
+impl=eager_hf B=16 C=2048 layers=24 median_ms=38.459 p10_ms=38.442 p90_ms=38.483 iqr_ms=0.019 n=50
+impl=eager_static B=16 C=2048 layers=24 median_ms=15.978 p10_ms=15.972 p90_ms=17.453 iqr_ms=1.470 n=50
+impl=graph_static B=16 C=2048 layers=24 median_ms=15.530 p10_ms=15.521 p90_ms=15.539 iqr_ms=0.009 n=50
+impl=eager_hf B=32 C=1024 layers=24 median_ms=38.761 p10_ms=38.741 p90_ms=38.783 iqr_ms=0.024 n=50
+impl=eager_static B=32 C=1024 layers=24 median_ms=16.293 p10_ms=16.275 p90_ms=17.667 iqr_ms=1.375 n=50
+impl=graph_static B=32 C=1024 layers=24 median_ms=15.892 p10_ms=15.873 p90_ms=15.927 iqr_ms=0.030 n=50
+impl=eager_hf B=4 C=8192 layers=24 median_ms=38.831 p10_ms=38.808 p90_ms=38.852 iqr_ms=0.021 n=50
+impl=eager_static B=4 C=8192 layers=24 median_ms=15.858 p10_ms=15.825 p90_ms=17.251 iqr_ms=1.414 n=50
+impl=graph_static B=4 C=8192 layers=24 median_ms=14.977 p10_ms=14.970 p90_ms=14.984 iqr_ms=0.009 n=50
+impl=eager_static B=1 C=128 layers=3 weight_bytes=308331520.250 median_ms=2.018 p10_ms=2.009 p90_ms=2.029 iqr_ms=0.010 n=50
+impl=graph_static B=1 C=128 layers=3 weight_bytes=308331520.250 median_ms=0.818 p10_ms=0.817 p90_ms=0.824 iqr_ms=0.003 n=50
+impl=eager_static B=1 C=128 layers=6 weight_bytes=616663040.500 median_ms=3.997 p10_ms=3.979 p90_ms=4.015 iqr_ms=0.018 n=50
+impl=graph_static B=1 C=128 layers=6 weight_bytes=616663040.500 median_ms=1.597 p10_ms=1.595 p90_ms=1.605 iqr_ms=0.004 n=50
+impl=eager_static B=1 C=128 layers=12 weight_bytes=1233326081.000 median_ms=7.799 p10_ms=7.774 p90_ms=7.828 iqr_ms=0.029 n=50
+impl=graph_static B=1 C=128 layers=12 weight_bytes=1233326081.000 median_ms=3.149 p10_ms=3.145 p90_ms=3.159 iqr_ms=0.005 n=50
+impl=eager_static B=1 C=128 layers=18 weight_bytes=1849989121.500 median_ms=11.650 p10_ms=11.620 p90_ms=11.755 iqr_ms=0.059 n=50
+impl=graph_static B=1 C=128 layers=18 weight_bytes=1849989121.500 median_ms=4.718 p10_ms=4.713 p90_ms=4.728 iqr_ms=0.007 n=50
+impl=eager_static B=1 C=128 layers=24 weight_bytes=2466652162.000 median_ms=15.448 p10_ms=15.408 p90_ms=15.499 iqr_ms=0.043 n=50
+impl=graph_static B=1 C=128 layers=24 weight_bytes=2466652162.000 median_ms=6.284 p10_ms=6.275 p90_ms=6.289 iqr_ms=0.007 n=50
+# Week 5: δ split on NVIDIA L40S
+
+Looped-block weights: 2.467 GB. Predicted weight fetch: **2.85 ms** at spec bandwidth (864 GB/s), **3.74 ms** at the measured copy peak (659 GB/s).
+
+Static-cache step vs HF step (same cache contents): relative error 0.00e+00, gate error 0.00e+00 → OK.
+
+Launch cost: eager 4.78 µs of CPU per kernel launch; inside a CUDA graph 0.83 µs per op.
+
+## Decomposition at B=1, C=128 (KV traffic negligible)
+
+| implementation | step time (ms) |
+|---|---:|
+| eager + HF cache (LoopProf) | 11.75 |
+| eager + static cache | 15.09 |
+| CUDA graph + static cache (best-case GPU) | 5.95 |
+
+| component | ms |
+|---|---:|
+| HF cache handling (eager_hf − eager_static) | -3.35 |
+| launch + Python (eager_static − graph) | 9.15 |
+| **software overhead total** | **5.80** (49 % of the eager step) |
+| GPU time (graph) | 5.95 |
+| … of which ideal weight streaming (measured peak) | 3.74 |
+| … GPU time beyond ideal streaming | 2.20 |
+
+**Layer sweep (graph_static)**: t = 0.03 ms + weight term; full-block weight term 6.25 ms → effective weight bandwidth 395 GB/s (R² 1.0000, n=5).
+
+**Layer sweep (eager_static)**: t = 0.13 ms + weight term; full-block weight term 15.33 ms → effective weight bandwidth 161 GB/s (R² 1.0000, n=5).
+
+## KV cost per cached token (slope of step time vs B·C)
+
+| implementation | µs per cached token | effective KV bandwidth (GB/s) | R² |
+|---|---:|---:|---:|
+| eager_hf | 0.799 | 246 | 0.9974 |
+| eager_static | 0.175 | 1121 | 0.2535 |
+| graph_static | 0.346 | 568 | 0.8881 |
+
+## Upper bound: removing only the weight term from the best-case GPU step
+
+| B | C | GPU (graph) ms | weight term ms | remaining ms | speedup bound |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 128 | 5.95 | 6.25 | -0.30 | 5945296.05× |
+| 1 | 2048 | 6.51 | 6.25 | 0.26 | 24.80× |
+| 8 | 512 | 7.51 | 6.25 | 1.26 | 5.95× |
+| 16 | 2048 | 15.53 | 6.25 | 9.28 | 1.67× |
+| 32 | 1024 | 15.89 | 6.25 | 9.65 | 1.65× |
+| 4 | 8192 | 14.98 | 6.25 | 8.73 | 1.72× |
+| 1 | 128 | 0.82 | 6.25 | -5.43 | 818288.00× |
+| 1 | 128 | 1.60 | 6.25 | -4.65 | 1597360.01× |
+| 1 | 128 | 3.15 | 6.25 | -3.10 | 3149168.01× |
+| 1 | 128 | 4.72 | 6.25 | -1.53 | 4717855.93× |
+| 1 | 128 | 6.28 | 6.25 | 0.04 | 165.70× |
+
+Upper bound on the step-time gain from removing ONLY the weight-streaming term from the best-case (CUDA-graph, static-cache) GPU step; KV still comes from DRAM and SRAM read time is taken as zero. Vaibhav's model replaces this.
+
+
+[exit 0]

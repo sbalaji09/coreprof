@@ -9,6 +9,7 @@ Usage (from the repo root, after `modal setup`):
     modal run modal_app.py --task quality            # GSM8K accuracy check
     modal run modal_app.py --task loopprof           # Week 4: B x C sweep + fit (~30-45 min)
     modal run modal_app.py --task delta_split        # Week 5: split delta (overhead vs weights)
+    modal run modal_app.py --task delta_grid         # Week 5 v1: kernel breakdown + CUDA-graph B x C fit
     modal run --detach modal_app.py --task bench_q03 # Week 3: q=0.3 sweep + q=1.0 control (hours)
     modal run modal_app.py --task check --gpu A100-80GB
     modal run modal_app.py --task bench_q03 --run-id <id> --pull   # download a detached run
@@ -75,6 +76,8 @@ TASKS = {
     # Week 5: split δ into weight streaming vs software overhead (layer sweep, CUDA graphs,
     # static cache, launch microbenchmarks), all in one container. ~10-15 min on an L40S.
     "delta_split": CHECK + ["python delta_split.py --out-dir $OUT"],
+    # Week 5 v1: kernel-time breakdown + CUDA-graph static-cache B x C grid and fit (~15-20 min).
+    "delta_grid": CHECK + ["python delta_split.py --grid --out-dir $OUT"],
     "bench_q03": CHECK + [
         "python bench_cdb.py --q 0.3 --slots 2 4 8 16 32 64 --repeats 3 --run-id $RID --out-dir $OUT",
         "python bench_cdb.py --q 1.0 --slots 4 16 64 --repeats 2 --run-id $RID --out-dir $OUT",

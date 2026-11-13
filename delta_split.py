@@ -55,6 +55,12 @@ def parse_args():
     p.add_argument("--dtype", choices=harness.DTYPES, default="bf16")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--quick", action="store_true", help="few reps/configs: a cheap end-to-end check")
+    p.add_argument("--grid", action="store_true",
+                   help="v1: skip the launch/3-impl/layer parts; profile kernels and sweep the CUDA-graph "
+                        "static-cache step over --grid-batch x --grid-ctx, then fit δ + γB + α'BC")
+    p.add_argument("--grid-batch", type=int, nargs="+", default=[1, 2, 4, 8, 16, 32, 64])
+    p.add_argument("--grid-ctx", type=int, nargs="+", default=[128, 256, 512, 1024, 2048, 4096, 8192])
+    p.add_argument("--grid-mem-gb", type=float, default=30.0, help="skip grid points whose static KV exceeds this")
     p.add_argument("--out-dir", required=True)
     a = p.parse_args()
     if a.quick:
@@ -152,6 +158,50 @@ def count_kernels(fn, steps=5):
     launches = [e for e in ev if e.name in ("cudaLaunchKernel", "cuLaunchKernel", "cudaLaunchKernelExC",
                                               "cudaGraphLaunch", "cudaMemcpyAsync", "cudaMemsetAsync")]
     return dict(gpu_ops_per_step=len(gpu) / steps, launch_calls_per_step=len(launches) / steps)
+
+
+KERNEL_CATS = [
+    ("gemm", ("gemm", "gemv", "cutlass", "xmma", "cublas", "sm80_", "sm89_", "sm90_", "ampere_", "ada_")),
+    ("attention", ("flash", "fmha", "attention", "sdpa")),
+    ("copy", ("copy", "memcpy", "memset", "cat", "index")),
+]
+
+
+def kernel_breakdown(fn, steps=5):
+    """GPU-side kernel time per call of fn, grouped by kind (from kernel durations, so it does not
+    include host gaps). gemm ≈ weight streaming; the rest is norms, activations, rotary, etc."""
+    from torch.profiler import ProfilerActivity, profile
+    for _ in range(3):
+        fn()
+    torch.cuda.synchronize()
+    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
+        for _ in range(steps):
+            fn()
+        torch.cuda.synchronize()
+    tot, n, top = {}, {}, {}
+    for e in prof.events():
+        if getattr(e, "device_type", None) is None or e.device_type.name != "CUDA":
+            continue
+        us = e.time_range.elapsed_us()
+        name = e.name.lower()
+        cat = next((c for c, keys in KERNEL_CATS if any(k in name for k in keys)), "other")
+        tot[cat] = tot.get(cat, 0.0) + us
+        n[cat] = n.get(cat, 0) + 1
+        top[e.name] = top.get(e.name, 0.0) + us
+    res = {f"{c}_ms": tot[c] / steps / 1e3 for c in tot}
+    res.update({f"{c}_kernels": n[c] / steps for c in n})
+    res["busy_ms"] = sum(tot.values()) / steps / 1e3
+    res["kernels"] = sum(n.values()) / steps
+    res["top_kernels_ms"] = {k: v / steps / 1e3 for k, v in sorted(top.items(), key=lambda kv: -kv[1])[:12]}
+    return res
+
+
+def safe_breakdown(fn):
+    try:
+        return kernel_breakdown(fn)
+    except Exception as e:
+        print("kernel breakdown failed:", e)
+        return None
 
 
 def safe_count(fn):
@@ -305,6 +355,10 @@ def main():
         print(out["errors"]["static_vs_hf_check"])
     save()
 
+    if args.grid:
+        run_grid(args, model, bm, L, out, save)
+        return
+
     # 1. launch microbenchmarks
     try:
         out["launch"] = launch_microbench()
@@ -352,6 +406,7 @@ def main():
                 t = gpu_times(step, args.warmup, args.reps)
                 kc = safe_count(step) if (B, C) == args.configs[0] else {}
                 record(impl="eager_static", B=B, C=C, layers=L, **stats(t), **kc)
+                out.setdefault("kernel_breakdown", {})[f"eager_static {tag}"] = safe_breakdown(step)
                 try:
                     g, _ = capture_graph(step)
                     t = gpu_times(g.replay, args.warmup, args.reps)
@@ -403,6 +458,144 @@ def main():
     print(md)
 
 
+# ---------------------------------------------------------------- v1: CUDA-graph B x C grid
+
+def fit_models(rows):
+    """OLS fits of t = δ+γB+αC (M1), δ+γB+α'BC (M2), δ+γB+αC+α'BC (M3) with standard errors."""
+    B = np.array([r["B"] for r in rows], float)
+    C = np.array([r["C"] for r in rows], float)
+    y = np.array([r["median_ms"] for r in rows], float)
+    one = np.ones_like(B)
+    designs = {"M1": (["delta", "gamma", "alpha"], [one, B, C]),
+               "M2": (["delta", "gamma", "alpha_prime"], [one, B, B * C]),
+               "M3": (["delta", "gamma", "alpha", "alpha_prime"], [one, B, C, B * C])}
+    out = {}
+    for name, (names, cols) in designs.items():
+        A = np.column_stack(cols)
+        beta, *_ = np.linalg.lstsq(A, y, rcond=None)
+        r = y - A @ beta
+        n, k = A.shape
+        s2 = float(r @ r) / max(n - k, 1)
+        se = np.sqrt(np.diag(s2 * np.linalg.pinv(A.T @ A)))
+        tss = float(((y - y.mean()) ** 2).sum())
+        aic = n * math.log(max(float(r @ r), 1e-12) / n) + 2 * k
+        out[name] = dict(params={p: float(b) for p, b in zip(names, beta)},
+                         se={p: float(e) for p, e in zip(names, se)},
+                         r2=1 - float(r @ r) / tss, aic=aic, max_abs_resid_ms=float(np.abs(r).max()), n=n)
+    return out
+
+
+def run_grid(args, model, bm, L, out, save):
+    out["tool"] = "delta_split v1 (grid)"
+    rows, csv_path = [], os.path.join(args.out_dir, "graph_grid.csv")
+    total_mem = torch.cuda.get_device_properties(0).total_memory
+    with torch.inference_mode():
+        for (B, C) in [(1, 128), (16, 2048)]:          # where does GPU time go, small vs large B·C
+            try:
+                step, cache = build_static_step(model, B, C, L, args.dtype, args.seed)
+                out.setdefault("kernel_breakdown", {})[f"eager_static {B}x{C}"] = safe_breakdown(step)
+                g, _ = capture_graph(step)
+                out["kernel_breakdown"][f"graph_static {B}x{C}"] = safe_breakdown(g.replay)
+                del g, step, cache
+                harness.free_cuda()
+            except Exception:
+                out["errors"][f"breakdown {B}x{C}"] = traceback.format_exc()
+                harness.free_cuda()
+            print(f"kernel breakdown {B}x{C}:", json.dumps(out["kernel_breakdown"].get(f"eager_static {B}x{C}"),
+                                                           default=str)[:600])
+        save()
+        for C in args.grid_ctx:
+            for B in args.grid_batch:
+                kv_gb = B * (C + 1) * bm.kv_per_token_per_loop / 1e9
+                if kv_gb > args.grid_mem_gb or kv_gb * 1e9 > 0.6 * total_mem:
+                    print(f"B={B} C={C} skipped (static KV {kv_gb:.1f} GB)")
+                    continue
+                try:
+                    step, cache = build_static_step(model, B, C, L, args.dtype, args.seed)
+                    g, _ = capture_graph(step)
+                    t = gpu_times(g.replay, args.warmup, args.reps)
+                    r = dict(impl="graph_static", B=B, C=C, layers=L, **stats(t))
+                    by = bm.weight_bytes + B * (C + 1) * bm.kv_per_token_per_loop
+                    r["achieved_gbps"] = by / (r["median_ms"] * 1e-3) / 1e9
+                    r["util_measured"] = r["achieved_gbps"] / out["measured_peak_gbps"]
+                    rows.append(r)
+                    print(f"B={B:<3} C={C:<5} graph {r['median_ms']:7.3f} ms  {r['achieved_gbps']:5.0f} GB/s "
+                          f"({100 * r['util_measured']:.0f}% of copy peak)")
+                    del g, step, cache
+                except Exception:
+                    out["errors"][f"grid {B}x{C}"] = traceback.format_exc().strip().splitlines()[-1]
+                    print(f"B={B} C={C} error: {out['errors'][f'grid {B}x{C}']}")
+                harness.free_cuda()
+                with open(csv_path, "w", newline="") as f:
+                    w = csv.DictWriter(f, fieldnames=list(rows[0]) if rows else ["B"])
+                    w.writeheader()
+                    w.writerows(rows)
+        out["grid"] = rows
+        save()
+    if len(rows) >= 5:
+        out["grid_fit"] = fit_models(rows)
+    out["analysis"] = {"onchip_weights_upper_bound": onchip_bound(out, rows, "graph_static")}
+    save()
+    md = report_grid(out)
+    with open(os.path.join(args.out_dir, "delta_split_grid.md"), "w") as f:
+        f.write(md)
+    print(md)
+
+
+def breakdown_md(out):
+    L = []
+    kb = {k: v for k, v in (out.get("kernel_breakdown") or {}).items() if v}
+    if kb:
+        cats = ["gemm", "attention", "copy", "other"]
+        L += ["## GPU kernel time per step, by kind (kernel durations only; no host gaps)\n",
+              "| step | kernels | " + " | ".join(f"{c} ms" for c in cats) + " | busy ms |",
+              "|---|---:|" + "---:|" * (len(cats) + 1)]
+        for k, v in kb.items():
+            L.append(f"| {k} | {v.get('kernels', 0):.0f} | " + " | ".join(f"{v.get(c + '_ms', 0):.2f}" for c in cats)
+                     + f" | {v.get('busy_ms', 0):.2f} |")
+        first = next(iter(kb.values()))
+        L += ["", "Top kernels (first row): " + "; ".join(f"`{n[:60]}` {t:.2f} ms"
+                                                          for n, t in list(first["top_kernels_ms"].items())[:6]), ""]
+    return L
+
+
+def report_grid(out):
+    f = lambda v, nd=2: "n/a" if v is None else f"{v:.{nd}f}"
+    L = [f"# Week 5 v1: CUDA-graph static-cache step over B x C on {out['gpu']}\n",
+         f"Predicted weight fetch {f(out['predicted_weight_fetch_ms']['spec'])} ms (spec), "
+         f"{f(out['predicted_weight_fetch_ms']['measured_peak'])} ms (measured copy peak "
+         f"{out['measured_peak_gbps']:.0f} GB/s).\n"]
+    L += breakdown_md(out)
+    gf = out.get("grid_fit")
+    if gf:
+        L += ["## Fits\n", "| model | δ ms | γ ms/seq | α ms/token | α' µs per cached token | R² | AIC | max resid ms |",
+              "|---|---:|---:|---:|---:|---:|---:|---:|"]
+        for m, v in gf.items():
+            p, se = v["params"], v["se"]
+            cell = lambda k, s=1.0, nd=3: (f"{p[k] * s:.{nd}f} ± {se[k] * s:.{nd}f}" if k in p else "")
+            L.append(f"| {m} | {cell('delta')} | {cell('gamma', 1, 4)} | {cell('alpha', 1, 6)} | "
+                     f"{cell('alpha_prime', 1e3, 4)} | {v['r2']:.4f} | {v['aic']:.1f} | {v['max_abs_resid_ms']:.2f} |")
+        m2 = gf["M2"]["params"]
+        if m2.get("alpha_prime", 0) > 0:
+            bw = out["kv_bytes_per_token_per_loop"] / (m2["alpha_prime"] * 1e-3) / 1e9
+            L.append(f"\nM2 KV slope → effective KV bandwidth {bw:.0f} GB/s "
+                     f"({100 * bw / out['measured_peak_gbps']:.0f}% of measured copy peak).\n")
+    oc = (out.get("analysis") or {}).get("onchip_weights_upper_bound")
+    if oc:
+        L += [f"## Upper bound if weights were free (weight term = {oc['weight_term_source']})\n",
+              "| B | C | GPU (graph) ms | weight term ms | remaining ms | speedup bound |", "|---:|---:|---:|---:|---:|---:|"]
+        for r in oc["rows"]:
+            sp = r["speedup_if_weights_free"]
+            L.append(f"| {r['B']} | {r['C']} | {f(r['gpu_graph_ms'])} | {f(r['weight_term_ms'])} | "
+                     f"{f(r['remaining_ms'])} | {f(sp) + '×' if sp else 'n/a (weight term ≈ whole step)'} |")
+        L.append(f"\n{oc['note']}\n")
+    if out.get("errors"):
+        L.append("## Errors\n")
+        for k, v in out["errors"].items():
+            L.append(f"- **{k}**: `{str(v).strip().splitlines()[-1]}`")
+    return "\n".join(L) + "\n"
+
+
 # ---------------------------------------------------------------- analysis
 
 def linfit(x, y):
@@ -424,7 +617,7 @@ def linfit(x, y):
 
 def analyze(out, bm, L):
     a = {}
-    steps = out.get("steps", [])
+    steps = [r for r in out.get("steps", []) if r.get("layers") == L]   # layer-sweep rows excluded
     get = lambda impl, B, C: next((r["median_ms"] for r in steps
                                     if r["impl"] == impl and r["B"] == B and r["C"] == C), None)
     # decomposition at the smallest-B·C config
@@ -466,21 +659,29 @@ def analyze(out, bm, L):
                                          if f["slope"] > 0 else None)
             a[f"kv_slope_{impl}"] = f
     # first, explicitly bounded, estimate of what on-chip weights save (best-case GPU baseline)
-    lw = a.get("layer_sweep_fit_graph_static")
-    gr_pts = [r for r in steps if r["impl"] == "graph_static"]
-    if lw and gr_pts:
-        wt = max(lw["weight_term_ms_full_block"], 0.0)
+    # The weight term is the measured GEMM kernel time at the smallest config (kernel durations, no
+    # host gaps) when the profile exists, else bytes / measured copy peak. NOT the layer-sweep slope:
+    # removing layers removes their norms/rotary/attention kernels too, so that slope over-counts.
+    a["onchip_weights_upper_bound"] = onchip_bound(out, steps, "graph_static")
+    return a
+
+
+def onchip_bound(out, steps, impl):
+    kb = next((v for k, v in (out.get("kernel_breakdown") or {}).items() if v and "gemm_ms" in v), None)
+    wt = kb["gemm_ms"] if kb else out["predicted_weight_fetch_ms"]["measured_peak"]
+    src = "GEMM kernel time (profiled)" if kb else "weight bytes / measured copy peak"
+    pts = [r for r in steps if r["impl"] == impl]
+    if pts:
         est = []
-        for r in gr_pts:
+        for r in pts:
             t_gpu = r["median_ms"]
-            t_onchip = max(t_gpu - wt, 1e-6)
+            rem = t_gpu - wt
             est.append(dict(B=r["B"], C=r["C"], gpu_graph_ms=t_gpu, weight_term_ms=wt,
-                            remaining_ms=t_gpu - wt, speedup_if_weights_free=t_gpu / t_onchip))
-        a["onchip_weights_upper_bound"] = dict(
-            rows=est, note=("Upper bound on the step-time gain from removing ONLY the weight-streaming "
+                            remaining_ms=rem, speedup_if_weights_free=(t_gpu / rem) if rem > 0.05 * t_gpu else None))
+        return dict(
+            rows=est, weight_term_source=src, note=("Upper bound on the step-time gain from removing ONLY the weight-streaming "
                             "term from the best-case (CUDA-graph, static-cache) GPU step; KV still comes "
                             "from DRAM and SRAM read time is taken as zero. Vaibhav's model replaces this."))
-    return a
 
 
 def report(out):
@@ -529,13 +730,14 @@ def report(out):
             if v:
                 L.append(f"| {i} | {f(v['kv_us_per_cached_token'], 3)} | {f(v['effective_kv_bw_gbps'], 0)} | {f(v['r2'], 4)} |")
         L.append("")
+    L += breakdown_md(out)
     oc = a.get("onchip_weights_upper_bound")
     if oc:
-        L += ["## Upper bound: removing only the weight term from the best-case GPU step\n",
+        L += [f"## Upper bound: removing only the weight term ({oc['weight_term_source']}) from the best-case GPU step\n",
               "| B | C | GPU (graph) ms | weight term ms | remaining ms | speedup bound |", "|---:|---:|---:|---:|---:|---:|"]
         for r in oc["rows"]:
             L.append(f"| {r['B']} | {r['C']} | {f(r['gpu_graph_ms'])} | {f(r['weight_term_ms'])} | "
-                     f"{f(r['remaining_ms'])} | {f(r['speedup_if_weights_free'])}× |")
+                     f"{f(r['remaining_ms'])} | {f(r['speedup_if_weights_free']) + '×' if r['speedup_if_weights_free'] else 'n/a'} |")
         L.append(f"\n{oc['note']}\n")
     if out.get("errors"):
         L.append("## Errors\n")
