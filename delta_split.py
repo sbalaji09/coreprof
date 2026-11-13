@@ -160,9 +160,9 @@ def count_kernels(fn, steps=5):
     return dict(gpu_ops_per_step=len(gpu) / steps, launch_calls_per_step=len(launches) / steps)
 
 
-KERNEL_CATS = [
-    ("gemm", ("gemm", "gemv", "cutlass", "xmma", "cublas", "sm80_", "sm89_", "sm90_", "ampere_", "ada_")),
+KERNEL_CATS = [   # order matters: flash-attention kernel names contain "cutlass", so match attention first
     ("attention", ("flash", "fmha", "attention", "sdpa")),
+    ("gemm", ("gemm", "gemv", "cutlass", "xmma", "cublas", "sm80_", "sm89_", "sm90_", "ampere_", "ada_")),
     ("copy", ("copy", "memcpy", "memset", "cat", "index")),
 ]
 

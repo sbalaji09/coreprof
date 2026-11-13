@@ -1,0 +1,158 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=delta_grid-l40s-20261112-172748
+git=7059b6f
+Fri Nov 13 01:29:15 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-75589f3a-d43d-97f8-3ad3-aa9dbff03925, 46068 MiB, 620.70.06
+CPU(s):              21
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python delta_split.py --grid --out-dir $OUT
+GPU NVIDIA L40S: spec 864 GB/s, measured copy peak 635 GB/s; looped-block weights 2.467 GB -> predicted weight fetch 2.85 ms (spec), 3.89 ms (measured peak)
+static vs HF step: {'B': 2, 'C': 64, 'rel_err_hidden': 0.0, 'max_abs_err_gate': 0.0, 'ok': True}
+kernel breakdown 1x128: {"copy_ms": 0.6154004000000942, "other_ms": 1.1917778000000205, "gemm_ms": 3.966779799999973, "copy_kernels": 291.0, "other_kernels": 870.0, "gemm_kernels": 218.0, "busy_ms": 5.773958000000087, "kernels": 1379.0, "top_kernels_ms": {"std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 6, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int
+kernel breakdown 16x2048: {"copy_ms": 0.6728519999999951, "other_ms": 1.6071953999999449, "gemm_ms": 12.810008199999967, "copy_kernels": 291.0, "other_kernels": 870.0, "gemm_kernels": 193.0, "busy_ms": 15.090055599999909, "kernels": 1354.0, "top_kernels_ms": {"void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 8.785050999999994, "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s16161
+B=1   C=128   graph   5.821 ms    428 GB/s (67% of copy peak)
+B=2   C=128   graph   6.276 ms    401 GB/s (63% of copy peak)
+B=4   C=128   graph   6.353 ms    404 GB/s (64% of copy peak)
+B=8   C=128   graph   6.560 ms    407 GB/s (64% of copy peak)
+B=16  C=128   graph   7.055 ms    407 GB/s (64% of copy peak)
+B=32  C=128   graph   7.766 ms    422 GB/s (66% of copy peak)
+B=64  C=128   graph   9.109 ms    449 GB/s (71% of copy peak)
+B=1   C=256   graph   5.891 ms    427 GB/s (67% of copy peak)
+B=2   C=256   graph   6.316 ms    407 GB/s (64% of copy peak)
+B=4   C=256   graph   6.520 ms    409 GB/s (64% of copy peak)
+B=8   C=256   graph   6.934 ms    414 GB/s (65% of copy peak)
+B=16  C=256   graph   7.577 ms    432 GB/s (68% of copy peak)
+B=32  C=256   graph   8.873 ms    460 GB/s (72% of copy peak)
+B=64  C=256   graph  11.366 ms    502 GB/s (79% of copy peak)
+B=1   C=512   graph   5.934 ms    433 GB/s (68% of copy peak)
+B=2   C=512   graph   6.462 ms    413 GB/s (65% of copy peak)
+B=4   C=512   graph   6.842 ms    419 GB/s (66% of copy peak)
+B=8   C=512   graph   7.382 ms    443 GB/s (70% of copy peak)
+B=16  C=512   graph   8.654 ms    471 GB/s (74% of copy peak)
+B=32  C=512   graph  11.091 ms    513 GB/s (81% of copy peak)
+B=64  C=512   graph  15.672 ms    569 GB/s (90% of copy peak)
+B=1   C=1024  graph   6.100 ms    437 GB/s (69% of copy peak)
+B=2   C=1024  graph   6.748 ms    425 GB/s (67% of copy peak)
+B=4   C=1024  graph   7.389 ms    443 GB/s (70% of copy peak)
+B=8   C=1024  graph   8.671 ms    470 GB/s (74% of copy peak)
+B=16  C=1024  graph  10.799 ms    527 GB/s (83% of copy peak)
+B=32  C=1024  graph  15.667 ms    569 GB/s (90% of copy peak)
+B=64  C=1024  graph  24.387 ms    630 GB/s (99% of copy peak)
+B=1   C=2048  graph   6.423 ms    447 GB/s (70% of copy peak)
+B=2   C=2048  graph   7.314 ms    447 GB/s (70% of copy peak)
+B=4   C=2048  graph   8.373 ms    487 GB/s (77% of copy peak)
+B=8   C=2048  graph  10.631 ms    535 GB/s (84% of copy peak)
+B=16  C=2048  graph  15.084 ms    591 GB/s (93% of copy peak)
+B=32  C=2048  graph  23.997 ms    640 GB/s (101% of copy peak)
+B=64  C=2048  graph  41.698 ms    677 GB/s (107% of copy peak)
+B=1   C=4096  graph   6.923 ms    473 GB/s (74% of copy peak)
+B=2   C=4096  graph   8.394 ms    486 GB/s (77% of copy peak)
+B=4   C=4096  graph  10.535 ms    540 GB/s (85% of copy peak)
+B=8   C=4096  graph  15.176 ms    587 GB/s (92% of copy peak)
+B=16  C=4096  graph  23.728 ms    647 GB/s (102% of copy peak)
+B=32  C=4096  graph  41.385 ms    682 GB/s (108% of copy peak)
+B=64 C=4096 skipped (static KV 51.6 GB)
+B=1   C=8192  graph   8.265 ms    493 GB/s (78% of copy peak)
+B=2   C=8192  graph  10.676 ms    533 GB/s (84% of copy peak)
+B=4   C=8192  graph  14.856 ms    600 GB/s (94% of copy peak)
+B=8   C=8192  graph  23.628 ms    650 GB/s (102% of copy peak)
+B=16  C=8192  graph  40.985 ms    689 GB/s (109% of copy peak)
+B=32 C=8192 skipped (static KV 51.5 GB)
+B=64 C=8192 skipped (static KV 103.1 GB)
+# Week 5 v1: CUDA-graph static-cache step over B x C on NVIDIA L40S
+
+Predicted weight fetch 2.85 ms (spec), 3.89 ms (measured copy peak 635 GB/s).
+
+## GPU kernel time per step, by kind (kernel durations only; no host gaps)
+
+| step | kernels | gemm ms | attention ms | copy ms | other ms | busy ms |
+|---|---:|---:|---:|---:|---:|---:|
+| eager_static 1x128 | 1379 | 3.97 | 0.00 | 0.62 | 1.19 | 5.77 |
+| graph_static 1x128 | 1381 | 3.93 | 0.00 | 0.56 | 1.07 | 5.57 |
+| eager_static 16x2048 | 1354 | 12.81 | 0.00 | 0.67 | 1.61 | 15.09 |
+| graph_static 16x2048 | 1356 | 12.77 | 0.00 | 0.60 | 1.45 | 14.82 |
+
+Top kernels (first row): `std::enable_if<!(false), void>::type internal::gemvx::kernel` 3.79 ms; `void at::native::reduce_kernel<512, 1, at::native::ReduceOp<` 0.22 ms; `void at::native::unrolled_elementwise_kernel<at::native::dir` 0.21 ms; `void at::native::unrolled_elementwise_kernel<at::native::dir` 0.20 ms; `void at::native::elementwise_kernel<128, 4, at::native::gpu_` 0.18 ms; `void at::native::elementwise_kernel<128, 2, at::native::gpu_` 0.14 ms
+
+## Fits
+
+| model | δ ms | γ ms/seq | α ms/token | α' µs per cached token | R² | AIC | max resid ms |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| M1 | 3.520 ± 1.561 | 0.2821 ± 0.0501 | 0.002086 ± 0.000392 |  | 0.5366 | 174.8 | 20.29 |
+| M2 | 6.134 ± 0.032 | 0.0152 ± 0.0014 |  | 0.2648 ± 0.0008 | 0.9997 | -164.0 | 0.37 |
+| M3 | 6.132 ± 0.041 | 0.0152 ± 0.0016 | 0.000001 ± 0.000013 | 0.2648 ± 0.0010 | 0.9997 | -162.0 | 0.37 |
+
+M2 KV slope → effective KV bandwidth 742 GB/s (117% of measured copy peak).
+
+## Upper bound if weights were free (weight term = GEMM kernel time (profiled))
+
+| B | C | GPU (graph) ms | weight term ms | remaining ms | speedup bound |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 128 | 5.82 | 3.97 | 1.85 | 3.14× |
+| 2 | 128 | 6.28 | 3.97 | 2.31 | 2.72× |
+| 4 | 128 | 6.35 | 3.97 | 2.39 | 2.66× |
+| 8 | 128 | 6.56 | 3.97 | 2.59 | 2.53× |
+| 16 | 128 | 7.06 | 3.97 | 3.09 | 2.28× |
+| 32 | 128 | 7.77 | 3.97 | 3.80 | 2.04× |
+| 64 | 128 | 9.11 | 3.97 | 5.14 | 1.77× |
+| 1 | 256 | 5.89 | 3.97 | 1.92 | 3.06× |
+| 2 | 256 | 6.32 | 3.97 | 2.35 | 2.69× |
+| 4 | 256 | 6.52 | 3.97 | 2.55 | 2.55× |
+| 8 | 256 | 6.93 | 3.97 | 2.97 | 2.34× |
+| 16 | 256 | 7.58 | 3.97 | 3.61 | 2.10× |
+| 32 | 256 | 8.87 | 3.97 | 4.91 | 1.81× |
+| 64 | 256 | 11.37 | 3.97 | 7.40 | 1.54× |
+| 1 | 512 | 5.93 | 3.97 | 1.97 | 3.02× |
+| 2 | 512 | 6.46 | 3.97 | 2.50 | 2.59× |
+| 4 | 512 | 6.84 | 3.97 | 2.87 | 2.38× |
+| 8 | 512 | 7.38 | 3.97 | 3.42 | 2.16× |
+| 16 | 512 | 8.65 | 3.97 | 4.69 | 1.85× |
+| 32 | 512 | 11.09 | 3.97 | 7.12 | 1.56× |
+| 64 | 512 | 15.67 | 3.97 | 11.71 | 1.34× |
+| 1 | 1024 | 6.10 | 3.97 | 2.13 | 2.86× |
+| 2 | 1024 | 6.75 | 3.97 | 2.78 | 2.43× |
+| 4 | 1024 | 7.39 | 3.97 | 3.42 | 2.16× |
+| 8 | 1024 | 8.67 | 3.97 | 4.70 | 1.84× |
+| 16 | 1024 | 10.80 | 3.97 | 6.83 | 1.58× |
+| 32 | 1024 | 15.67 | 3.97 | 11.70 | 1.34× |
+| 64 | 1024 | 24.39 | 3.97 | 20.42 | 1.19× |
+| 1 | 2048 | 6.42 | 3.97 | 2.46 | 2.61× |
+| 2 | 2048 | 7.31 | 3.97 | 3.35 | 2.19× |
+| 4 | 2048 | 8.37 | 3.97 | 4.41 | 1.90× |
+| 8 | 2048 | 10.63 | 3.97 | 6.66 | 1.60× |
+| 16 | 2048 | 15.08 | 3.97 | 11.12 | 1.36× |
+| 32 | 2048 | 24.00 | 3.97 | 20.03 | 1.20× |
+| 64 | 2048 | 41.70 | 3.97 | 37.73 | 1.11× |
+| 1 | 4096 | 6.92 | 3.97 | 2.96 | 2.34× |
+| 2 | 4096 | 8.39 | 3.97 | 4.43 | 1.90× |
+| 4 | 4096 | 10.53 | 3.97 | 6.57 | 1.60× |
+| 8 | 4096 | 15.18 | 3.97 | 11.21 | 1.35× |
+| 16 | 4096 | 23.73 | 3.97 | 19.76 | 1.20× |
+| 32 | 4096 | 41.38 | 3.97 | 37.42 | 1.11× |
+| 1 | 8192 | 8.27 | 3.97 | 4.30 | 1.92× |
+| 2 | 8192 | 10.68 | 3.97 | 6.71 | 1.59× |
+| 4 | 8192 | 14.86 | 3.97 | 10.89 | 1.36× |
+| 8 | 8192 | 23.63 | 3.97 | 19.66 | 1.20× |
+| 16 | 8192 | 40.99 | 3.97 | 37.02 | 1.11× |
+
+Upper bound on the step-time gain from removing ONLY the weight-streaming term from the best-case (CUDA-graph, static-cache) GPU step; KV still comes from DRAM and SRAM read time is taken as zero. Vaibhav's model replaces this.
+
+
+[exit 0]
