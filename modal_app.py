@@ -8,6 +8,7 @@ Usage (from the repo root, after `modal setup`):
     modal run modal_app.py --task tests              # pytest unit tests
     modal run modal_app.py --task quality            # GSM8K accuracy check
     modal run modal_app.py --task loopprof           # Week 4: B x C sweep + fit (~30-45 min)
+    modal run modal_app.py --task delta_split        # Week 5: split delta (overhead vs weights)
     modal run --detach modal_app.py --task bench_q03 # Week 3: q=0.3 sweep + q=1.0 control (hours)
     modal run modal_app.py --task check --gpu A100-80GB
     modal run modal_app.py --task bench_q03 --run-id <id> --pull   # download a detached run
@@ -71,6 +72,9 @@ TASKS = {
         "python fit_loopprof.py $OUT/loopprof.csv --target ut",
         "python fit_loopprof.py $OUT/loopprof.csv --target decode",
     ],
+    # Week 5: split δ into weight streaming vs software overhead (layer sweep, CUDA graphs,
+    # static cache, launch microbenchmarks), all in one container. ~10-15 min on an L40S.
+    "delta_split": CHECK + ["python delta_split.py --out-dir $OUT"],
     "bench_q03": CHECK + [
         "python bench_cdb.py --q 0.3 --slots 2 4 8 16 32 64 --repeats 3 --run-id $RID --out-dir $OUT",
         "python bench_cdb.py --q 1.0 --slots 4 16 64 --repeats 2 --run-id $RID --out-dir $OUT",

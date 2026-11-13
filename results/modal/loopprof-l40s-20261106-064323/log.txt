@@ -1,0 +1,192 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=loopprof-l40s-20261106-064323
+git=e8f96b1
+Fri Nov  6 14:43:26 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-e81501f8-e7a8-b143-b326-cb095f207f4f, 46068 MiB, 610.57.04
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python loopprof.py --out-dir $OUT
+GPU NVIDIA L40S: spec peak 864 GB/s, measured copy peak 659 GB/s, 44.4 GiB
+byte model: looped-block weights 2.467 GB, KV 196.6 kB per token per loop
+B=1   C=128   ut=   9.772 ms [9.74-9.84]  decode=   40.40 ms    2.49 GB/step     255 GB/s  util  38.7% of measured peak  (3.8 s)
+B=2   C=128   ut=   9.367 ms [9.29-10.04]  decode=   42.37 ms    2.52 GB/step     269 GB/s  util  40.8% of measured peak  (3.4 s)
+B=4   C=128   ut=   9.863 ms [9.82-9.91]  decode=   38.58 ms    2.57 GB/step     260 GB/s  util  39.5% of measured peak  (3.2 s)
+B=8   C=128   ut=   9.298 ms [9.25-9.87]  decode=   39.10 ms    2.67 GB/step     287 GB/s  util  43.6% of measured peak  (3.2 s)
+B=16  C=128   ut=   9.691 ms [9.62-11.50]  decode=   39.78 ms    2.87 GB/step     296 GB/s  util  45.0% of measured peak  (3.4 s)
+B=32  C=128   ut=  11.002 ms [10.99-11.03]  decode=   44.48 ms    3.28 GB/step     298 GB/s  util  45.2% of measured peak  (4.0 s)
+B=64  C=128   ut=  14.734 ms [14.72-14.76]  decode=   59.48 ms    4.09 GB/step     278 GB/s  util  42.1% of measured peak  (5.5 s)
+B=1   C=256   ut=   9.205 ms [9.17-9.60]  decode=   40.37 ms    2.52 GB/step     273 GB/s  util  41.5% of measured peak  (3.2 s)
+B=2   C=256   ut=   9.769 ms [9.74-9.81]  decode=   42.44 ms    2.57 GB/step     263 GB/s  util  39.9% of measured peak  (3.4 s)
+B=4   C=256   ut=   9.876 ms [9.85-9.93]  decode=   38.51 ms    2.67 GB/step     270 GB/s  util  41.0% of measured peak  (3.2 s)
+B=8   C=256   ut=   9.765 ms [9.74-9.82]  decode=   39.19 ms    2.87 GB/step     294 GB/s  util  44.6% of measured peak  (3.3 s)
+B=16  C=256   ut=  10.848 ms [10.83-10.86]  decode=   43.86 ms    3.28 GB/step     302 GB/s  util  45.8% of measured peak  (3.9 s)
+B=32  C=256   ut=  14.314 ms [14.30-14.34]  decode=   57.82 ms    4.08 GB/step     285 GB/s  util  43.3% of measured peak  (5.4 s)
+B=64  C=256   ut=  22.792 ms [22.76-22.82]  decode=   91.59 ms    5.70 GB/step     250 GB/s  util  38.0% of measured peak  (9.1 s)
+B=1   C=512   ut=   9.786 ms [9.17-10.07]  decode=   40.04 ms    2.57 GB/step     262 GB/s  util  39.8% of measured peak  (3.2 s)
+B=2   C=512   ut=  10.800 ms [9.78-11.44]  decode=   40.31 ms    2.67 GB/step     247 GB/s  util  37.5% of measured peak  (3.4 s)
+B=4   C=512   ut=   9.226 ms [9.17-9.69]  decode=   38.16 ms    2.87 GB/step     311 GB/s  util  47.2% of measured peak  (3.2 s)
+B=8   C=512   ut=  10.569 ms [10.56-10.58]  decode=   42.74 ms    3.27 GB/step     310 GB/s  util  47.0% of measured peak  (3.8 s)
+B=16  C=512   ut=  14.225 ms [14.21-14.25]  decode=   57.43 ms    4.08 GB/step     287 GB/s  util  43.5% of measured peak  (5.3 s)
+B=32  C=512   ut=  22.728 ms [22.71-22.77]  decode=   91.42 ms    5.69 GB/step     251 GB/s  util  38.0% of measured peak  (9.1 s)
+B=64  C=512   ut=  38.932 ms [38.77-39.14]  decode=  156.48 ms    8.92 GB/step     229 GB/s  util  34.8% of measured peak  (15.9 s)
+B=1   C=1024  ut=   9.577 ms [9.11-10.81]  decode=   39.78 ms    2.67 GB/step     279 GB/s  util  42.3% of measured peak  (3.3 s)
+B=2   C=1024  ut=   9.366 ms [9.21-10.10]  decode=   40.29 ms    2.87 GB/step     306 GB/s  util  46.5% of measured peak  (3.4 s)
+B=4   C=1024  ut=  10.533 ms [10.52-10.55]  decode=   42.63 ms    3.27 GB/step     311 GB/s  util  47.2% of measured peak  (3.8 s)
+B=8   C=1024  ut=  14.097 ms [14.08-14.11]  decode=   56.93 ms    4.08 GB/step     289 GB/s  util  43.9% of measured peak  (5.3 s)
+B=16  C=1024  ut=  22.500 ms [22.48-22.54]  decode=   90.47 ms    5.69 GB/step     253 GB/s  util  38.4% of measured peak  (9.0 s)
+B=32  C=1024  ut=  38.932 ms [38.74-39.24]  decode=  156.10 ms    8.92 GB/step     229 GB/s  util  34.8% of measured peak  (15.9 s)
+B=64  C=1024  skipped (est. 56 GiB)
+B=1   C=2048  ut=  11.792 ms [11.75-11.89]  decode=   46.26 ms    2.87 GB/step     243 GB/s  util  36.9% of measured peak  (3.9 s)
+B=2   C=2048  ut=  10.637 ms [10.50-11.42]  decode=   42.56 ms    3.27 GB/step     308 GB/s  util  46.7% of measured peak  (3.8 s)
+B=4   C=2048  ut=  14.061 ms [14.05-14.08]  decode=   56.85 ms    4.08 GB/step     290 GB/s  util  44.0% of measured peak  (5.4 s)
+B=8   C=2048  ut=  22.715 ms [22.70-22.74]  decode=   91.45 ms    5.69 GB/step     250 GB/s  util  38.0% of measured peak  (9.1 s)
+B=16  C=2048  ut=  38.525 ms [38.43-38.89]  decode=  154.84 ms    8.91 GB/step     231 GB/s  util  35.1% of measured peak  (15.9 s)
+B=32  C=2048  skipped (est. 56 GiB)
+B=64  C=2048  skipped (est. 108 GiB)
+B=1   C=4096  ut=  11.233 ms [11.19-11.28]  decode=   46.05 ms    3.27 GB/step     291 GB/s  util  44.2% of measured peak  (4.1 s)
+B=2   C=4096  ut=  14.120 ms [14.11-14.14]  decode=   56.89 ms    4.08 GB/step     289 GB/s  util  43.8% of measured peak  (5.4 s)
+B=4   C=4096  ut=  22.699 ms [22.69-22.72]  decode=   91.12 ms    5.69 GB/step     251 GB/s  util  38.0% of measured peak  (9.2 s)
+B=8   C=4096  ut=  38.786 ms [38.76-38.81]  decode=  155.97 ms    8.91 GB/step     230 GB/s  util  34.9% of measured peak  (16.1 s)
+B=16  C=4096  skipped (est. 56 GiB)
+B=32  C=4096  skipped (est. 108 GiB)
+B=64  C=4096  skipped (est. 214 GiB)
+B=1   C=8192  ut=  13.285 ms [13.27-13.31]  decode=   53.73 ms    4.08 GB/step     307 GB/s  util  46.6% of measured peak  (5.3 s)
+B=2   C=8192  ut=  22.640 ms [22.63-22.66]  decode=   91.27 ms    5.69 GB/step     251 GB/s  util  38.1% of measured peak  (9.3 s)
+B=4   C=8192  ut=  38.736 ms [38.70-38.78]  decode=  155.59 ms    8.91 GB/step     230 GB/s  util  34.9% of measured peak  (16.3 s)
+B=8   C=8192  skipped (est. 56 GiB)
+B=16  C=8192  skipped (est. 108 GiB)
+B=32  C=8192  skipped (est. 214 GiB)
+B=64  C=8192  skipped (est. 426 GiB)
+wrote /vol/results/loopprof-l40s-20261106-064323/loopprof.csv, /vol/results/loopprof-l40s-20261106-064323/loopprof_meta.json, /vol/results/loopprof-l40s-20261106-064323/loopprof_raw.jsonl
+[exit 0]
+
+$ python fit_loopprof.py $OUT/loopprof.csv --target ut
+# LoopProf fit: ut_step time
+
+39 configs; B in [1, 2, 4, 8, 16, 32, 64]; C in [128, 256, 512, 1024, 2048, 4096, 8192].
+
+## M1: δ + γB + αC
+
+R² = 0.4299, adjusted R² = 0.3983, AIC = 160.8 (Δ = 156.2), max |residual| = 20.10 ms (at B=16, C=2048), mean |residual| = 26.9 %
+
+| parameter | estimate | ± SE | 95 % CI (OLS) | 95 % CI (bootstrap, configs) | 95 % CI (bootstrap, repeats) |
+|---|---:|---:|---|---|---|
+| δ (ms) | 8.643 | 1.925 | [4.754, 12.532] | [5.901, 10.720] | [8.612, 8.689] |
+| γ (ms per sequence) | 0.308 | 0.07284 | [0.161, 0.456] | [0.158, 0.549] | [0.307, 0.309] |
+| α (ms per context token) | 0.00237 | 5.691e-04 | [0.00122, 0.00351] | [0.00117, 0.00439] | [0.00236, 0.00237] |
+
+## M2: δ + γB + α'·BC
+
+R² = 0.9882, adjusted R² = 0.9875, AIC = 9.7 (Δ = 5.0), max |residual| = 2.27 ms (at B=1, C=8192), mean |residual| = 7.2 %
+
+| parameter | estimate | ± SE | 95 % CI (OLS) | 95 % CI (bootstrap, configs) | 95 % CI (bootstrap, repeats) |
+|---|---:|---:|---|---|---|
+| δ (ms) | 7.990 | 0.244 | [7.498, 8.483] | [7.468, 8.536] | [7.962, 8.033] |
+| γ (ms per sequence) | -0.00860 | 0.01099 | [-0.03080, 0.01360] | [-0.02919, 0.00855] | [-0.00921, -0.00823] |
+| α' (ms per sequence·context token) | 9.248e-04 | 1.838e-05 | [8.876e-04, 9.619e-04] | [8.848e-04, 9.446e-04] | [9.233e-04, 9.258e-04] |
+
+## M3: δ + γB + αC + α'·BC  ← preferred (lowest AIC, or simplest within ΔAIC < 2)
+
+R² = 0.9901, adjusted R² = 0.9893, AIC = 4.7 (Δ = 0.0), max |residual| = 2.06 ms (at B=1, C=2048), mean |residual| = 6.6 %
+
+| parameter | estimate | ± SE | 95 % CI (OLS) | 95 % CI (bootstrap, configs) | 95 % CI (bootstrap, repeats) |
+|---|---:|---:|---|---|---|
+| δ (ms) | 8.312 | 0.257 | [7.793, 8.832] | [7.720, 8.870] | [8.280, 8.358] |
+| γ (ms per sequence) | -0.02667 | 0.01229 | [-0.05150, -0.00184] | [-0.06588, -0.01137] | [-0.02750, -0.02608] |
+| α (ms per context token) | -2.522e-04 | 9.604e-05 | [-4.462e-04, -5.821e-05] | [-4.365e-04, -7.743e-05] | [-2.573e-04, -2.484e-04] |
+| α' (ms per sequence·context token) | 9.593e-04 | 2.153e-05 | [9.159e-04, 0.00100] | [9.163e-04, 9.861e-04] | [9.580e-04, 9.604e-04] |
+
+## Bandwidth utilization (bytes model ÷ measured copy peak)
+
+min 34.8 %, median 41.5 %, max 47.2 %
+
+## Time relative to the smallest batch at the same context length
+
+| C | B=1 | B=2 | B=4 | B=8 | B=16 | B=32 | B=64 |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 128 | 1.00 | 0.96 | 1.01 | 0.95 | 0.99 | 1.13 | 1.51 |
+| 256 | 1.00 | 1.06 | 1.07 | 1.06 | 1.18 | 1.55 | 2.48 |
+| 512 | 1.00 | 1.10 | 0.94 | 1.08 | 1.45 | 2.32 | 3.98 |
+| 1024 | 1.00 | 0.98 | 1.10 | 1.47 | 2.35 | 4.07 |  |
+| 2048 | 1.00 | 0.90 | 1.19 | 1.93 | 3.27 |  |  |
+| 4096 | 1.00 | 1.26 | 2.02 | 3.45 |  |  |  |
+| 8192 | 1.00 | 1.70 | 2.92 |  |  |  |  |
+
+Plots: fit_ut_heat_time.png, fit_ut_heat_util.png, fit_ut_resid_M1.png, fit_ut_resid_M2.png, fit_ut_resid_M3.png, fit_ut_lines.png
+
+wrote /vol/results/loopprof-l40s-20261106-064323/fit_ut.json, /vol/results/loopprof-l40s-20261106-064323/fit_ut.md
+[exit 0]
+
+$ python fit_loopprof.py $OUT/loopprof.csv --target decode
+# LoopProf fit: decode_step time
+
+39 configs; B in [1, 2, 4, 8, 16, 32, 64]; C in [128, 256, 512, 1024, 2048, 4096, 8192].
+
+## M1: δ + γB + αC
+
+R² = 0.4257, adjusted R² = 0.3937, AIC = 269.0 (Δ = 152.6), max |residual| = 80.45 ms (at B=16, C=2048), mean |residual| = 27.1 %
+
+| parameter | estimate | ± SE | 95 % CI (OLS) | 95 % CI (bootstrap, configs) | 95 % CI (bootstrap, repeats) |
+|---|---:|---:|---|---|---|
+| δ (ms) | 35.605 | 7.703 | [20.044, 51.165] | [24.775, 43.926] | [35.533, 35.682] |
+| γ (ms per sequence) | 1.223 | 0.291 | [0.634, 1.811] | [0.622, 2.190] | [1.221, 1.224] |
+| α (ms per context token) | 0.00939 | 0.00228 | [0.00479, 0.01398] | [0.00460, 0.01740] | [0.00937, 0.00940] |
+
+## M2: δ + γB + α'·BC
+
+R² = 0.9869, adjusted R² = 0.9861, AIC = 121.7 (Δ = 5.3), max |residual| = 9.34 ms (at B=1, C=8192), mean |residual| = 7.3 %
+
+| parameter | estimate | ± SE | 95 % CI (OLS) | 95 % CI (bootstrap, configs) | 95 % CI (bootstrap, repeats) |
+|---|---:|---:|---|---|---|
+| δ (ms) | 32.906 | 1.025 | [30.836, 34.977] | [30.619, 35.182] | [32.846, 32.969] |
+| γ (ms per sequence) | -0.03942 | 0.04619 | [-0.133, 0.05389] | [-0.127, 0.03449] | [-0.04009, -0.03883] |
+| α' (ms per sequence·context token) | 0.00369 | 7.724e-05 | [0.00353, 0.00384] | [0.00351, 0.00377] | [0.00368, 0.00369] |
+
+## M3: δ + γB + αC + α'·BC  ← preferred (lowest AIC, or simplest within ΔAIC < 2)
+
+R² = 0.9891, adjusted R² = 0.9882, AIC = 116.4 (Δ = 0.0), max |residual| = 7.48 ms (at B=2, C=128), mean |residual| = 6.7 %
+
+| parameter | estimate | ± SE | 95 % CI (OLS) | 95 % CI (bootstrap, configs) | 95 % CI (bootstrap, repeats) |
+|---|---:|---:|---|---|---|
+| δ (ms) | 34.283 | 1.077 | [32.108, 36.459] | [31.810, 36.698] | [34.213, 34.360] |
+| γ (ms per sequence) | -0.117 | 0.05149 | [-0.221, -0.01273] | [-0.282, -0.05243] | [-0.118, -0.116] |
+| α (ms per context token) | -0.00108 | 4.022e-04 | [-0.00189, -2.665e-04] | [-0.00191, -3.601e-04] | [-0.00109, -0.00107] |
+| α' (ms per sequence·context token) | 0.00384 | 9.018e-05 | [0.00365, 0.00402] | [0.00366, 0.00395] | [0.00383, 0.00384] |
+
+## Bandwidth utilization (bytes model ÷ measured copy peak)
+
+min 34.8 %, median 41.5 %, max 47.2 %
+
+## Time relative to the smallest batch at the same context length
+
+| C | B=1 | B=2 | B=4 | B=8 | B=16 | B=32 | B=64 |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 128 | 1.00 | 1.05 | 0.95 | 0.97 | 0.98 | 1.10 | 1.47 |
+| 256 | 1.00 | 1.05 | 0.95 | 0.97 | 1.09 | 1.43 | 2.27 |
+| 512 | 1.00 | 1.01 | 0.95 | 1.07 | 1.43 | 2.28 | 3.91 |
+| 1024 | 1.00 | 1.01 | 1.07 | 1.43 | 2.27 | 3.92 |  |
+| 2048 | 1.00 | 0.92 | 1.23 | 1.98 | 3.35 |  |  |
+| 4096 | 1.00 | 1.24 | 1.98 | 3.39 |  |  |  |
+| 8192 | 1.00 | 1.70 | 2.90 |  |  |  |  |
+
+Plots: fit_decode_heat_time.png, fit_decode_heat_util.png, fit_decode_resid_M1.png, fit_decode_resid_M2.png, fit_decode_resid_M3.png, fit_decode_lines.png
+
+wrote /vol/results/loopprof-l40s-20261106-064323/fit_decode.json, /vol/results/loopprof-l40s-20261106-064323/fit_decode.md
+[exit 0]

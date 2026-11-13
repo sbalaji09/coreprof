@@ -1,0 +1,60 @@
+{
+ "timestamp": "2026-11-06T14:43:44",
+ "gpu": "NVIDIA L40S",
+ "nvidia_smi": "NVIDIA L40S, 610.57.04, 2520 MHz, 350.00 W",
+ "torch": "2.5.1+cu124",
+ "cuda": "12.4",
+ "transformers": "4.57.1",
+ "python": "3.11.12",
+ "model": "ByteDance/Ouro-1.4B",
+ "model_revision": "574fa66cb8bf5abdc979642d01cf2b79b16bfab1",
+ "attn_implementation": "sdpa",
+ "total_ut_steps": 4,
+ "dtype": "bf16",
+ "git_commit": null,
+ "git_dirty": null,
+ "hostname": "modal",
+ "args": {
+  "batch_sizes": [
+   1,
+   2,
+   4,
+   8,
+   16,
+   32,
+   64
+  ],
+  "context_lens": [
+   128,
+   256,
+   512,
+   1024,
+   2048,
+   4096,
+   8192
+  ],
+  "reps": 50,
+  "warmup": 10,
+  "dtype": "bf16",
+  "ut_step": 0,
+  "seed": 0,
+  "mem_frac": 0.8,
+  "out_dir": "/vol/results/loopprof-l40s-20261106-064323"
+ },
+ "tool": "loopprof v0",
+ "gpu_total_mem_gb": 44.4202880859375,
+ "max_position_embeddings": 65536,
+ "spec_peak_gbps": 864,
+ "measured_peak_gbps": 658.7567329446698,
+ "byte_model": {
+  "elem": 2,
+  "layers": 24,
+  "kv_heads": 16,
+  "head_dim": 128,
+  "loops": 4,
+  "weight_bytes": 2466652162,
+  "kv_per_token_per_loop": 196608,
+  "total_param_bytes": 2869305346
+ },
+ "byte_model_notes": "bytes/ut_step = weight_bytes (looped block: 24 layers + norm + exit gate) + B*C*kv_per_token_per_loop (KV read, one loop) + B*kv_per_token_per_loop (KV write); activations ignored"
+}
