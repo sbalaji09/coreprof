@@ -4,27 +4,47 @@
 its LoopCore predictions are trusted. This file pairs each measured L40S quantity with the
 model's prediction for the same quantity on the same hardware.
 
-**Status:** Calibrated on L40S: pending. The model's predictions are not yet recorded here (the
-model script is not in this repo). H100 calibration: pending (Week 7).
+## How to calibrate
+
+No model predictions are recorded yet, so the analytical model is **not calibrated** and its
+LoopCore numbers should not be quoted. To check it:
+
+1. Run the model for the L40S (bf16 Ouro-1.4B, one recurrent step, decode) and fill in
+   `calibration_predictions.json` (same units as the table; leave unknowns `null`).
+2. `python calibrate.py --pred calibration_predictions.json --write` recomputes the measured
+   values from the raw run files, fills in the table below and the status line, and exits
+   non-zero unless every quantity is within the tolerance (`--tol`, default 10 %).
 
 ## Measured vs. predicted (L40S, Ouro-1.4B bf16, one recurrent step, decode)
 
-| quantity | measured (L40S) | source file | model prediction | error % |
+<!-- calibration:begin -->
+**Status:** Calibrated on L40S: **no** (0/6 predictions recorded, tolerance ±10 %). H100 calibration: pending (Week 7).
+
+Predictions: `calibration_predictions.json`. Error % is 0 inside the measured range, else the distance to its nearest end.
+
+| quantity | measured (L40S) | source | model prediction | error % |
 |---|---|---|---|---|
-| weight streaming time per loop step | 3.77–3.98 ms (gemvx 3.77 at B=1, C=128; CUTLASS GEMM 3.98 at B=16, C=2048) | `results/modal/delta_grid-l40s-20261112-172748/delta_split.json` (`kernel_breakdown`) | pending | pending |
-| KV cost per cached token | 0.265 µs (≈ 742 GB/s of KV read) | `results/modal/delta_grid-l40s-20261112-172748/graph_grid.csv` (M2 fit, n = 46, R² 0.9997) | pending | pending |
-| weight/KV crossover | ≈ 14k cached tokens (3.77–3.98 ms ÷ 0.265 µs = 14.2k–15.0k) | derived from the two rows above | pending | pending |
-| best-case step time, B=1, C=128 | 5.82 ms (CUDA graph, static cache) | `results/modal/delta_grid-l40s-20261112-172748/graph_grid.csv` | pending | pending |
-| fixed cost δ | 6.13 ± 0.03 ms (M2 fit) | `results/modal/delta_grid-l40s-20261112-172748/graph_grid.csv` | pending | pending |
-| non-weight GPU overhead (small kernels + gaps) | ≈ 2.0 ms (5.82 − 3.77) | `results/modal/delta_grid-l40s-20261112-172748/delta_split.json` | pending | pending |
+| weight streaming time per loop step | 3.77–3.97 ms | delta_split.json kernel_breakdown (gemvx 1x128, CUTLASS GEMM 16x2048) | pending | pending |
+| KV cost per cached token | 0.265 µs | graph_grid.csv, M2 fit | pending | pending |
+| weight/KV crossover | 14,238–15,008 cached tokens | weight_ms / kv_us_per_token | pending | pending |
+| best-case step time, B=1, C=128 (CUDA graph, static cache) | 5.82 ms | graph_grid.csv | pending | pending |
+| fixed cost δ (M2 fit) | 6.13 ms | graph_grid.csv, M2 fit | pending | pending |
+| non-weight GPU overhead (small kernels + gaps) | 2.05 ms | step_ms_b1_c128 − gemvx | pending | pending |
+
+**Model inputs:**
+
+- weight_bytes: pending
+- weight_bandwidth_GBps: pending
+- kv_bytes_per_token: pending
+- kv_bandwidth_GBps: pending
+- overhead_term: pending
+<!-- calibration:end -->
 
 Note: the fitted δ (6.13 ms) and the measured smallest step (5.82 ms) differ by 0.3 ms; the M2
 fit overpredicts the B=1, C=128 point by its maximum residual (0.37 ms). The model should be
 compared to each separately.
 
-## Model inputs
-
-Inputs used by Vaibhav's model (bandwidths, bytes, overhead term): **pending**.
+## Measured reference values
 
 Measured reference values on this hardware, for comparison:
 

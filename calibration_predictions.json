@@ -1,0 +1,19 @@
+{
+  "date": null,
+  "source": null,
+  "inputs": {
+    "weight_bytes": null,
+    "weight_bandwidth_GBps": null,
+    "kv_bytes_per_token": null,
+    "kv_bandwidth_GBps": null,
+    "overhead_term": null
+  },
+  "predictions": {
+    "weight_ms": null,
+    "kv_us_per_token": null,
+    "crossover_tokens": null,
+    "step_ms_b1_c128": null,
+    "delta_ms": null,
+    "overhead_ms": null
+  }
+}
