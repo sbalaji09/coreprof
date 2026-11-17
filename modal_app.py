@@ -38,7 +38,7 @@ vol = modal.Volume.from_name(VOL_NAME, create_if_missing=True)
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
-    .apt_install("git", "procps")
+    .apt_install("git", "procps", "build-essential")   # C compiler: Triton builds its launcher (torch.compile)
     # Same pins as the NRP runs (torch 2.5.1 wheels on PyPI are the CUDA 12.4 build).
     .pip_install_from_requirements(str(REPO / "requirements.txt"))
     .env({
@@ -78,6 +78,9 @@ TASKS = {
     "delta_split": CHECK + ["python delta_split.py --out-dir $OUT"],
     # Week 5 v1: kernel-time breakdown + CUDA-graph static-cache B x C grid and fit (~15-20 min).
     "delta_grid": CHECK + ["python delta_split.py --grid --out-dir $OUT"],
+    # Stronger GPU baseline: the same grid with the step torch.compile'd (kernel fusion) + CUDA graph,
+    # plus the uncompiled graph at 3 points in the same container. One compile per grid point (~1 h).
+    "delta_compile": CHECK + ["python delta_split.py --grid --compile --out-dir $OUT"],
     "bench_q03": CHECK + [
         "python bench_cdb.py --q 0.3 --slots 2 4 8 16 32 64 --repeats 3 --run-id $RID --out-dir $OUT",
         "python bench_cdb.py --q 1.0 --slots 4 16 64 --repeats 2 --run-id $RID --out-dir $OUT",

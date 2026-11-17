@@ -54,4 +54,27 @@ print(ds.report(dict(gpu="x", weight_bytes_looped_block=WB, spec_peak_gbps=None,
                      measured_read_gbps=742.0, predicted_weight_fetch_ms=dict(spec=None, measured_peak=3.89, read_peak=3.32),
                      errors={})).splitlines()[2])
 print(md)
+# --compile mode: rows/breakdowns under compiled_graph; calibration must use them, not the uncompiled reference
+crow = [{**r, "impl": "compiled_graph", "median_ms": r["median_ms"] - 1.5} for r in rows]
+ckb = {k.replace("graph_static", "compiled_graph").replace("eager_static", "compiled"): dict(v) for k, v in kb.items()}
+ckb["compiled_graph 1x128"].update(other_ms=0.2, copy_ms=0.1, kernels=400)
+ckb["graph_static 1x128"] = kb["graph_static 1x128"]           # uncompiled reference breakdown
+outc = {**out, "kernel_breakdown": ckb, "compile_mode": "default", "grid_impl": "compiled_graph",
+        "compiled_vs_eager_check": dict(B=2, C=64, mode="default", rel_err_hidden=3e-3, max_abs_err_gate=1e-3,
+                                        ok=True, compile_s=42.0, graph_breaks=0),
+        "uncompiled_reference": [dict(B=1, C=128, graph_static_ms=5.9, compiled_graph_ms=4.4, speedup=5.9 / 4.4,
+                                      saved_ms=1.5)],
+        "compile_variants": [dict(mode="max-autotune-no-cudagraphs", B=1, C=128, graph_ms=4.2, compile_s=300.0)]}
+ds.analyze_grid(outc, crow)
+cc = outc["analysis"]["calibration_inputs"]
+assert abs(cc["small_kernels_ms"] - 0.3) < 1e-9, cc["small_kernels_ms"]
+assert abs(cc["delta_ms"] - 4.63) < 0.05, cc["delta_ms"]
+assert outc["analysis"]["onchip_weights_upper_bound"]["rows"], "bound must use compiled_graph rows"
+mdc = ds.report_grid(outc)
+assert "torch.compile (default) + CUDA-graph" in mdc and "## torch.compile vs uncompiled" in mdc
+assert "| compiled graph | 400 |" in mdc and "1.34×" in mdc and "max-autotune" in mdc
+bad = {**outc, "compiled_vs_eager_check": {**outc["compiled_vs_eager_check"], "ok": False}}
+assert "MISMATCH" in ds.report_grid(bad)
+assert "unverified" in ds.report_grid({**outc, "compiled_vs_eager_check": None})
+print(mdc[mdc.index("## torch.compile vs"):mdc.index("## Calibration inputs")])
 print("SYNTHETIC TEST OK")

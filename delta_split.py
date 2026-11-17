@@ -71,8 +71,15 @@ def parse_args():
     p.add_argument("--grid-mem-gb", type=float, default=None,
                    help=f"skip grid points whose static KV exceeds this (always capped at {GRID_MEM_FRAC} x GPU memory; "
                         "default: that cap)")
+    p.add_argument("--compile", action="store_true",
+                   help="with --grid: torch.compile the static step (kernel fusion), then CUDA-graph it "
+                        "(impl compiled_graph); also times the uncompiled graph at a few points, same container")
+    p.add_argument("--compile-mode", default="default",
+                   help="torch.compile mode for the grid (default keeps cuBLAS GEMMs, so the breakdown classifies them)")
     p.add_argument("--out-dir", required=True)
     a = p.parse_args()
+    if a.compile and not a.grid:
+        p.error("--compile needs --grid")
     if a.quick:
         a.configs, a.layers, a.reps, a.warmup = "1x128,8x512", [6, 24], 10, 3
     a.configs = [tuple(int(v) for v in c.lower().split("x")) for c in a.configs.split(",")]
@@ -309,6 +316,44 @@ def capture_graph(step):
     return g, out
 
 
+def make_step(model, B, C, L, args, mode=None):
+    """build_static_step, optionally torch.compile'd (mode=None: plain eager). Compiles on the first call
+    here, so later timing never includes compile time. dynamo is reset per shape: each (B, C) gets its own
+    static-shape compile, and the recompile limit (default 8) can never silently fall back to eager."""
+    step, cache = build_static_step(model, B, C, L, args.dtype, args.seed)
+    info = {}
+    if mode:
+        import torch._dynamo
+        torch._dynamo.reset()
+        step = torch.compile(step, mode=mode, dynamic=False)
+        t0 = time.perf_counter()
+        step()
+        torch.cuda.synchronize()
+        info["compile_s"] = round(time.perf_counter() - t0, 1)
+        try:
+            from torch._dynamo.utils import counters
+            info["graph_breaks"] = sum(counters["graph_break"].values())
+        except Exception:
+            pass
+    return step, cache, info
+
+
+def check_compiled_matches_eager(model, args, mode, B=2, C=64):
+    """Same static cache, same input: the compiled step must compute what the eager static step computes."""
+    m = model.model
+    step, cache, _ = make_step(model, B, C, m.config.num_hidden_layers, args)
+    h_ref, gate_ref = (x.float().clone() for x in step())
+    del step, cache
+    step, cache, info = make_step(model, B, C, m.config.num_hidden_layers, args, mode)   # same seed: same cache
+    h, gate = (x.float() for x in step())
+    rel = float((h - h_ref).norm() / h_ref.norm())
+    gate_err = float((gate - gate_ref).abs().max())
+    del step, cache
+    harness.free_cuda()
+    return dict(B=B, C=C, mode=mode, rel_err_hidden=rel, max_abs_err_gate=gate_err,
+                ok=bool(rel < 2e-2 and gate_err < 5e-2), **info)
+
+
 def check_static_matches_hf(model, dtype, seed):
     """Sanity check: with the SAME cache contents, the static step must equal the HF step."""
     m = model.model
@@ -521,6 +566,9 @@ def fit_models(rows):
 
 def run_grid(args, model, bm, L, out, save):
     out["tool"] = "delta_split v1 (grid)"
+    mode = args.compile_mode if args.compile else None
+    eager_name, graph_name = ("compiled", "compiled_graph") if mode else ("eager_static", "graph_static")
+    out["grid_impl"], out["compile_mode"] = graph_name, mode
     rows, csv_path = [], os.path.join(args.out_dir, "graph_grid.csv")
     total_mem = torch.cuda.get_device_properties(0).total_memory
     cap_gb = GRID_MEM_FRAC * total_mem / 1e9
@@ -528,19 +576,28 @@ def run_grid(args, model, bm, L, out, save):
     print(f"grid: static KV limit {mem_gb:.1f} GB (GPU memory {total_mem / 1e9:.1f} GB)")
     out["grid_kv_limit_gb"] = mem_gb
     with torch.inference_mode():
+        if mode:
+            try:
+                out["compiled_vs_eager_check"] = check_compiled_matches_eager(model, args, mode)
+                print("compiled vs eager static step:", out["compiled_vs_eager_check"])
+            except Exception:
+                out["errors"]["compiled_vs_eager_check"] = traceback.format_exc()
+                print(out["errors"]["compiled_vs_eager_check"])
+                harness.free_cuda()
+            save()
         # where GPU time goes: weights-dominated (1x128) and attention across context at B=16
         for (B, C) in [(1, 128), (16, 512), (16, 2048), (16, 8192)]:
             try:
-                step, cache = build_static_step(model, B, C, L, args.dtype, args.seed)
-                out.setdefault("kernel_breakdown", {})[f"eager_static {B}x{C}"] = safe_breakdown(step)
+                step, cache, _ = make_step(model, B, C, L, args, mode)
+                out.setdefault("kernel_breakdown", {})[f"{eager_name} {B}x{C}"] = safe_breakdown(step)
                 g, _ = capture_graph(step)
-                out["kernel_breakdown"][f"graph_static {B}x{C}"] = safe_breakdown(g.replay)
+                out["kernel_breakdown"][f"{graph_name} {B}x{C}"] = safe_breakdown(g.replay)
                 del g, step, cache
                 harness.free_cuda()
             except Exception:
                 out["errors"][f"breakdown {B}x{C}"] = traceback.format_exc()
                 harness.free_cuda()
-            print(f"kernel breakdown {B}x{C}:", json.dumps(out["kernel_breakdown"].get(f"eager_static {B}x{C}"),
+            print(f"kernel breakdown {B}x{C}:", json.dumps(out.get("kernel_breakdown", {}).get(f"{graph_name} {B}x{C}"),
                                                            default=str)[:600])
         save()
         try:
@@ -558,10 +615,10 @@ def run_grid(args, model, bm, L, out, save):
                     print(f"B={B} C={C} skipped (static KV {kv_gb:.1f} GB)")
                     continue
                 try:
-                    step, cache = build_static_step(model, B, C, L, args.dtype, args.seed)
+                    step, cache, info = make_step(model, B, C, L, args, mode)
                     g, _ = capture_graph(step)
                     t = gpu_times(g.replay, args.warmup, args.reps)
-                    r = dict(impl="graph_static", B=B, C=C, layers=L, **stats(t))
+                    r = dict(impl=graph_name, B=B, C=C, layers=L, **stats(t), **info)
                     by = bm.weight_bytes + B * (C + 1) * bm.kv_per_token_per_loop
                     r["achieved_gbps"] = by / (r["median_ms"] * 1e-3) / 1e9
                     r["util_measured"] = r["achieved_gbps"] / out["measured_peak_gbps"]
@@ -580,12 +637,52 @@ def run_grid(args, model, bm, L, out, save):
                     w.writerows(rows)
         out["grid"] = rows
         save()
+        if mode:
+            compile_references(model, L, args, mode, rows, out, save)
     analyze_grid(out, rows)
     save()
     md = report_grid(out)
     with open(os.path.join(args.out_dir, "delta_split_grid.md"), "w") as f:
         f.write(md)
     print(md)
+
+
+def compile_references(model, L, args, mode, rows, out, save, points=((1, 128), (16, 2048), (16, 8192))):
+    """Same container as the compiled grid: the uncompiled CUDA-graph step (δ varies ~±0.25 ms between
+    containers, so cross-run comparisons are not enough), its kernel breakdown at 1x128, and a
+    max-autotune variant at two points."""
+    ref = []
+    for B, C in points:
+        try:
+            step, cache, _ = make_step(model, B, C, L, args)
+            g, _ = capture_graph(step)
+            if (B, C) == (1, 128):
+                out["kernel_breakdown"]["graph_static 1x128"] = safe_breakdown(g.replay)
+            base = stats(gpu_times(g.replay, args.warmup, args.reps))["median_ms"]
+            comp = next((r["median_ms"] for r in rows if (r["B"], r["C"]) == (B, C)), None)
+            ref.append(dict(B=B, C=C, graph_static_ms=base, compiled_graph_ms=comp,
+                            speedup=base / comp if comp else None, saved_ms=base - comp if comp else None))
+            print("reference:", ref[-1])
+            del g, step, cache
+        except Exception:
+            out["errors"][f"reference {B}x{C}"] = traceback.format_exc().strip().splitlines()[-1]
+        harness.free_cuda()
+    out["uncompiled_reference"] = ref
+    save()
+    variants = []
+    for B, C in points[:2]:
+        try:
+            step, cache, info = make_step(model, B, C, L, args, "max-autotune-no-cudagraphs")
+            g, _ = capture_graph(step)
+            variants.append(dict(mode="max-autotune-no-cudagraphs", B=B, C=C,
+                                 graph_ms=stats(gpu_times(g.replay, args.warmup, args.reps))["median_ms"], **info))
+            print("variant:", variants[-1])
+            del g, step, cache
+        except Exception:
+            out["errors"][f"max-autotune {B}x{C}"] = traceback.format_exc().strip().splitlines()[-1]
+        harness.free_cuda()
+    out["compile_variants"] = variants
+    save()
 
 
 def lm_head_timing(model, dtype, warmup, reps, batches=(1, 16, 64)):
@@ -627,7 +724,8 @@ def attention_per_token(out):
 
 def calibration_inputs(out, rows):
     """One flat dict of the numbers the analytical model is calibrated against (B=1, C=128 for per-step terms)."""
-    g1 = (out.get("kernel_breakdown") or {}).get("graph_static 1x128") or {}
+    impl = out.get("grid_impl", "graph_static")
+    g1 = (out.get("kernel_breakdown") or {}).get(f"{impl} 1x128") or {}
     m2 = (out.get("grid_fit") or {}).get("M2") or {}
     p, se = m2.get("params", {}), m2.get("se", {})
     read = out.get("measured_read_gbps")
@@ -647,7 +745,7 @@ def calibration_inputs(out, rows):
         alpha_prime_se_us=se["alpha_prime"] * 1e3 if "alpha_prime" in se else None,
         kv_gbps=kv_bw, kv_pct_read=pct(kv_bw),
         attention_us_per_token={f"{r['B']}x{r['C']}": r["us_per_cached_token"]
-                                for r in attention_per_token(out) if r["impl"] == "graph_static"},
+                                for r in attention_per_token(out) if r["impl"] == impl},
         small_kernels_ms=g1.get("copy_ms", 0) + g1.get("other_ms", 0) if g1 else None,
         gap_ms=t1 - g1["busy_ms"] if t1 is not None and "busy_ms" in g1 else None,
         x1_crossover_tokens=w_ms / ap if w_ms and ap and ap > 0 else None,
@@ -657,7 +755,7 @@ def calibration_inputs(out, rows):
 def analyze_grid(out, rows):
     if len(rows) >= 5:
         out["grid_fit"] = fit_models(rows)
-    out["analysis"] = {"onchip_weights_upper_bound": onchip_bound(out, rows, "graph_static"),
+    out["analysis"] = {"onchip_weights_upper_bound": onchip_bound(out, rows, out.get("grid_impl", "graph_static")),
                        "attention_per_token": attention_per_token(out),
                        "calibration_inputs": calibration_inputs(out, rows)}
 
@@ -682,6 +780,40 @@ def calibration_md(ci):
             ("LM head, graph, B=1 (once per token, not per loop)",
              f"{f(ci['lm_head_graph_ms_b1'], 3)} ms, {f((ci['lm_head_bytes'] or 0) / 1e6 or None, 1)} MB")]
     return ["## Calibration inputs\n", "| quantity | value |", "|---|---|"] + [f"| {k} | {v} |" for k, v in rows] + [""]
+
+
+def compile_md(out):
+    """Compiled vs uncompiled CUDA-graph step, same container, plus the correctness check."""
+    if not out.get("compile_mode"):
+        return []
+    f = lambda v, nd=2: "n/a" if v is None else f"{v:.{nd}f}"
+    L = ["## torch.compile vs uncompiled (same container)\n"]
+    chk = out.get("compiled_vs_eager_check")
+    if chk:
+        L.append(f"Compiled vs eager static step (same cache, B={chk['B']}, C={chk['C']}): relative error "
+                 f"{chk['rel_err_hidden']:.2e}, gate error {chk['max_abs_err_gate']:.2e} → "
+                 f"{'OK' if chk['ok'] else '**MISMATCH: compiled numbers below are not trustworthy**'}; "
+                 f"compile {chk.get('compile_s', 'n/a')} s, graph breaks {chk.get('graph_breaks', 'n/a')}.\n")
+    else:
+        L.append("**Compiled-vs-eager check did not run (see Errors): compiled numbers are unverified.**\n")
+    kb = out.get("kernel_breakdown") or {}
+    a, b = kb.get("graph_static 1x128"), kb.get("compiled_graph 1x128")
+    if a and b:
+        L += ["| B=1, C=128, kernel time | kernels | gemm ms | attention ms | copy + other ms | busy ms |",
+              "|---|---:|---:|---:|---:|---:|"]
+        for name, v in (("uncompiled graph", a), ("compiled graph", b)):
+            L.append(f"| {name} | {v.get('kernels', 0):.0f} | {f(v.get('gemm_ms'))} | {f(v.get('attention_ms'))} | "
+                     f"{f(v.get('copy_ms', 0) + v.get('other_ms', 0))} | {f(v.get('busy_ms'))} |")
+        L.append("")
+    ref = out.get("uncompiled_reference") or []
+    if ref:
+        L += ["| B | C | uncompiled graph ms | compiled graph ms | saved ms | speedup |", "|---:|---:|---:|---:|---:|---:|"]
+        L += [f"| {r['B']} | {r['C']} | {f(r['graph_static_ms'])} | {f(r['compiled_graph_ms'])} | {f(r['saved_ms'])} | "
+              f"{f(r['speedup'])}× |" for r in ref]
+        L.append("")
+    for v in out.get("compile_variants") or []:
+        L.append(f"- {v['mode']} at B={v['B']}, C={v['C']}: {f(v['graph_ms'])} ms (compile {v.get('compile_s', 'n/a')} s)")
+    return L + [""]
 
 
 def lm_head_md(lm):
@@ -728,13 +860,15 @@ def breakdown_md(out):
 
 def report_grid(out):
     f = lambda v, nd=2: "n/a" if v is None else f"{v:.{nd}f}"
-    L = [f"# Week 5 v1: CUDA-graph static-cache step over B x C on {out['gpu']}\n",
+    what = (f"torch.compile ({out['compile_mode']}) + CUDA-graph" if out.get("compile_mode") else "CUDA-graph")
+    L = [f"# Week 5 v1: {what} static-cache step over B x C on {out['gpu']}\n",
          f"Predicted weight fetch {f(out['predicted_weight_fetch_ms']['spec'])} ms (spec), "
          f"{f(out['predicted_weight_fetch_ms']['measured_peak'])} ms (measured copy peak "
          f"{out['measured_peak_gbps']:.0f} GB/s), "
          f"{f(out['predicted_weight_fetch_ms'].get('read_peak'))} ms (measured read peak "
          f"{f(out.get('measured_read_gbps'), 0)} GB/s).\n"]
     an = out.get("analysis") or {}
+    L += compile_md(out)
     if an.get("calibration_inputs"):
         L += calibration_md(an["calibration_inputs"])
     L += lm_head_md(out.get("lm_head"))
