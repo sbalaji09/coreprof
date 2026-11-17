@@ -27,6 +27,11 @@ machines. Four measurements:
 Outputs (in --out-dir): delta_split.json (everything), delta_split_steps.csv, delta_split.md
 (the decomposition table and a first, explicitly bounded, estimate of what on-chip weights save).
 
+--grid (v1) also measures: a read-only bandwidth peak (the reference for weight/KV reads; the copy
+peak pays for writes too), the kernel breakdown at B=1,C=128 and B=16,C in {512,2048,8192}
+(attention µs per cached token should match the fitted α'), and the once-per-token LM head.
+delta_split_grid.md starts with a "Calibration inputs" table for the analytical model.
+
 Usage: python delta_split.py --out-dir results/delta_split_<gpu> [--quick]
 """
 import argparse
@@ -45,6 +50,9 @@ import harness
 import loopprof
 
 
+GRID_MEM_FRAC = 0.65   # 80 GB GPUs: 51.6 GB KV for B=64,C=4096 and B=32,C=8192 fits; 48 GB L40S: same 46 points
+
+
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--configs", default="1x128,1x2048,8x512,16x2048,32x1024,4x8192",
@@ -60,7 +68,9 @@ def parse_args():
                         "static-cache step over --grid-batch x --grid-ctx, then fit δ + γB + α'BC")
     p.add_argument("--grid-batch", type=int, nargs="+", default=[1, 2, 4, 8, 16, 32, 64])
     p.add_argument("--grid-ctx", type=int, nargs="+", default=[128, 256, 512, 1024, 2048, 4096, 8192])
-    p.add_argument("--grid-mem-gb", type=float, default=30.0, help="skip grid points whose static KV exceeds this")
+    p.add_argument("--grid-mem-gb", type=float, default=None,
+                   help=f"skip grid points whose static KV exceeds this (always capped at {GRID_MEM_FRAC} x GPU memory; "
+                        "default: that cap)")
     p.add_argument("--out-dir", required=True)
     a = p.parse_args()
     if a.quick:
@@ -91,6 +101,25 @@ def stats(t):
     p10, p25, p50, p75, p90 = np.percentile(a, [10, 25, 50, 75, 90])
     return dict(median_ms=float(p50), p10_ms=float(p10), p90_ms=float(p90), iqr_ms=float(p75 - p25),
                 n=len(a))
+
+
+def measured_read_gbps(nbytes=2 << 30, reps=20):
+    """Read-only peak: torch.sum over a 2 GiB bf16 tensor, bytes read / time, best of reps after 3 warmups.
+    The right reference for weight and KV reads (loopprof.measured_peak_gbps is a copy: read + write)."""
+    x = torch.ones(nbytes // 2, dtype=torch.bfloat16, device="cuda")
+    s, e = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+    best = float("inf")
+    for i in range(reps + 3):
+        torch.cuda.synchronize()
+        s.record()
+        torch.sum(x)
+        e.record()
+        torch.cuda.synchronize()
+        if i >= 3:
+            best = min(best, s.elapsed_time(e))
+    del x
+    harness.free_cuda()
+    return nbytes / (best / 1e3) / 1e9
 
 
 # ---------------------------------------------------------------- 1. launch microbenchmarks
@@ -325,21 +354,26 @@ def main():
     L = model.model.config.num_hidden_layers
     gpu = torch.cuda.get_device_name()
     peak_meas = loopprof.measured_peak_gbps()
+    peak_read = measured_read_gbps()
     peak_spec = loopprof.spec_gbps(gpu)
+    print(f"GPU name: {gpu!r} -> spec {peak_spec} GB/s"
+          + ("" if peak_spec else "  (NO ENTRY in loopprof.SPEC_GBPS: spec-based numbers will be n/a)"))
     out = dict(tool="delta_split v0", gpu=gpu, args={k: v for k, v in vars(args).items()},
                torch=torch.__version__, weight_bytes_looped_block=bm.weight_bytes,
                kv_bytes_per_token_per_loop=bm.kv_per_token_per_loop,
-               spec_peak_gbps=peak_spec, measured_peak_gbps=peak_meas, errors={})
+               spec_peak_gbps=peak_spec, measured_peak_gbps=peak_meas, measured_read_gbps=peak_read, errors={})
     hm = harness.run_metadata(SimpleNamespace(dtype=args.dtype, targets=[], ut_step=0, seed=args.seed,
                                               warmup=args.warmup, reps=args.reps), model)
     out["meta"] = {k: hm[k] for k in ("nvidia_smi", "torch", "cuda", "transformers", "model_revision",
                                       "attn_implementation") if k in hm}
     w_ms_spec = bm.weight_bytes / (peak_spec * 1e9) * 1e3 if peak_spec else None
     w_ms_meas = bm.weight_bytes / (peak_meas * 1e9) * 1e3
-    out["predicted_weight_fetch_ms"] = dict(spec=w_ms_spec, measured_peak=w_ms_meas)
-    print(f"GPU {gpu}: spec {peak_spec} GB/s, measured copy peak {peak_meas:.0f} GB/s; looped-block weights "
-          f"{bm.weight_bytes / 1e9:.3f} GB -> predicted weight fetch {w_ms_spec:.2f} ms (spec), "
-          f"{w_ms_meas:.2f} ms (measured peak)")
+    w_ms_read = bm.weight_bytes / (peak_read * 1e9) * 1e3
+    out["predicted_weight_fetch_ms"] = dict(spec=w_ms_spec, measured_peak=w_ms_meas, read_peak=w_ms_read)
+    print(f"GPU {gpu}: spec {peak_spec} GB/s, measured copy peak {peak_meas:.0f} GB/s, read peak {peak_read:.0f} GB/s; "
+          f"looped-block weights {bm.weight_bytes / 1e9:.3f} GB -> predicted weight fetch "
+          f"{'n/a' if w_ms_spec is None else f'{w_ms_spec:.2f}'} ms (spec), {w_ms_meas:.2f} ms (copy peak), "
+          f"{w_ms_read:.2f} ms (read peak)")
 
     def save():
         with open(os.path.join(args.out_dir, "delta_split.json"), "w") as f:
@@ -489,8 +523,13 @@ def run_grid(args, model, bm, L, out, save):
     out["tool"] = "delta_split v1 (grid)"
     rows, csv_path = [], os.path.join(args.out_dir, "graph_grid.csv")
     total_mem = torch.cuda.get_device_properties(0).total_memory
+    cap_gb = GRID_MEM_FRAC * total_mem / 1e9
+    mem_gb = min(args.grid_mem_gb, cap_gb) if args.grid_mem_gb else cap_gb
+    print(f"grid: static KV limit {mem_gb:.1f} GB (GPU memory {total_mem / 1e9:.1f} GB)")
+    out["grid_kv_limit_gb"] = mem_gb
     with torch.inference_mode():
-        for (B, C) in [(1, 128), (16, 2048)]:          # where does GPU time go, small vs large B·C
+        # where GPU time goes: weights-dominated (1x128) and attention across context at B=16
+        for (B, C) in [(1, 128), (16, 512), (16, 2048), (16, 8192)]:
             try:
                 step, cache = build_static_step(model, B, C, L, args.dtype, args.seed)
                 out.setdefault("kernel_breakdown", {})[f"eager_static {B}x{C}"] = safe_breakdown(step)
@@ -504,10 +543,18 @@ def run_grid(args, model, bm, L, out, save):
             print(f"kernel breakdown {B}x{C}:", json.dumps(out["kernel_breakdown"].get(f"eager_static {B}x{C}"),
                                                            default=str)[:600])
         save()
+        try:
+            out["lm_head"] = lm_head_timing(model, harness.DTYPES[args.dtype], args.warmup, args.reps)
+            print("lm_head:", json.dumps(out["lm_head"], default=str))
+        except Exception:
+            out["errors"]["lm_head"] = traceback.format_exc()
+            print(out["errors"]["lm_head"])
+            harness.free_cuda()
+        save()
         for C in args.grid_ctx:
             for B in args.grid_batch:
                 kv_gb = B * (C + 1) * bm.kv_per_token_per_loop / 1e9
-                if kv_gb > args.grid_mem_gb or kv_gb * 1e9 > 0.6 * total_mem:
+                if kv_gb > mem_gb:
                     print(f"B={B} C={C} skipped (static KV {kv_gb:.1f} GB)")
                     continue
                 try:
@@ -518,9 +565,10 @@ def run_grid(args, model, bm, L, out, save):
                     by = bm.weight_bytes + B * (C + 1) * bm.kv_per_token_per_loop
                     r["achieved_gbps"] = by / (r["median_ms"] * 1e-3) / 1e9
                     r["util_measured"] = r["achieved_gbps"] / out["measured_peak_gbps"]
+                    r["util_read"] = r["achieved_gbps"] / out["measured_read_gbps"]
                     rows.append(r)
                     print(f"B={B:<3} C={C:<5} graph {r['median_ms']:7.3f} ms  {r['achieved_gbps']:5.0f} GB/s "
-                          f"({100 * r['util_measured']:.0f}% of copy peak)")
+                          f"({100 * r['util_read']:.0f}% of read peak)")
                     del g, step, cache
                 except Exception:
                     out["errors"][f"grid {B}x{C}"] = traceback.format_exc().strip().splitlines()[-1]
@@ -532,14 +580,133 @@ def run_grid(args, model, bm, L, out, save):
                     w.writerows(rows)
         out["grid"] = rows
         save()
-    if len(rows) >= 5:
-        out["grid_fit"] = fit_models(rows)
-    out["analysis"] = {"onchip_weights_upper_bound": onchip_bound(out, rows, "graph_static")}
+    analyze_grid(out, rows)
     save()
     md = report_grid(out)
     with open(os.path.join(args.out_dir, "delta_split_grid.md"), "w") as f:
         f.write(md)
     print(md)
+
+
+def lm_head_timing(model, dtype, warmup, reps, batches=(1, 16, 64)):
+    """The LM head runs once per generated token (not per loop): time it alone, eager and CUDA graph."""
+    head, cfg = model.lm_head, model.config
+    params = list(head.parameters())
+    nbytes = sum(p.numel() * p.element_size() for p in params)
+    emb = model.model.embed_tokens.weight
+    res = dict(params=sum(p.numel() for p in params), bytes=nbytes, vocab_size=cfg.vocab_size,
+               hidden_size=cfg.hidden_size, tie_word_embeddings=getattr(cfg, "tie_word_embeddings", None),
+               shares_embedding_tensor=head.weight.data_ptr() == emb.data_ptr(),
+               embedding_params=emb.numel(), rows=[])
+    for B in batches:
+        x = torch.randn(B, 1, cfg.hidden_size, device="cuda", dtype=dtype)
+        fn = lambda: head(x)
+        r = dict(B=B, eager_ms=stats(gpu_times(fn, warmup, reps))["median_ms"])
+        g, _ = capture_graph(fn)
+        r["graph_ms"] = stats(gpu_times(g.replay, warmup, reps))["median_ms"]
+        r["graph_gbps"] = nbytes / (r["graph_ms"] * 1e-3) / 1e9
+        res["rows"].append(r)
+        del g, x
+    harness.free_cuda()
+    return res
+
+
+def attention_per_token(out):
+    """attention kernel ms / (B·C) per breakdown row: should match the fitted α'. Plus achieved KV read BW."""
+    kvb, rows = out["kv_bytes_per_token_per_loop"], []
+    for k, v in (out.get("kernel_breakdown") or {}).items():
+        if not v or not v.get("attention_ms"):
+            continue
+        impl, bc = k.split()
+        B, C = (int(x) for x in bc.split("x"))
+        ms = v["attention_ms"]
+        rows.append(dict(impl=impl, B=B, C=C, attention_ms=ms, us_per_cached_token=ms * 1e3 / (B * C),
+                         read_gbps=B * C * kvb / (ms * 1e-3) / 1e9))
+    return rows
+
+
+def calibration_inputs(out, rows):
+    """One flat dict of the numbers the analytical model is calibrated against (B=1, C=128 for per-step terms)."""
+    g1 = (out.get("kernel_breakdown") or {}).get("graph_static 1x128") or {}
+    m2 = (out.get("grid_fit") or {}).get("M2") or {}
+    p, se = m2.get("params", {}), m2.get("se", {})
+    read = out.get("measured_read_gbps")
+    pct = lambda bw: 100 * bw / read if bw and read else None
+    w_ms = g1.get("gemm_ms")
+    ap = p.get("alpha_prime")                          # ms per cached token
+    t1 = next((r["median_ms"] for r in rows if (r["B"], r["C"]) == (1, 128)), None)
+    w_bw = out["weight_bytes_looped_block"] / (w_ms * 1e-3) / 1e9 if w_ms else None
+    kv_bw = out["kv_bytes_per_token_per_loop"] / (ap * 1e-3) / 1e9 if ap and ap > 0 else None
+    lm = out.get("lm_head") or {}
+    lm1 = next((r for r in lm.get("rows", []) if r["B"] == 1), {})
+    return dict(
+        gpu=out["gpu"], spec_gbps=out.get("spec_peak_gbps"), copy_gbps=out.get("measured_peak_gbps"), read_gbps=read,
+        weight_ms=w_ms, weight_gbps=w_bw, weight_pct_read=pct(w_bw),
+        delta_ms=p.get("delta"), delta_se=se.get("delta"), gamma_ms=p.get("gamma"), gamma_se=se.get("gamma"),
+        alpha_prime_us=ap * 1e3 if ap is not None else None,
+        alpha_prime_se_us=se["alpha_prime"] * 1e3 if "alpha_prime" in se else None,
+        kv_gbps=kv_bw, kv_pct_read=pct(kv_bw),
+        attention_us_per_token={f"{r['B']}x{r['C']}": r["us_per_cached_token"]
+                                for r in attention_per_token(out) if r["impl"] == "graph_static"},
+        small_kernels_ms=g1.get("copy_ms", 0) + g1.get("other_ms", 0) if g1 else None,
+        gap_ms=t1 - g1["busy_ms"] if t1 is not None and "busy_ms" in g1 else None,
+        x1_crossover_tokens=w_ms / ap if w_ms and ap and ap > 0 else None,
+        lm_head_graph_ms_b1=lm1.get("graph_ms"), lm_head_bytes=lm.get("bytes"))
+
+
+def analyze_grid(out, rows):
+    if len(rows) >= 5:
+        out["grid_fit"] = fit_models(rows)
+    out["analysis"] = {"onchip_weights_upper_bound": onchip_bound(out, rows, "graph_static"),
+                       "attention_per_token": attention_per_token(out),
+                       "calibration_inputs": calibration_inputs(out, rows)}
+
+
+def calibration_md(ci):
+    f = lambda v, nd=2: "n/a" if v is None else f"{v:,.{nd}f}"
+    pm = lambda v, e, nd: "n/a" if v is None else f"{v:.{nd}f} ± {f(e, nd)}"
+    att = ", ".join(f"{k}: {v:.3f}" for k, v in ci["attention_us_per_token"].items()) or "n/a"
+    rows = [("GPU", ci["gpu"]), ("spec bandwidth", f"{f(ci['spec_gbps'], 0)} GB/s"),
+            ("copy bandwidth (read + write)", f"{f(ci['copy_gbps'], 0)} GB/s"),
+            ("read bandwidth (torch.sum, 2 GiB)", f"{f(ci['read_gbps'], 0)} GB/s"),
+            ("weight time (GEMV/GEMM kernels, graph, B=1, C=128)", f"{f(ci['weight_ms'], 3)} ms"),
+            ("effective weight bandwidth", f"{f(ci['weight_gbps'], 0)} GB/s ({f(ci['weight_pct_read'], 0)}% of read peak)"),
+            ("δ (M2)", f"{pm(ci['delta_ms'], ci['delta_se'], 3)} ms"),
+            ("γ (M2)", f"{pm(ci['gamma_ms'], ci['gamma_se'], 4)} ms per sequence"),
+            ("α′ (M2)", f"{pm(ci['alpha_prime_us'], ci['alpha_prime_se_us'], 4)} µs per cached token"),
+            ("α′-implied KV bandwidth", f"{f(ci['kv_gbps'], 0)} GB/s ({f(ci['kv_pct_read'], 0)}% of read peak)"),
+            ("attention kernels, µs per cached token (graph, BxC)", att),
+            ("small kernels (copy + other), graph, B=1, C=128", f"{f(ci['small_kernels_ms'], 3)} ms"),
+            ("gaps (graph step − kernel busy), B=1, C=128", f"{f(ci['gap_ms'], 3)} ms"),
+            ("X1 crossover (weight time ÷ α′)", f"{f(ci['x1_crossover_tokens'], 0)} cached tokens"),
+            ("LM head, graph, B=1 (once per token, not per loop)",
+             f"{f(ci['lm_head_graph_ms_b1'], 3)} ms, {f((ci['lm_head_bytes'] or 0) / 1e6 or None, 1)} MB")]
+    return ["## Calibration inputs\n", "| quantity | value |", "|---|---|"] + [f"| {k} | {v} |" for k, v in rows] + [""]
+
+
+def lm_head_md(lm):
+    if not lm:
+        return []
+    L = ["## Once per token (not per loop): LM head\n",
+         f"lm_head: {lm['params']:,} params, {lm['bytes'] / 1e6:.1f} MB; vocab {lm['vocab_size']:,}; "
+         f"tie_word_embeddings={lm['tie_word_embeddings']} (shares the embedding tensor: {lm['shares_embedding_tensor']}); "
+         f"embedding: {lm['embedding_params']:,} params.\n",
+         "| B | eager ms | graph ms | graph GB/s |", "|---:|---:|---:|---:|"]
+    L += [f"| {r['B']} | {r['eager_ms']:.3f} | {r['graph_ms']:.3f} | {r['graph_gbps']:.0f} |" for r in lm["rows"]]
+    return L + [""]
+
+
+def attention_md(rows, out):
+    if not rows:
+        return []
+    read = out.get("measured_read_gbps")
+    L = ["## Attention kernels across context (should match α′)\n",
+         "| step | attention ms | µs per cached token | KV read GB/s | % of read peak |", "|---|---:|---:|---:|---:|"]
+    L += [f"| {r['impl']} {r['B']}x{r['C']} | {r['attention_ms']:.3f} | {r['us_per_cached_token']:.4f} | "
+          f"{r['read_gbps']:.0f} | {100 * r['read_gbps'] / read:.0f}% |" if read else
+          f"| {r['impl']} {r['B']}x{r['C']} | {r['attention_ms']:.3f} | {r['us_per_cached_token']:.4f} | "
+          f"{r['read_gbps']:.0f} | n/a |" for r in rows]
+    return L + [""]
 
 
 def breakdown_md(out):
@@ -564,8 +731,15 @@ def report_grid(out):
     L = [f"# Week 5 v1: CUDA-graph static-cache step over B x C on {out['gpu']}\n",
          f"Predicted weight fetch {f(out['predicted_weight_fetch_ms']['spec'])} ms (spec), "
          f"{f(out['predicted_weight_fetch_ms']['measured_peak'])} ms (measured copy peak "
-         f"{out['measured_peak_gbps']:.0f} GB/s).\n"]
+         f"{out['measured_peak_gbps']:.0f} GB/s), "
+         f"{f(out['predicted_weight_fetch_ms'].get('read_peak'))} ms (measured read peak "
+         f"{f(out.get('measured_read_gbps'), 0)} GB/s).\n"]
+    an = out.get("analysis") or {}
+    if an.get("calibration_inputs"):
+        L += calibration_md(an["calibration_inputs"])
+    L += lm_head_md(out.get("lm_head"))
     L += breakdown_md(out)
+    L += attention_md(an.get("attention_per_token"), out)
     gf = out.get("grid_fit")
     if gf:
         L += ["## Fits\n", "| model | δ ms | γ ms/seq | α ms/token | α' µs per cached token | R² | AIC | max resid ms |",
@@ -578,8 +752,10 @@ def report_grid(out):
         m2 = gf["M2"]["params"]
         if m2.get("alpha_prime", 0) > 0:
             bw = out["kv_bytes_per_token_per_loop"] / (m2["alpha_prime"] * 1e-3) / 1e9
-            L.append(f"\nM2 KV slope → effective KV bandwidth {bw:.0f} GB/s "
-                     f"({100 * bw / out['measured_peak_gbps']:.0f}% of measured copy peak).\n")
+            rd = out.get("measured_read_gbps")
+            L.append(f"\nM2 KV slope → effective KV bandwidth {bw:.0f} GB/s ("
+                     + (f"{100 * bw / rd:.0f}% of measured read peak" if rd else
+                        f"{100 * bw / out['measured_peak_gbps']:.0f}% of measured copy peak") + ").\n")
     oc = (out.get("analysis") or {}).get("onchip_weights_upper_bound")
     if oc:
         L += [f"## Upper bound if weights were free (weight term = {oc['weight_term_source']})\n",
@@ -692,7 +868,8 @@ def report(out):
     p = out["predicted_weight_fetch_ms"]
     L.append(f"Looped-block weights: {out['weight_bytes_looped_block'] / 1e9:.3f} GB. Predicted weight fetch: "
              f"**{f(p['spec'])} ms** at spec bandwidth ({out['spec_peak_gbps']} GB/s), "
-             f"**{f(p['measured_peak'])} ms** at the measured copy peak ({out['measured_peak_gbps']:.0f} GB/s).\n")
+             f"**{f(p['measured_peak'])} ms** at the measured copy peak ({out['measured_peak_gbps']:.0f} GB/s), "
+             f"**{f(p.get('read_peak'))} ms** at the measured read peak ({f(out.get('measured_read_gbps'), 0)} GB/s).\n")
     chk = out.get("static_vs_hf_check")
     if chk:
         L.append(f"Static-cache step vs HF step (same cache contents): relative error {chk['rel_err_hidden']:.2e}, "

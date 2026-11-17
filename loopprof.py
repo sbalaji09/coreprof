@@ -41,6 +41,7 @@ SPEC_GBPS = {
     "A10": 600,         # NVIDIA A10 datasheet: 600 GB/s
     "A100-SXM4-80GB": 2039, "A100 80GB PCIe": 1935, "A100-SXM4-40GB": 1555, "A100-PCIE-40GB": 1555,
     "H100 80GB HBM3": 3350, "H100 PCIe": 2000,
+    "H200": 4800,       # Modal may upgrade an "H100" request to an H200 (H200 SXM datasheet: 4.8 TB/s)
 }
 
 FIELDS = ["B", "C", "status", "ut_median_ms", "ut_p10_ms", "ut_p90_ms", "ut_iqr_ms",
