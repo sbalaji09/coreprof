@@ -1,0 +1,386 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=delta_compile-l40s-20261116-214809
+git=5984120
+Tue Nov 17 05:48:13 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-15762552-137b-e686-b40a-5d8cc5738092, 46068 MiB, 620.70.06
+CPU(s):              21
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python delta_split.py --grid --compile --out-dir $OUT
+GPU name: 'NVIDIA L40S' -> spec 864 GB/s
+GPU NVIDIA L40S: spec 864 GB/s, measured copy peak 635 GB/s, read peak 744 GB/s; looped-block weights 2.467 GB -> predicted weight fetch 2.85 ms (spec), 3.88 ms (copy peak), 3.31 ms (read peak)
+static vs HF step: {'B': 2, 'C': 64, 'rel_err_hidden': 0.0, 'max_abs_err_gate': 0.0, 'ok': True}
+grid: static KV limit 31.0 GB (GPU memory 47.7 GB)
+compiled vs eager static step: {'B': 2, 'C': 64, 'mode': 'default', 'rel_err_hidden': 0.02969585359096527, 'max_abs_err_gate': 0.03125, 'ok': False, 'compile_s': 26.5, 'graph_breaks': 0}
+kernel breakdown 1x128: {"other_ms": 0.17229959999999664, "gemm_ms": 3.771510199999991, "attention_ms": 0.14894820000000378, "copy_ms": 0.0008897999999993772, "other_kernels": 123.0, "gemm_kernels": 170.0, "attention_kernels": 48.0, "copy_kernels": 1.0, "busy_ms": 4.093647799999991, "kernels": 342.0, "top_kernels_ms": {"std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 6, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTen
+kernel breakdown 16x512: {"other_ms": 0.1930903999999948, "gemm_ms": 4.96485279999999, "attention_ms": 2.2626794000000072, "copy_ms": 0.0012223999999987428, "other_kernels": 123.0, "gemm_kernels": 169.0, "attention_kernels": 24.0, "copy_kernels": 1.0, "busy_ms": 7.421844999999992, "kernels": 317.0, "top_kernels_ms": {"void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)": 3.702430599999991, "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlas
+kernel breakdown 16x2048: {"other_ms": 0.19708420000000954, "gemm_ms": 4.882311199999995, "attention_ms": 8.773758999999991, "copy_ms": 0.001254399999999805, "other_kernels": 123.0, "gemm_kernels": 169.0, "attention_kernels": 24.0, "copy_kernels": 1.0, "busy_ms": 13.854408799999996, "kernels": 317.0, "top_kernels_ms": {"void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 8.773758999999991
+kernel breakdown 16x8192: {"other_ms": 0.19552480000001907, "gemm_ms": 4.881042200000005, "attention_ms": 34.405134600000004, "copy_ms": 0.0012415999999982887, "other_kernels": 123.0, "gemm_kernels": 169.0, "attention_kernels": 24.0, "copy_kernels": 1.0, "busy_ms": 39.48294320000002, "kernels": 317.0, "top_kernels_ms": {"void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 34.4051346000000
+lm_head: {"params": 100663296, "bytes": 201326592, "vocab_size": 49152, "hidden_size": 2048, "tie_word_embeddings": false, "shares_embedding_tensor": false, "embedding_params": 100663296, "rows": [{"B": 1, "eager_ms": 0.3489280045032501, "graph_ms": 0.3012640029191971, "graph_gbps": 668.272976688816}, {"B": 16, "eager_ms": 0.3235519975423813, "graph_ms": 0.31198400259017944, "graph_gbps": 645.310625956875}, {"B": 64, "eager_ms": 0.3614080101251602, "graph_ms": 0.34992000460624695, "graph_gbps": 575.3503353617806}]}
+B=1   C=128   graph   4.177 ms    597 GB/s (80% of read peak)
+B=2   C=128   graph   4.439 ms    567 GB/s (76% of read peak)
+B=4   C=128   graph   4.539 ms    566 GB/s (76% of read peak)
+B=8   C=128   graph   5.003 ms    534 GB/s (72% of read peak)
+B=16  C=128   graph   5.920 ms    485 GB/s (65% of read peak)
+B=32  C=128   graph   7.764 ms    422 GB/s (57% of read peak)
+B=64  C=128   graph  10.655 ms    384 GB/s (52% of read peak)
+B=1   C=256   graph   4.186 ms    601 GB/s (81% of read peak)
+B=2   C=256   graph   4.508 ms    570 GB/s (77% of read peak)
+B=4   C=256   graph   4.697 ms    568 GB/s (76% of read peak)
+B=8   C=256   graph   5.276 ms    544 GB/s (73% of read peak)
+B=16  C=256   graph   6.456 ms    507 GB/s (68% of read peak)
+B=32  C=256   graph   8.811 ms    463 GB/s (62% of read peak)
+B=64  C=256   graph  12.850 ms    444 GB/s (60% of read peak)
+B=1   C=512   graph   4.272 ms    601 GB/s (81% of read peak)
+B=2   C=512   graph   4.652 ms    574 GB/s (77% of read peak)
+B=4   C=512   graph   4.959 ms    579 GB/s (78% of read peak)
+B=8   C=512   graph   5.822 ms    562 GB/s (76% of read peak)
+B=16  C=512   graph   7.538 ms    541 GB/s (73% of read peak)
+B=32  C=512   graph  10.968 ms    519 GB/s (70% of read peak)
+B=64  C=512   graph  17.216 ms    518 GB/s (70% of read peak)
+B=1   C=1024  graph   4.456 ms    599 GB/s (80% of read peak)
+B=2   C=1024  graph   4.957 ms    579 GB/s (78% of read peak)
+B=4   C=1024  graph   5.498 ms    595 GB/s (80% of read peak)
+B=8   C=1024  graph   6.901 ms    591 GB/s (79% of read peak)
+B=16  C=1024  graph   9.722 ms    585 GB/s (79% of read peak)
+B=32  C=1024  graph  15.339 ms    581 GB/s (78% of read peak)
+B=64  C=1024  graph  25.889 ms    593 GB/s (80% of read peak)
+B=1   C=2048  graph   4.740 ms    605 GB/s (81% of read peak)
+B=2   C=2048  graph   5.508 ms    594 GB/s (80% of read peak)
+B=4   C=2048  graph   6.588 ms    619 GB/s (83% of read peak)
+B=8   C=2048  graph   9.169 ms    620 GB/s (83% of read peak)
+B=16  C=2048  graph  14.064 ms    634 GB/s (85% of read peak)
+B=32  C=2048  graph  23.931 ms    642 GB/s (86% of read peak)
+B=64  C=2048  graph  43.035 ms    656 GB/s (88% of read peak)
+B=1   C=4096  graph   5.286 ms    619 GB/s (83% of read peak)
+B=2   C=4096  graph   6.628 ms    615 GB/s (83% of read peak)
+B=4   C=4096  graph   8.741 ms    651 GB/s (87% of read peak)
+B=8   C=4096  graph  13.410 ms    664 GB/s (89% of read peak)
+B=16  C=4096  graph  22.572 ms    680 GB/s (91% of read peak)
+B=32  C=4096  graph  41.093 ms    687 GB/s (92% of read peak)
+B=64 C=4096 skipped (static KV 51.6 GB)
+B=1   C=8192  graph   6.350 ms    642 GB/s (86% of read peak)
+B=2   C=8192  graph   8.732 ms    651 GB/s (88% of read peak)
+B=4   C=8192  graph  13.045 ms    683 GB/s (92% of read peak)
+B=8   C=8192  graph  21.922 ms    700 GB/s (94% of read peak)
+B=16  C=8192  graph  39.580 ms    713 GB/s (96% of read peak)
+B=32 C=8192 skipped (static KV 51.5 GB)
+B=64 C=8192 skipped (static KV 103.1 GB)
+reference: {'B': 1, 'C': 128, 'graph_static_ms': 5.803760051727295, 'compiled_graph_ms': 4.177295923233032, 'speedup': 1.3893581298486164, 'saved_ms': 1.6264641284942627}
+reference: {'B': 16, 'C': 2048, 'graph_static_ms': 15.052480220794678, 'compiled_graph_ms': 14.064048290252686, 'speedup': 1.070280754882436, 'saved_ms': 0.9884319305419922}
+reference: {'B': 16, 'C': 8192, 'graph_static_ms': 40.67153739929199, 'compiled_graph_ms': 39.579856872558594, 'speedup': 1.0275817199200201, 'saved_ms': 1.0916805267333984}
+E1117 06:14:51.695000 34 site-packages/torch/_inductor/select_algorithm.py:1300] [0/0] Exception out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help. for benchmark choice TritonTemplateCaller(/tmp/torchinductor_root/62/c62nkitx6qc32qbu7xqe3xwnxm7gk2bqf55k44ri6kk6e627xlcu.py, ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4)
+W1117 06:14:53.310000 34 site-packages/torch/_inductor/select_algorithm.py:1517] [0/0] out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help.
+AUTOTUNE mm(1x2048, 2048x5632)
+  triton_mm_89 0.0500 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_mm_93 0.0506 ms 98.9% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  mm 0.0529 ms 94.6% 
+  triton_mm_101 0.0531 ms 94.1% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=8
+  triton_mm_92 0.0533 ms 93.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_mm_96 0.0535 ms 93.5% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_mm_86 0.0545 ms 91.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=2
+  triton_mm_88 0.0596 ms 83.8% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_mm_87 0.0600 ms 83.3% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_mm_99 0.0612 ms 81.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 2.1140 seconds and 0.0043 seconds precompiling
+E1117 06:14:55.580000 34 site-packages/torch/_inductor/select_algorithm.py:1300] [0/0] Exception out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help. for benchmark choice TritonTemplateCaller(/tmp/torchinductor_root/4l/c4lxzspy55myjoxshwshad7refosrqd6n77cfawkctfepet6lchd.py, ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4)
+W1117 06:14:57.021000 34 site-packages/torch/_inductor/select_algorithm.py:1517] [0/0] out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help.
+AUTOTUNE mm(1x2048, 2048x2048)
+  triton_mm_4 0.0220 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_mm_8 0.0225 ms 98.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_mm_16 0.0229 ms 96.1% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=8
+  mm 0.0233 ms 94.6% 
+  triton_mm_2 0.0285 ms 77.2% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_mm_1 0.0303 ms 72.8% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=2
+  triton_mm_7 0.0312 ms 70.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_mm_11 0.0323 ms 68.3% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_mm_3 0.0458 ms 48.1% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_mm_14 0.0474 ms 46.6% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 1.8785 seconds and 0.0039 seconds precompiling
+E1117 06:14:57.463000 34 site-packages/torch/_inductor/select_algorithm.py:1300] [0/0] Exception out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help. for benchmark choice TritonTemplateCaller(/tmp/torchinductor_root/ih/cihoav4wxnpclua45jjszeefqcyugs5zop2zutskll7ylcn7cgl3.py, ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4)
+W1117 06:14:58.899000 34 site-packages/torch/_inductor/select_algorithm.py:1517] [0/0] out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help.
+AUTOTUNE mm(1x2048, 2048x2048)
+  triton_mm_21 0.0222 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_mm_25 0.0227 ms 97.9% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  mm 0.0233 ms 95.3% 
+  triton_mm_33 0.0233 ms 95.3% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=8
+  triton_mm_19 0.0291 ms 76.2% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_mm_18 0.0295 ms 75.2% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=2
+  triton_mm_24 0.0312 ms 71.1% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_mm_28 0.0327 ms 67.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_mm_20 0.0462 ms 48.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_mm_31 0.0473 ms 46.9% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 1.8743 seconds and 0.0041 seconds precompiling
+E1117 06:14:59.342000 34 site-packages/torch/_inductor/select_algorithm.py:1300] [0/0] Exception out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help. for benchmark choice TritonTemplateCaller(/tmp/torchinductor_root/6r/c6ryxm7byd2imola2cirbq43apgj4uyrhrtsrotx5fygkxfkiuhd.py, ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4)
+W1117 06:15:00.787000 34 site-packages/torch/_inductor/select_algorithm.py:1517] [0/0] out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help.
+AUTOTUNE bmm(1x1x2048, 1x2048x2048)
+  triton_bmm_55 0.0221 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_bmm_59 0.0226 ms 98.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_bmm_67 0.0234 ms 94.4% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=8
+  bmm 0.0235 ms 94.1% 
+  triton_bmm_53 0.0291 ms 76.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_bmm_52 0.0295 ms 74.9% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=2
+  triton_bmm_58 0.0312 ms 70.8% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_bmm_62 0.0322 ms 68.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_bmm_54 0.0459 ms 48.2% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_bmm_65 0.0468 ms 47.3% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 1.8852 seconds and 0.0037 seconds precompiling
+E1117 06:15:01.231000 34 site-packages/torch/_inductor/select_algorithm.py:1300] [0/0] Exception out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help. for benchmark choice TritonTemplateCaller(/tmp/torchinductor_root/dx/cdxnnfebo6g7n5ej5h74k7hnqpb5g2whunyb5cby2gj7cxico52m.py, ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4)
+W1117 06:15:02.658000 34 site-packages/torch/_inductor/select_algorithm.py:1517] [0/0] out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help.
+AUTOTUNE mm(1x5632, 5632x2048)
+  triton_mm_106 0.0502 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_mm_110 0.0506 ms 99.2% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  mm 0.0527 ms 95.3% 
+  triton_mm_118 0.0541 ms 92.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=8
+  triton_mm_103 0.0702 ms 71.5% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=2
+  triton_mm_105 0.0734 ms 68.4% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_mm_104 0.0737 ms 68.1% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_mm_109 0.0766 ms 65.5% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_mm_116 0.0776 ms 64.6% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4
+  triton_mm_113 0.0835 ms 60.1% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 1.8625 seconds and 0.0035 seconds precompiling
+AUTOTUNE addmm(1x1, 1x2048, 2048x1)
+  triton_mm_2859 0.0077 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=1
+  triton_mm_2865 0.0078 ms 98.8% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=1
+  triton_mm_2866 0.0088 ms 87.3% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=1
+  triton_mm_2858 0.0110 ms 70.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=1
+  triton_mm_2862 0.0110 ms 70.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=1
+  triton_mm_2864 0.0128 ms 60.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=1
+  triton_mm_2857 0.0131 ms 58.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=1
+  addmm 0.0146 ms 52.7% 
+  triton_mm_2863 0.0160 ms 48.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=1
+  triton_mm_2861 0.0210 ms 36.6% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=1
+SingleProcess AUTOTUNE benchmarking takes 1.3361 seconds and 0.0016 seconds precompiling
+variant: {'mode': 'max-autotune-no-cudagraphs', 'B': 1, 'C': 128, 'graph_ms': 4.229375839233398, 'compile_s': 84.9, 'graph_breaks': 0}
+E1117 06:16:18.159000 34 site-packages/torch/_inductor/select_algorithm.py:1300] [0/0] Exception out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help. for benchmark choice TritonTemplateCaller(/tmp/torchinductor_root/gf/cgfpjntvpnt35c6d26foa7qdsuvw3b2u4tlz32biih2fhzd46klp.py, ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4)
+W1117 06:16:19.762000 34 site-packages/torch/_inductor/select_algorithm.py:1517] [0/0] out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help.
+AUTOTUNE mm(16x2048, 2048x5632)
+  triton_mm_2956 0.0503 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_mm_2960 0.0505 ms 99.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_mm_2953 0.0508 ms 99.1% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=2
+  mm 0.0518 ms 97.2% 
+  triton_mm_2968 0.0530 ms 95.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=8
+  triton_mm_2963 0.0530 ms 95.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_mm_2959 0.0532 ms 94.6% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_mm_2955 0.0577 ms 87.3% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_mm_2954 0.0581 ms 86.6% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_mm_2962 0.0603 ms 83.5% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=8
+SingleProcess AUTOTUNE benchmarking takes 2.0947 seconds and 0.0035 seconds precompiling
+E1117 06:16:21.978000 34 site-packages/torch/_inductor/select_algorithm.py:1300] [0/0] Exception out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help. for benchmark choice TritonTemplateCaller(/tmp/torchinductor_root/jt/cjt66lis3y3bklortuqbhnflj3dn5xqjwag3zfojber24544y22x.py, ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4)
+W1117 06:16:23.421000 34 site-packages/torch/_inductor/select_algorithm.py:1517] [0/0] out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help.
+AUTOTUNE mm(16x2048, 2048x2048)
+  triton_mm_2871 0.0219 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_mm_2875 0.0222 ms 98.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_mm_2883 0.0235 ms 93.2% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=8
+  triton_mm_2868 0.0267 ms 82.2% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=2
+  triton_mm_2874 0.0288 ms 76.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_mm_2869 0.0295 ms 74.3% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_mm_2878 0.0304 ms 72.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  mm 0.0306 ms 71.7% 
+  triton_mm_2870 0.0315 ms 69.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_mm_2881 0.0466 ms 47.1% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 1.8821 seconds and 0.0036 seconds precompiling
+E1117 06:16:23.864000 34 site-packages/torch/_inductor/select_algorithm.py:1300] [0/0] Exception out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help. for benchmark choice TritonTemplateCaller(/tmp/torchinductor_root/mw/cmwdrog4s5rzpf5dwtzztmxqffeyefaj5giean27fv7zq6aa5wpc.py, ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4)
+W1117 06:16:25.296000 34 site-packages/torch/_inductor/select_algorithm.py:1517] [0/0] out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help.
+AUTOTUNE bmm(16x1x2048, 16x2048x2048)
+  triton_bmm_2934 0.0359 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=8
+  triton_bmm_2925 0.0513 ms 70.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_bmm_2929 0.0513 ms 70.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_bmm_2926 0.0554 ms 64.8% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_bmm_2920 0.0603 ms 59.6% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_bmm_2922 0.0669 ms 53.6% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_bmm_2919 0.0711 ms 50.5% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=2
+  bmm 0.0729 ms 49.2% 
+  triton_bmm_2932 0.0763 ms 47.1% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4
+  triton_bmm_2924 0.0786 ms 45.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 1.8700 seconds and 0.0034 seconds precompiling
+E1117 06:16:25.738000 34 site-packages/torch/_inductor/select_algorithm.py:1300] [0/0] Exception out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help. for benchmark choice TritonTemplateCaller(/tmp/torchinductor_root/a4/ca4urwof7c4swmpzzsswkwebfzxh6o7szyoukusdlvtvumruq5zu.py, ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4)
+W1117 06:16:27.164000 34 site-packages/torch/_inductor/select_algorithm.py:1517] [0/0] out of resource: shared memory, Required: 110592, Hardware limit: 101376. Reducing block sizes or `num_stages` may help.
+AUTOTUNE mm(16x5632, 5632x2048)
+  triton_mm_2973 0.0506 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  triton_mm_2977 0.0515 ms 98.3% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_mm_2985 0.0559 ms 90.6% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=8
+  triton_mm_2970 0.0669 ms 75.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=2
+  triton_mm_2972 0.0702 ms 72.1% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=32, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=2
+  mm 0.0722 ms 70.2% 
+  triton_mm_2976 0.0735 ms 68.8% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+  triton_mm_2971 0.0743 ms 68.2% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=4
+  triton_mm_2983 0.0775 ms 65.3% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=64, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=4
+  triton_mm_2980 0.0810 ms 62.5% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=128, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 1.8629 seconds and 0.0037 seconds precompiling
+AUTOTUNE addmm(16x1, 16x2048, 2048x1)
+  triton_mm_5726 0.0074 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=1
+  triton_mm_5732 0.0076 ms 96.2% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=1
+  addmm 0.0082 ms 90.2% 
+  triton_mm_5733 0.0082 ms 90.2% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=1
+  triton_mm_5729 0.0109 ms 67.3% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=1
+  triton_mm_5725 0.0112 ms 65.5% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=1
+  triton_mm_5731 0.0129 ms 57.1% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=1
+  triton_mm_5724 0.0133 ms 55.4% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=1
+  triton_mm_5730 0.0166 ms 44.2% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=1
+  triton_mm_5728 0.0217 ms 33.9% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=1
+SingleProcess AUTOTUNE benchmarking takes 1.3297 seconds and 0.0019 seconds precompiling
+variant: {'mode': 'max-autotune-no-cudagraphs', 'B': 16, 'C': 2048, 'graph_ms': 13.084383964538574, 'compile_s': 74.2, 'graph_breaks': 0}
+# Week 5 v1: torch.compile (default) + CUDA-graph static-cache step over B x C on NVIDIA L40S
+
+Predicted weight fetch 2.85 ms (spec), 3.88 ms (measured copy peak 635 GB/s), 3.31 ms (measured read peak 744 GB/s).
+
+## torch.compile vs uncompiled (same container)
+
+Compiled vs eager static step (same cache, B=2, C=64): relative error 2.97e-02, gate error 3.12e-02 → **MISMATCH: compiled numbers below are not trustworthy**; compile 26.5 s, graph breaks 0.
+
+| B=1, C=128, kernel time | kernels | gemm ms | attention ms | copy + other ms | busy ms |
+|---|---:|---:|---:|---:|---:|
+| uncompiled graph | 1381 | 3.77 | 0.16 | 1.61 | 5.54 |
+| compiled graph | 342 | 3.77 | 0.15 | 0.17 | 4.09 |
+
+| B | C | uncompiled graph ms | compiled graph ms | saved ms | speedup |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 128 | 5.80 | 4.18 | 1.63 | 1.39× |
+| 16 | 2048 | 15.05 | 14.06 | 0.99 | 1.07× |
+| 16 | 8192 | 40.67 | 39.58 | 1.09 | 1.03× |
+
+- max-autotune-no-cudagraphs at B=1, C=128: 4.23 ms (compile 84.9 s)
+- max-autotune-no-cudagraphs at B=16, C=2048: 13.08 ms (compile 74.2 s)
+
+## Calibration inputs
+
+| quantity | value |
+|---|---|
+| GPU | NVIDIA L40S |
+| spec bandwidth | 864 GB/s |
+| copy bandwidth (read + write) | 635 GB/s |
+| read bandwidth (torch.sum, 2 GiB) | 744 GB/s |
+| weight time (GEMV/GEMM kernels, graph, B=1, C=128) | 3.772 ms |
+| effective weight bandwidth | 654 GB/s (88% of read peak) |
+| δ (M2) | 4.206 ± 0.024 ms |
+| γ (M2) | 0.0704 ± 0.0010 ms per sequence |
+| α′ (M2) | 0.2629 ± 0.0006 µs per cached token |
+| α′-implied KV bandwidth | 748 GB/s (100% of read peak) |
+| attention kernels, µs per cached token (graph, BxC) | 1x128: 1.164, 16x512: 0.276, 16x2048: 0.268, 16x8192: 0.262 |
+| small kernels (copy + other), graph, B=1, C=128 | 0.173 ms |
+| gaps (graph step − kernel busy), B=1, C=128 | 0.084 ms |
+| X1 crossover (weight time ÷ α′) | 14,347 cached tokens |
+| LM head, graph, B=1 (once per token, not per loop) | 0.301 ms, 201.3 MB |
+
+## Once per token (not per loop): LM head
+
+lm_head: 100,663,296 params, 201.3 MB; vocab 49,152; tie_word_embeddings=False (shares the embedding tensor: False); embedding: 100,663,296 params.
+
+| B | eager ms | graph ms | graph GB/s |
+|---:|---:|---:|---:|
+| 1 | 0.349 | 0.301 | 668 |
+| 16 | 0.324 | 0.312 | 645 |
+| 64 | 0.361 | 0.350 | 575 |
+
+## GPU kernel time per step, by kind (kernel durations only; no host gaps)
+
+| step | kernels | gemm ms | attention ms | copy ms | other ms | busy ms |
+|---|---:|---:|---:|---:|---:|---:|
+| compiled 1x128 | 340 | 3.79 | 0.16 | 0.00 | 0.18 | 4.13 |
+| compiled_graph 1x128 | 342 | 3.77 | 0.15 | 0.00 | 0.17 | 4.09 |
+| compiled 16x512 | 315 | 5.02 | 2.27 | 0.00 | 0.20 | 7.48 |
+| compiled_graph 16x512 | 317 | 4.96 | 2.26 | 0.00 | 0.19 | 7.42 |
+| compiled 16x2048 | 315 | 4.94 | 8.77 | 0.00 | 0.21 | 13.92 |
+| compiled_graph 16x2048 | 317 | 4.88 | 8.77 | 0.00 | 0.20 | 13.85 |
+| compiled 16x8192 | 315 | 4.94 | 34.40 | 0.00 | 0.20 | 39.55 |
+| compiled_graph 16x8192 | 317 | 4.88 | 34.41 | 0.00 | 0.20 | 39.48 |
+| graph_static 1x128 | 1381 | 3.77 | 0.16 | 0.56 | 1.05 | 5.54 |
+
+Top kernels (first row): `std::enable_if<!(false), void>::type internal::gemvx::kernel` 3.79 ms; `triton_` 0.18 ms; `void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::` 0.11 ms; `void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch` 0.05 ms; `void cublasLt::splitKreduce_kernel<32, 16, int, float, __nv_` 0.00 ms; `std::enable_if<!(false), void>::type internal::gemvx::kernel` 0.00 ms
+
+## Attention kernels across context (should match α′)
+
+| step | attention ms | µs per cached token | KV read GB/s | % of read peak |
+|---|---:|---:|---:|---:|
+| compiled 1x128 | 0.159 | 1.2438 | 158 | 21% |
+| compiled_graph 1x128 | 0.149 | 1.1637 | 169 | 23% |
+| compiled 16x512 | 2.266 | 0.2766 | 711 | 95% |
+| compiled_graph 16x512 | 2.263 | 0.2762 | 712 | 96% |
+| compiled 16x2048 | 8.774 | 0.2678 | 734 | 99% |
+| compiled_graph 16x2048 | 8.774 | 0.2678 | 734 | 99% |
+| compiled 16x8192 | 34.405 | 0.2625 | 749 | 101% |
+| compiled_graph 16x8192 | 34.405 | 0.2625 | 749 | 101% |
+| graph_static 1x128 | 0.156 | 1.2162 | 162 | 22% |
+
+## Fits
+
+| model | δ ms | γ ms/seq | α ms/token | α' µs per cached token | R² | AIC | max resid ms |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| M1 | 1.624 ± 1.551 | 0.3353 ± 0.0498 | 0.002066 ± 0.000389 |  | 0.5877 | 174.3 | 20.28 |
+| M2 | 4.206 ± 0.024 | 0.0704 ± 0.0010 |  | 0.2629 ± 0.0006 | 0.9999 | -190.6 | 0.27 |
+| M3 | 4.221 ± 0.030 | 0.0699 ± 0.0012 | -0.000007 ± 0.000010 | 0.2632 ± 0.0008 | 0.9999 | -189.2 | 0.26 |
+
+M2 KV slope → effective KV bandwidth 748 GB/s (100% of measured read peak).
+
+## Upper bound if weights were free (weight term = GEMM kernel time (profiled))
+
+| B | C | GPU (graph) ms | weight term ms | remaining ms | speedup bound |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 128 | 4.18 | 3.79 | 0.38 | 10.87× |
+| 2 | 128 | 4.44 | 3.79 | 0.65 | 6.88× |
+| 4 | 128 | 4.54 | 3.79 | 0.75 | 6.08× |
+| 8 | 128 | 5.00 | 3.79 | 1.21 | 4.13× |
+| 16 | 128 | 5.92 | 3.79 | 2.13 | 2.78× |
+| 32 | 128 | 7.76 | 3.79 | 3.97 | 1.96× |
+| 64 | 128 | 10.66 | 3.79 | 6.86 | 1.55× |
+| 1 | 256 | 4.19 | 3.79 | 0.39 | 10.65× |
+| 2 | 256 | 4.51 | 3.79 | 0.71 | 6.31× |
+| 4 | 256 | 4.70 | 3.79 | 0.90 | 5.20× |
+| 8 | 256 | 5.28 | 3.79 | 1.48 | 3.56× |
+| 16 | 256 | 6.46 | 3.79 | 2.66 | 2.42× |
+| 32 | 256 | 8.81 | 3.79 | 5.02 | 1.76× |
+| 64 | 256 | 12.85 | 3.79 | 9.06 | 1.42× |
+| 1 | 512 | 4.27 | 3.79 | 0.48 | 8.92× |
+| 2 | 512 | 4.65 | 3.79 | 0.86 | 5.41× |
+| 4 | 512 | 4.96 | 3.79 | 1.17 | 4.25× |
+| 8 | 512 | 5.82 | 3.79 | 2.03 | 2.87× |
+| 16 | 512 | 7.54 | 3.79 | 3.75 | 2.01× |
+| 32 | 512 | 10.97 | 3.79 | 7.17 | 1.53× |
+| 64 | 512 | 17.22 | 3.79 | 13.42 | 1.28× |
+| 1 | 1024 | 4.46 | 3.79 | 0.66 | 6.72× |
+| 2 | 1024 | 4.96 | 3.79 | 1.16 | 4.26× |
+| 4 | 1024 | 5.50 | 3.79 | 1.71 | 3.22× |
+| 8 | 1024 | 6.90 | 3.79 | 3.11 | 2.22× |
+| 16 | 1024 | 9.72 | 3.79 | 5.93 | 1.64× |
+| 32 | 1024 | 15.34 | 3.79 | 11.55 | 1.33× |
+| 64 | 1024 | 25.89 | 3.79 | 22.10 | 1.17× |
+| 1 | 2048 | 4.74 | 3.79 | 0.95 | 5.01× |
+| 2 | 2048 | 5.51 | 3.79 | 1.71 | 3.21× |
+| 4 | 2048 | 6.59 | 3.79 | 2.80 | 2.36× |
+| 8 | 2048 | 9.17 | 3.79 | 5.38 | 1.71× |
+| 16 | 2048 | 14.06 | 3.79 | 10.27 | 1.37× |
+| 32 | 2048 | 23.93 | 3.79 | 20.14 | 1.19× |
+| 64 | 2048 | 43.04 | 3.79 | 39.24 | 1.10× |
+| 1 | 4096 | 5.29 | 3.79 | 1.49 | 3.54× |
+| 2 | 4096 | 6.63 | 3.79 | 2.84 | 2.34× |
+| 4 | 4096 | 8.74 | 3.79 | 4.95 | 1.77× |
+| 8 | 4096 | 13.41 | 3.79 | 9.62 | 1.39× |
+| 16 | 4096 | 22.57 | 3.79 | 18.78 | 1.20× |
+| 32 | 4096 | 41.09 | 3.79 | 37.30 | 1.10× |
+| 1 | 8192 | 6.35 | 3.79 | 2.56 | 2.48× |
+| 2 | 8192 | 8.73 | 3.79 | 4.94 | 1.77× |
+| 4 | 8192 | 13.05 | 3.79 | 9.25 | 1.41× |
+| 8 | 8192 | 21.92 | 3.79 | 18.13 | 1.21× |
+| 16 | 8192 | 39.58 | 3.79 | 35.79 | 1.11× |
+
+Upper bound on the step-time gain from removing ONLY the weight-streaming term from the best-case (CUDA-graph, static-cache) GPU step; KV still comes from DRAM and SRAM read time is taken as zero. Vaibhav's model replaces this.
+
+
+[exit 0]

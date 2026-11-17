@@ -98,6 +98,24 @@ Notes:
 - The `torch.sum` read test reads below the copy peak on H100 and below the KV kernels on L40S:
   it underestimates the read peak. Use the copy peak or α′-implied KV bandwidth as the ceiling.
 
+## Fused GPU baseline (torch.compile + CUDA graph), 2026-11-16
+
+The calibration targets above use the **uncompiled** CUDA-graph step. A fused step
+(`torch.compile`, details in `results/WEEK5_COMPILE.md`) is faster at small batch and is the
+stronger GPU baseline for LoopCore comparisons. Whether to also calibrate against it is open
+(see "Open questions"); its measured values, for reference:
+
+| | L40S compiled | H100 compiled |
+|---|---:|---:|
+| step, B=1, C=128 | 4.18 ms (uncompiled 5.80, same container) | 2.14 ms (uncompiled 4.51) |
+| weight kernels, B=1, C=128 | 3.77 ms (unchanged) | 1.52 ms (unchanged) |
+| small kernels + gaps, B=1, C=128 | 0.26 ms (was ≈ 1.9) | 0.44 ms (was ≈ 2.8) |
+| δ / γ (M2) | 4.21 ms / 0.070 ms | 2.13 ms / 0.051 ms |
+| α′ (M2) | 0.263 µs per cached token (unchanged) | 0.0767 µs (unchanged) |
+
+Fusion removes fixed overhead, not memory traffic; γ rises because the compiled batched GEMMs
+are slower. Numerically valid: the compiled bf16 step is closer to fp32 than eager bf16.
+
 ## Decisions (confirmed 2026-11-15)
 
 1. **Target workload:** interactive decode, batch 1–16, context up to ~8k as the primary regime;
@@ -118,3 +136,6 @@ Notes:
   4.23 ms at B=1, C=128, so removing them gives at most ≈ 1.5× (vs ≈ 2.9× on L40S); small kernels
   and gaps (≈ 2.6 ms) dominate the H100 step.
 - Is ~1 GB of on-chip SRAM across several chips realistic?
+- Should the calibration targets (and the GPU baseline in decision 4) switch to the fused
+  `torch.compile` step? It is up to 2.1× faster at B=1, which makes weights ≈ 70–90 % of a
+  small-batch step, so LoopCore's real gain there depends almost entirely on its SRAM read time.

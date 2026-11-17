@@ -1,0 +1,51 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=compile_check-h100-20261116-215010
+git=ca1f5b2
+Tue Nov 17 05:50:15 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA H100 80GB HBM3, GPU-8a7d032e-1ef2-bf62-279a-06be1fe5cacd, 81559 MiB, 610.57.04
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python delta_split.py --compile-check --out-dir $OUT
+{
+ "B": 16,
+ "C": 64,
+ "compile_mode": "default",
+ "runs": {
+  "eager_bf16": {
+   "rel_err_hidden_vs_fp32": 0.02442481555044651,
+   "max_abs_err_gate_vs_fp32": 0.0775458812713623,
+   "top1_agreement_vs_fp32": 0.9375
+  },
+  "compiled_bf16": {
+   "rel_err_hidden_vs_fp32": 0.018231768161058426,
+   "max_abs_err_gate_vs_fp32": 0.035006046295166016,
+   "top1_agreement_vs_fp32": 1.0,
+   "compile_s": 19.2,
+   "graph_breaks": 0
+  }
+ },
+ "compiled_vs_eager": {
+  "rel_err_hidden": 0.029484959319233894,
+  "max_abs_err_gate": 0.0625
+ },
+ "compiled_over_eager_error_ratio": 0.7464444561885394,
+ "verdict": "rounding: compiled bf16 is as close to fp32 as eager bf16 (ratio <= 1.5)"
+}
+[exit 0]

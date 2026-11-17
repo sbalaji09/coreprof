@@ -1,0 +1,1642 @@
+{
+ "tool": "delta_split v1 (grid)",
+ "gpu": "NVIDIA L40S",
+ "args": {
+  "configs": [
+   [
+    1,
+    128
+   ],
+   [
+    1,
+    2048
+   ],
+   [
+    8,
+    512
+   ],
+   [
+    16,
+    2048
+   ],
+   [
+    32,
+    1024
+   ],
+   [
+    4,
+    8192
+   ]
+  ],
+  "layers": [
+   3,
+   6,
+   12,
+   18,
+   24
+  ],
+  "reps": 50,
+  "warmup": 10,
+  "dtype": "bf16",
+  "seed": 0,
+  "quick": false,
+  "grid": true,
+  "grid_batch": [
+   1,
+   2,
+   4,
+   8,
+   16,
+   32,
+   64
+  ],
+  "grid_ctx": [
+   128,
+   256,
+   512,
+   1024,
+   2048,
+   4096,
+   8192
+  ],
+  "grid_mem_gb": null,
+  "compile": true,
+  "compile_mode": "default",
+  "out_dir": "/vol/results/delta_compile-l40s-20261116-214809"
+ },
+ "torch": "2.5.1+cu124",
+ "weight_bytes_looped_block": 2466652162,
+ "kv_bytes_per_token_per_loop": 196608,
+ "spec_peak_gbps": 864,
+ "measured_peak_gbps": 635.4043129743905,
+ "measured_read_gbps": 744.4628959735501,
+ "errors": {},
+ "meta": {
+  "nvidia_smi": "NVIDIA L40S, 620.70.06, 2520 MHz, 350.00 W",
+  "torch": "2.5.1+cu124",
+  "cuda": "12.4",
+  "transformers": "4.57.1",
+  "model_revision": "574fa66cb8bf5abdc979642d01cf2b79b16bfab1",
+  "attn_implementation": "sdpa"
+ },
+ "predicted_weight_fetch_ms": {
+  "spec": 2.8549214837962964,
+  "measured_peak": 3.882019859848538,
+  "read_peak": 3.3133312289181402
+ },
+ "static_vs_hf_check": {
+  "B": 2,
+  "C": 64,
+  "rel_err_hidden": 0.0,
+  "max_abs_err_gate": 0.0,
+  "ok": true
+ },
+ "grid_impl": "compiled_graph",
+ "compile_mode": "default",
+ "grid_kv_limit_gb": 31.017471180799998,
+ "compiled_vs_eager_check": {
+  "B": 2,
+  "C": 64,
+  "mode": "default",
+  "rel_err_hidden": 0.02969585359096527,
+  "max_abs_err_gate": 0.03125,
+  "ok": false,
+  "compile_s": 26.5,
+  "graph_breaks": 0
+ },
+ "kernel_breakdown": {
+  "compiled 1x128": {
+   "other_ms": 0.18047279999998836,
+   "gemm_ms": 3.792980200000033,
+   "attention_ms": 0.1592015999999957,
+   "copy_ms": 0.0009792000000012195,
+   "other_kernels": 121.0,
+   "gemm_kernels": 170.0,
+   "attention_kernels": 48.0,
+   "copy_kernels": 1.0,
+   "busy_ms": 4.13363380000002,
+   "kernels": 340.0,
+   "top_kernels_ms": {
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 6, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 3.7874182000000305,
+    "triton_": 0.18047279999998836,
+    "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.11283339999999889,
+    "void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, 4, 1, true>(pytorch_flash::Flash_fwd_params)": 0.0463681999999968,
+    "void cublasLt::splitKreduce_kernel<32, 16, int, float, __nv_bfloat16, float, __nv_bfloat16, true, false, false>(cublasLt::cublasSplitKParams<float>, float const*, __nv_bfloat16 const*, __nv_bfloat16*, float const*, float const*, __nv_bfloat16 const*, float const*, __nv_bfloat16*, void*, long, float*, int*)": 0.0037634000000020024,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, float, float, float, false, true, false, false, 6, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<float const>, cublasGemvTensorStridedBatched<float>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<float const>, cublasGemvTensorStridedBatched<float>, float>)": 0.0017986000000004424,
+    "Memcpy DtoD (Device -> Device)": 0.0009792000000012195
+   }
+  },
+  "compiled_graph 1x128": {
+   "other_ms": 0.17229959999999664,
+   "gemm_ms": 3.771510199999991,
+   "attention_ms": 0.14894820000000378,
+   "copy_ms": 0.0008897999999993772,
+   "other_kernels": 123.0,
+   "gemm_kernels": 170.0,
+   "attention_kernels": 48.0,
+   "copy_kernels": 1.0,
+   "busy_ms": 4.093647799999991,
+   "kernels": 342.0,
+   "top_kernels_ms": {
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 6, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 3.7658589999999905,
+    "triton_": 0.17061639999999642,
+    "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.10929360000000081,
+    "void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, 4, 1, true>(pytorch_flash::Flash_fwd_params)": 0.03965460000000296,
+    "void cublasLt::splitKreduce_kernel<32, 16, int, float, __nv_bfloat16, float, __nv_bfloat16, true, false, false>(cublasLt::cublasSplitKParams<float>, float const*, __nv_bfloat16 const*, __nv_bfloat16*, float const*, float const*, __nv_bfloat16 const*, float const*, __nv_bfloat16*, void*, long, float*, int*)": 0.00368640000000014,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, float, float, float, false, true, false, false, 6, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<float const>, cublasGemvTensorStridedBatched<float>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<float const>, cublasGemvTensorStridedBatched<float>, float>)": 0.0019648000000006506,
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detail::Array<char*, 1> >(int, at::native::FillFunctor<long>, at::detail::Array<char*, 1>)": 0.001683200000000238,
+    "Memcpy DtoD (Device -> Device)": 0.0008897999999993772
+   }
+  },
+  "compiled 16x512": {
+   "other_ms": 0.19504659999999913,
+   "gemm_ms": 5.020263000000002,
+   "attention_ms": 2.265913600000004,
+   "copy_ms": 0.001612799999998242,
+   "other_kernels": 121.0,
+   "gemm_kernels": 169.0,
+   "attention_kernels": 24.0,
+   "copy_kernels": 1.0,
+   "busy_ms": 7.482836000000003,
+   "kernels": 315.0,
+   "top_kernels_ms": {
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)": 3.742361200000003,
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 2.265913600000004,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8::Params)": 1.2753609999999995,
+    "triton_": 0.19504659999999913,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 0.002540799999999581,
+    "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1})": 0.001612799999998242
+   }
+  },
+  "compiled_graph 16x512": {
+   "other_ms": 0.1930903999999948,
+   "gemm_ms": 4.96485279999999,
+   "attention_ms": 2.2626794000000072,
+   "copy_ms": 0.0012223999999987428,
+   "other_kernels": 123.0,
+   "gemm_kernels": 169.0,
+   "attention_kernels": 24.0,
+   "copy_kernels": 1.0,
+   "busy_ms": 7.421844999999992,
+   "kernels": 317.0,
+   "top_kernels_ms": {
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)": 3.702430599999991,
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 2.2626794000000072,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8::Params)": 1.2600029999999993,
+    "triton_": 0.19070959999999504,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 0.0024192000000002735,
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detail::Array<char*, 1> >(int, at::native::FillFunctor<long>, at::detail::Array<char*, 1>)": 0.002380799999999772,
+    "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1})": 0.0012223999999987428
+   }
+  },
+  "compiled 16x2048": {
+   "other_ms": 0.20514619999998393,
+   "gemm_ms": 4.93536399999997,
+   "attention_ms": 8.77427160000001,
+   "copy_ms": 0.0015615999999994527,
+   "other_kernels": 121.0,
+   "gemm_kernels": 169.0,
+   "attention_kernels": 24.0,
+   "copy_kernels": 1.0,
+   "busy_ms": 13.91634339999996,
+   "kernels": 315.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 8.77427160000001,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)": 3.654515999999964,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8::Params)": 1.2783328000000038,
+    "triton_": 0.20514619999998393,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 0.002515200000000914,
+    "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1})": 0.0015615999999994527
+   }
+  },
+  "compiled_graph 16x2048": {
+   "other_ms": 0.19708420000000954,
+   "gemm_ms": 4.882311199999995,
+   "attention_ms": 8.773758999999991,
+   "copy_ms": 0.001254399999999805,
+   "other_kernels": 123.0,
+   "gemm_kernels": 169.0,
+   "attention_kernels": 24.0,
+   "copy_kernels": 1.0,
+   "busy_ms": 13.854408799999996,
+   "kernels": 317.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 8.773758999999991,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)": 3.6148480000000003,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8::Params)": 1.2649737999999948,
+    "triton_": 0.1946644000000064,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 0.0024894000000000235,
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detail::Array<char*, 1> >(int, at::native::FillFunctor<long>, at::detail::Array<char*, 1>)": 0.0024198000000031474,
+    "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1})": 0.001254399999999805
+   }
+  },
+  "compiled 16x8192": {
+   "other_ms": 0.20293160000005228,
+   "gemm_ms": 4.936908999999983,
+   "attention_ms": 34.40460780000001,
+   "copy_ms": 0.0015554000000018277,
+   "other_kernels": 121.0,
+   "gemm_kernels": 169.0,
+   "attention_kernels": 24.0,
+   "copy_kernels": 1.0,
+   "busy_ms": 39.546003800000044,
+   "kernels": 315.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 34.40460780000001,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)": 3.6561457999999902,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8::Params)": 1.2782477999999915,
+    "triton_": 0.20293160000005228,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 0.0025154000000009546,
+    "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1})": 0.0015554000000018277
+   }
+  },
+  "compiled_graph 16x8192": {
+   "other_ms": 0.19552480000001907,
+   "gemm_ms": 4.881042200000005,
+   "attention_ms": 34.405134600000004,
+   "copy_ms": 0.0012415999999982887,
+   "other_kernels": 123.0,
+   "gemm_kernels": 169.0,
+   "attention_kernels": 24.0,
+   "copy_kernels": 1.0,
+   "busy_ms": 39.48294320000002,
+   "kernels": 317.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 34.405134600000004,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)": 3.617011600000014,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8::Params)": 1.261585799999997,
+    "triton_": 0.19308000000001507,
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detail::Array<char*, 1> >(int, at::native::FillFunctor<long>, at::detail::Array<char*, 1>)": 0.0024448000000040107,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 0.0024447999999945747,
+    "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1})": 0.0012415999999982887
+   }
+  },
+  "graph_static 1x128": {
+   "other_ms": 1.0533091999999906,
+   "copy_ms": 0.5608452000000101,
+   "gemm_ms": 3.7736524000000014,
+   "attention_ms": 0.15567199999999465,
+   "other_kernels": 872.0,
+   "copy_kernels": 291.0,
+   "gemm_kernels": 170.0,
+   "attention_kernels": 48.0,
+   "busy_ms": 5.543478799999997,
+   "kernels": 1381.0,
+   "top_kernels_ms": {
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 6, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 3.768020400000001,
+    "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}, at::detail::Array<char*, 2>, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1> >(int, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}, at::detail::Array<char*, 2>, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1>)": 0.19376080000001056,
+    "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, at::detail::Array<char*, 2>, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1> >(int, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, at::detail::Array<char*, 2>, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1>)": 0.18911100000000206,
+    "void at::native::reduce_kernel<512, 1, at::native::ReduceOp<float, at::native::MeanOps<float, float, float, float>, unsigned int, float, 4> >(at::native::ReduceOp<float, at::native::MeanOps<float, float, float, float>, unsigned int, float, 4>)": 0.1741492000000044,
+    "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1})": 0.16068019999999644,
+    "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1})": 0.11830239999999803,
+    "void at::native::vectorized_elementwise_kernel<4, at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> >, at::detail::Array<char*, 3> >(int, at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> >, at::detail::Array<char*, 3>)": 0.11767999999999265,
+    "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.11555799999999872,
+    "void at::native::(anonymous namespace)::CatArrayBatchedCopy<at::native::(anonymous namespace)::OpaqueType<2u>, unsigned int, 4, 64, 64>(at::native::(anonymous namespace)::OpaqueType<2u>*, at::native::(anonymous namespace)::CatArrInputTensorMetadata<at::native::(anonymous namespace)::OpaqueType<2u>, unsigned int, 64, 64>, at::native::(anonymous namespace)::TensorSizeStride<unsigned int, 4u>, int, unsigned int)": 0.09633999999999787,
+    "void at::native::vectorized_elementwise_kernel<4, at::native::rsqrt_kernel_cuda(at::TensorIteratorBase&)::{lambda()#2}::operator()() const::{lambda()#2}::operator()() const::{lambda(float)#1}, at::detail::Array<char*, 2> >(int, at::native::rsqrt_kernel_cuda(at::TensorIteratorBase&)::{lambda()#2}::operator()() const::{lambda()#2}::operator()() const::{lambda(float)#1}, at::detail::Array<char*, 2>)": 0.09414740000000192,
+    "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::pow_tensor_scalar_kernel_impl<float, float>(at::TensorIteratorBase&, float)::{lambda(float)#1}, at::detail::Array<char*, 2> >(int, at::native::(anonymous namespace)::pow_tensor_scalar_kernel_impl<float, float>(at::TensorIteratorBase&, float)::{lambda(float)#1}, at::detail::Array<char*, 2>)": 0.09401740000000018,
+    "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctor_add<c10::BFloat16>, at::detail::Array<char*, 3> >(int, at::native::CUDAFunctor_add<c10::BFloat16>, at::detail::Array<char*, 3>)": 0.0938308000000031
+   }
+  }
+ },
+ "lm_head": {
+  "params": 100663296,
+  "bytes": 201326592,
+  "vocab_size": 49152,
+  "hidden_size": 2048,
+  "tie_word_embeddings": false,
+  "shares_embedding_tensor": false,
+  "embedding_params": 100663296,
+  "rows": [
+   {
+    "B": 1,
+    "eager_ms": 0.3489280045032501,
+    "graph_ms": 0.3012640029191971,
+    "graph_gbps": 668.272976688816
+   },
+   {
+    "B": 16,
+    "eager_ms": 0.3235519975423813,
+    "graph_ms": 0.31198400259017944,
+    "graph_gbps": 645.310625956875
+   },
+   {
+    "B": 64,
+    "eager_ms": 0.3614080101251602,
+    "graph_ms": 0.34992000460624695,
+    "graph_gbps": 575.3503353617806
+   }
+  ]
+ },
+ "grid": [
+  {
+   "impl": "compiled_graph",
+   "B": 1,
+   "C": 128,
+   "layers": 24,
+   "median_ms": 4.177295923233032,
+   "p10_ms": 4.174896001815796,
+   "p90_ms": 4.1922143459320065,
+   "iqr_ms": 0.005648255348205566,
+   "n": 50,
+   "compile_s": 12.0,
+   "graph_breaks": 0,
+   "achieved_gbps": 596.5616608916939,
+   "util_measured": 0.9388693918351447,
+   "util_read": 0.801331623265868
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 2,
+   "C": 128,
+   "layers": 24,
+   "median_ms": 4.438543796539307,
+   "p10_ms": 4.433856010437012,
+   "p90_ms": 4.455059146881103,
+   "iqr_ms": 0.01179194450378418,
+   "n": 50,
+   "compile_s": 27.3,
+   "graph_breaks": 0,
+   "achieved_gbps": 567.1628221766734,
+   "util_measured": 0.8926014674368957,
+   "util_read": 0.7618416246722175
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 4,
+   "C": 128,
+   "layers": 24,
+   "median_ms": 4.538927793502808,
+   "p10_ms": 4.534143924713135,
+   "p90_ms": 4.551942539215088,
+   "iqr_ms": 0.004808187484741211,
+   "n": 50,
+   "compile_s": 24.4,
+   "graph_breaks": 0,
+   "achieved_gbps": 565.7948323557996,
+   "util_measured": 0.8904485235664487,
+   "util_read": 0.7600040719502852
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 8,
+   "C": 128,
+   "layers": 24,
+   "median_ms": 5.003247976303101,
+   "p10_ms": 4.9883393287658695,
+   "p90_ms": 5.135734367370605,
+   "iqr_ms": 0.12740826606750488,
+   "n": 50,
+   "compile_s": 23.3,
+   "graph_breaks": 0,
+   "achieved_gbps": 533.5637231342132,
+   "util_measured": 0.8397231687593505,
+   "util_read": 0.7167096251807963
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 16,
+   "C": 128,
+   "layers": 24,
+   "median_ms": 5.920447826385498,
+   "p10_ms": 5.89758710861206,
+   "p90_ms": 5.934156847000122,
+   "iqr_ms": 0.02552783489227295,
+   "n": 50,
+   "compile_s": 22.9,
+   "graph_breaks": 0,
+   "achieved_gbps": 485.17462837835103,
+   "util_measured": 0.7635683587151,
+   "util_read": 0.651710959676342
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 32,
+   "C": 128,
+   "layers": 24,
+   "median_ms": 7.76366400718689,
+   "p10_ms": 7.713494205474854,
+   "p90_ms": 7.782012939453125,
+   "iqr_ms": 0.025336146354675293,
+   "n": 50,
+   "compile_s": 22.9,
+   "graph_breaks": 0,
+   "achieved_gbps": 422.2555204559724,
+   "util_measured": 0.6645461981196704,
+   "util_read": 0.5671948497900352
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 64,
+   "C": 128,
+   "layers": 24,
+   "median_ms": 10.655488014221191,
+   "p10_ms": 10.612867164611817,
+   "p90_ms": 10.703974437713622,
+   "iqr_ms": 0.07523202896118164,
+   "n": 50,
+   "compile_s": 23.1,
+   "graph_breaks": 0,
+   "achieved_gbps": 383.82548077962684,
+   "util_measured": 0.6040649598094507,
+   "util_read": 0.5155736878970846
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 1,
+   "C": 256,
+   "layers": 24,
+   "median_ms": 4.185967922210693,
+   "p10_ms": 4.182764863967895,
+   "p90_ms": 4.197088193893433,
+   "iqr_ms": 0.004240155220031738,
+   "n": 50,
+   "compile_s": 20.7,
+   "graph_breaks": 0,
+   "achieved_gbps": 601.3377227866157,
+   "util_measured": 0.9463859632486508,
+   "util_read": 0.807747069785437
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 2,
+   "C": 256,
+   "layers": 24,
+   "median_ms": 4.507503986358643,
+   "p10_ms": 4.50347204208374,
+   "p90_ms": 4.515110301971435,
+   "iqr_ms": 0.0051517486572265625,
+   "n": 50,
+   "compile_s": 22.4,
+   "graph_breaks": 0,
+   "achieved_gbps": 569.652002920203,
+   "util_measured": 0.8965189428028992,
+   "util_read": 0.765185217424781
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 4,
+   "C": 256,
+   "layers": 24,
+   "median_ms": 4.696655988693237,
+   "p10_ms": 4.6943678855896,
+   "p90_ms": 4.707308721542359,
+   "iqr_ms": 0.005423903465270996,
+   "n": 50,
+   "compile_s": 22.6,
+   "graph_breaks": 0,
+   "achieved_gbps": 568.2266685967215,
+   "util_measured": 0.8942757500917743,
+   "util_read": 0.7632706366831612
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 8,
+   "C": 256,
+   "layers": 24,
+   "median_ms": 5.275968074798584,
+   "p10_ms": 5.27092170715332,
+   "p90_ms": 5.282409572601319,
+   "iqr_ms": 0.004871726036071777,
+   "n": 50,
+   "compile_s": 22.6,
+   "graph_breaks": 0,
+   "achieved_gbps": 544.1424529676668,
+   "util_measured": 0.8563719852962316,
+   "util_read": 0.7309195070844734
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 16,
+   "C": 256,
+   "layers": 24,
+   "median_ms": 6.45635199546814,
+   "p10_ms": 6.439443159103393,
+   "p90_ms": 6.469558525085449,
+   "iqr_ms": 0.01907169818878174,
+   "n": 50,
+   "compile_s": 23.0,
+   "graph_breaks": 0,
+   "achieved_gbps": 507.2685411667254,
+   "util_measured": 0.7983397827316456,
+   "util_read": 0.6813886144095328
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 32,
+   "C": 256,
+   "layers": 24,
+   "median_ms": 8.811264038085938,
+   "p10_ms": 8.783532524108887,
+   "p90_ms": 8.832015895843506,
+   "iqr_ms": 0.01940011978149414,
+   "n": 50,
+   "compile_s": 23.1,
+   "graph_breaks": 0,
+   "achieved_gbps": 463.447280248234,
+   "util_measured": 0.7293738345570735,
+   "util_read": 0.6225256930262106
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 64,
+   "C": 256,
+   "layers": 24,
+   "median_ms": 12.850480079650879,
+   "p10_ms": 12.83939504623413,
+   "p90_ms": 12.86780767440796,
+   "iqr_ms": 0.010039806365966797,
+   "n": 50,
+   "compile_s": 22.7,
+   "graph_breaks": 0,
+   "achieved_gbps": 443.59903370667456,
+   "util_measured": 0.6981366425263051,
+   "util_read": 0.59586453012755
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 1,
+   "C": 512,
+   "layers": 24,
+   "median_ms": 4.271744012832642,
+   "p10_ms": 4.268723106384277,
+   "p90_ms": 4.283510351181031,
+   "iqr_ms": 0.00464022159576416,
+   "n": 50,
+   "compile_s": 20.9,
+   "graph_breaks": 0,
+   "achieved_gbps": 601.0453946413924,
+   "util_measured": 0.9459258968952216,
+   "util_read": 0.8073543999199482
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 2,
+   "C": 512,
+   "layers": 24,
+   "median_ms": 4.652367830276489,
+   "p10_ms": 4.647478437423706,
+   "p90_ms": 4.663420963287353,
+   "iqr_ms": 0.005392193794250488,
+   "n": 50,
+   "compile_s": 22.7,
+   "graph_breaks": 0,
+   "achieved_gbps": 573.5513758466985,
+   "util_measured": 0.9026557801627877,
+   "util_read": 0.7704230512343441
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 4,
+   "C": 512,
+   "layers": 24,
+   "median_ms": 4.958863973617554,
+   "p10_ms": 4.955708646774292,
+   "p90_ms": 4.963824033737183,
+   "iqr_ms": 0.003847837448120117,
+   "n": 50,
+   "compile_s": 22.8,
+   "graph_breaks": 0,
+   "achieved_gbps": 578.7800982784838,
+   "util_measured": 0.9108847492223604,
+   "util_read": 0.7774465341507728
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 8,
+   "C": 512,
+   "layers": 24,
+   "median_ms": 5.822272062301636,
+   "p10_ms": 5.817424011230469,
+   "p90_ms": 5.832121801376343,
+   "iqr_ms": 0.005792021751403809,
+   "n": 50,
+   "compile_s": 22.7,
+   "graph_breaks": 0,
+   "achieved_gbps": 562.2429455324905,
+   "util_measured": 0.8848585602143234,
+   "util_read": 0.7552329989491731
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 16,
+   "C": 512,
+   "layers": 24,
+   "median_ms": 7.538000106811523,
+   "p10_ms": 7.514908695220948,
+   "p90_ms": 7.551670503616333,
+   "iqr_ms": 0.01676809787750244,
+   "n": 50,
+   "compile_s": 10.8,
+   "graph_breaks": 0,
+   "achieved_gbps": 541.3120944788578,
+   "util_measured": 0.8519175640230113,
+   "util_read": 0.7271176272270392
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 32,
+   "C": 512,
+   "layers": 24,
+   "median_ms": 10.967535972595215,
+   "p10_ms": 10.943142509460449,
+   "p90_ms": 10.998409366607666,
+   "iqr_ms": 0.030527591705322266,
+   "n": 50,
+   "compile_s": 22.7,
+   "graph_breaks": 0,
+   "achieved_gbps": 519.1839902990175,
+   "util_measured": 0.8170923295573269,
+   "util_read": 0.6973940448973881
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 64,
+   "C": 512,
+   "layers": 24,
+   "median_ms": 17.216272354125977,
+   "p10_ms": 17.164316749572755,
+   "p90_ms": 17.276262092590333,
+   "iqr_ms": 0.04556846618652344,
+   "n": 50,
+   "compile_s": 23.0,
+   "graph_breaks": 0,
+   "achieved_gbps": 518.2124117513666,
+   "util_measured": 0.8155632581805482,
+   "util_read": 0.6960889717326868
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 1,
+   "C": 1024,
+   "layers": 24,
+   "median_ms": 4.455983877182007,
+   "p10_ms": 4.4460768699646,
+   "p90_ms": 4.476208066940307,
+   "iqr_ms": 0.020528197288513184,
+   "n": 50,
+   "compile_s": 21.7,
+   "graph_breaks": 0,
+   "achieved_gbps": 598.784788172836,
+   "util_measured": 0.942368151972191,
+   "util_read": 0.8043178396282494
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 2,
+   "C": 1024,
+   "layers": 24,
+   "median_ms": 4.95742392539978,
+   "p10_ms": 4.945526456832885,
+   "p90_ms": 4.974044704437256,
+   "iqr_ms": 0.016583919525146484,
+   "n": 50,
+   "compile_s": 24.9,
+   "graph_breaks": 0,
+   "achieved_gbps": 578.8689055412141,
+   "util_measured": 0.9110245141891963,
+   "util_read": 0.7775658245320807
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 4,
+   "C": 1024,
+   "layers": 24,
+   "median_ms": 5.498111963272095,
+   "p10_ms": 5.4935871124267575,
+   "p90_ms": 5.504396963119507,
+   "iqr_ms": 0.0061920881271362305,
+   "n": 50,
+   "compile_s": 24.9,
+   "graph_breaks": 0,
+   "achieved_gbps": 595.2488752252126,
+   "util_measured": 0.9368033283230227,
+   "util_read": 0.7995682235402651
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 8,
+   "C": 1024,
+   "layers": 24,
+   "median_ms": 6.90062403678894,
+   "p10_ms": 6.898022270202636,
+   "p90_ms": 6.916528034210205,
+   "iqr_ms": 0.004800081253051758,
+   "n": 50,
+   "compile_s": 23.2,
+   "graph_breaks": 0,
+   "achieved_gbps": 591.0824499718724,
+   "util_measured": 0.930246203720206,
+   "util_read": 0.7939716716155494
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 16,
+   "C": 1024,
+   "layers": 24,
+   "median_ms": 9.721776008605957,
+   "p10_ms": 9.675357246398926,
+   "p90_ms": 9.741516590118408,
+   "iqr_ms": 0.03547191619873047,
+   "n": 50,
+   "compile_s": 23.1,
+   "graph_breaks": 0,
+   "achieved_gbps": 585.389270125352,
+   "util_measured": 0.9212862710753205,
+   "util_read": 0.7863243061426533
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 32,
+   "C": 1024,
+   "layers": 24,
+   "median_ms": 15.33899211883545,
+   "p10_ms": 15.298918151855469,
+   "p90_ms": 15.351654720306396,
+   "iqr_ms": 0.023167848587036133,
+   "n": 50,
+   "compile_s": 26.1,
+   "graph_breaks": 0,
+   "achieved_gbps": 581.2242742502215,
+   "util_measured": 0.9147313960294874,
+   "util_read": 0.7807296742306304
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 64,
+   "C": 1024,
+   "layers": 24,
+   "median_ms": 25.889455795288086,
+   "p10_ms": 25.874471282958986,
+   "p90_ms": 25.913663864135742,
+   "iqr_ms": 0.015384674072265625,
+   "n": 50,
+   "compile_s": 22.5,
+   "graph_breaks": 0,
+   "achieved_gbps": 593.4515226386602,
+   "util_measured": 0.9339746528641817,
+   "util_read": 0.797153929159345
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 1,
+   "C": 2048,
+   "layers": 24,
+   "median_ms": 4.739680051803589,
+   "p10_ms": 4.734236860275269,
+   "p90_ms": 4.761174297332763,
+   "iqr_ms": 0.014991998672485352,
+   "n": 50,
+   "compile_s": 21.4,
+   "graph_breaks": 0,
+   "achieved_gbps": 605.4210247605363,
+   "util_measured": 0.9528122683437583,
+   "util_read": 0.8132319663410683
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 2,
+   "C": 2048,
+   "layers": 24,
+   "median_ms": 5.507584095001221,
+   "p10_ms": 5.502172613143921,
+   "p90_ms": 5.526649761199951,
+   "iqr_ms": 0.008479833602905273,
+   "n": 50,
+   "compile_s": 23.2,
+   "graph_breaks": 0,
+   "achieved_gbps": 594.1537504565829,
+   "util_measured": 0.9350798197690702,
+   "util_read": 0.7980971968785567
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 4,
+   "C": 2048,
+   "layers": 24,
+   "median_ms": 6.588320016860962,
+   "p10_ms": 6.574230527877807,
+   "p90_ms": 6.629436922073364,
+   "iqr_ms": 0.02904796600341797,
+   "n": 50,
+   "compile_s": 23.4,
+   "graph_breaks": 0,
+   "achieved_gbps": 618.9819740940586,
+   "util_measured": 0.9741545051788251,
+   "util_read": 0.8314477154494082
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 8,
+   "C": 2048,
+   "layers": 24,
+   "median_ms": 9.169280052185059,
+   "p10_ms": 9.155824279785156,
+   "p90_ms": 9.189062118530273,
+   "iqr_ms": 0.015047550201416016,
+   "n": 50,
+   "compile_s": 27.4,
+   "graph_breaks": 0,
+   "achieved_gbps": 620.4904273421326,
+   "util_measured": 0.9765285105440276,
+   "util_read": 0.8334739457104897
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 16,
+   "C": 2048,
+   "layers": 24,
+   "median_ms": 14.064048290252686,
+   "p10_ms": 14.041906833648682,
+   "p90_ms": 14.107366752624511,
+   "iqr_ms": 0.04011225700378418,
+   "n": 50,
+   "compile_s": 12.5,
+   "graph_breaks": 0,
+   "achieved_gbps": 633.6901473935337,
+   "util_measured": 0.9973022443413508,
+   "util_read": 0.8512044734813057
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 32,
+   "C": 2048,
+   "layers": 24,
+   "median_ms": 23.93116855621338,
+   "p10_ms": 23.875535774230958,
+   "p90_ms": 23.975021171569825,
+   "iqr_ms": 0.05622434616088867,
+   "n": 50,
+   "compile_s": 25.7,
+   "graph_breaks": 0,
+   "achieved_gbps": 641.7507557111146,
+   "util_measured": 1.0099880384931852,
+   "util_read": 0.862031887931612
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 64,
+   "C": 2048,
+   "layers": 24,
+   "median_ms": 43.035295486450195,
+   "p10_ms": 42.96494827270508,
+   "p90_ms": 43.06603775024414,
+   "iqr_ms": 0.05520057678222656,
+   "n": 50,
+   "compile_s": 23.7,
+   "graph_breaks": 0,
+   "achieved_gbps": 656.4155893595364,
+   "util_measured": 1.033067569665667,
+   "util_read": 0.8817304299647166
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 1,
+   "C": 4096,
+   "layers": 24,
+   "median_ms": 5.285552024841309,
+   "p10_ms": 5.274899101257324,
+   "p90_ms": 5.3086464405059814,
+   "iqr_ms": 0.018991947174072266,
+   "n": 50,
+   "compile_s": 21.8,
+   "graph_breaks": 0,
+   "achieved_gbps": 619.0753818373856,
+   "util_measured": 0.9743015103870362,
+   "util_read": 0.8315731854276062
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 2,
+   "C": 4096,
+   "layers": 24,
+   "median_ms": 6.6280481815338135,
+   "p10_ms": 6.581702327728271,
+   "p90_ms": 6.696089601516723,
+   "iqr_ms": 0.06972801685333252,
+   "n": 50,
+   "compile_s": 23.8,
+   "graph_breaks": 0,
+   "achieved_gbps": 615.2125033370502,
+   "util_measured": 0.9682221079947971,
+   "util_read": 0.8263843727665213
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 4,
+   "C": 4096,
+   "layers": 24,
+   "median_ms": 8.740848064422607,
+   "p10_ms": 8.716275596618653,
+   "p90_ms": 8.810739231109618,
+   "iqr_ms": 0.06462430953979492,
+   "n": 50,
+   "compile_s": 22.7,
+   "graph_breaks": 0,
+   "achieved_gbps": 650.8137453108534,
+   "util_measured": 1.0242513813989236,
+   "util_read": 0.8742057513286412
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 8,
+   "C": 4096,
+   "layers": 24,
+   "median_ms": 13.410032272338867,
+   "p10_ms": 13.361676692962646,
+   "p90_ms": 13.45845136642456,
+   "iqr_ms": 0.061808109283447266,
+   "n": 50,
+   "compile_s": 23.8,
+   "graph_breaks": 0,
+   "achieved_gbps": 664.4783389806022,
+   "util_measured": 1.0457567338032587,
+   "util_read": 0.8925607207215474
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 16,
+   "C": 4096,
+   "layers": 24,
+   "median_ms": 22.57151985168457,
+   "p10_ms": 22.532067108154298,
+   "p90_ms": 22.622496032714842,
+   "iqr_ms": 0.06635141372680664,
+   "n": 50,
+   "compile_s": 22.7,
+   "graph_breaks": 0,
+   "achieved_gbps": 680.2687581028815,
+   "util_measured": 1.070607712620766,
+   "util_read": 0.913771205767454
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 32,
+   "C": 4096,
+   "layers": 24,
+   "median_ms": 41.09292793273926,
+   "p10_ms": 41.04823684692383,
+   "p90_ms": 41.12781257629395,
+   "iqr_ms": 0.02902507781982422,
+   "n": 50,
+   "compile_s": 23.7,
+   "graph_breaks": 0,
+   "achieved_gbps": 687.289731221577,
+   "util_measured": 1.0816573277639645,
+   "util_read": 0.923202129936635
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 1,
+   "C": 8192,
+   "layers": 24,
+   "median_ms": 6.350047826766968,
+   "p10_ms": 6.341036653518676,
+   "p90_ms": 6.433709001541137,
+   "iqr_ms": 0.04371201992034912,
+   "n": 50,
+   "compile_s": 20.8,
+   "graph_breaks": 0,
+   "achieved_gbps": 642.115085938806,
+   "util_measured": 1.0105614218024455,
+   "util_read": 0.8625212746151686
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 2,
+   "C": 8192,
+   "layers": 24,
+   "median_ms": 8.732175827026367,
+   "p10_ms": 8.687974166870116,
+   "p90_ms": 8.769254207611084,
+   "iqr_ms": 0.048056602478027344,
+   "n": 50,
+   "compile_s": 24.8,
+   "graph_breaks": 0,
+   "achieved_gbps": 651.4150611116438,
+   "util_measured": 1.0251977328613107,
+   "util_read": 0.8750134689516988
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 4,
+   "C": 8192,
+   "layers": 24,
+   "median_ms": 13.045295715332031,
+   "p10_ms": 13.025698852539062,
+   "p90_ms": 13.154454231262207,
+   "iqr_ms": 0.045815467834472656,
+   "n": 50,
+   "compile_s": 24.6,
+   "graph_breaks": 0,
+   "achieved_gbps": 682.9963637794948,
+   "util_measured": 1.0749004214062088,
+   "util_read": 0.9174350628802337
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 8,
+   "C": 8192,
+   "layers": 24,
+   "median_ms": 21.921775817871094,
+   "p10_ms": 21.913549613952636,
+   "p90_ms": 21.93310718536377,
+   "iqr_ms": 0.010343551635742188,
+   "n": 50,
+   "compile_s": 22.4,
+   "graph_breaks": 0,
+   "achieved_gbps": 700.3596351662262,
+   "util_measured": 1.1022267568310538,
+   "util_read": 0.9407582821845687
+  },
+  {
+   "impl": "compiled_graph",
+   "B": 16,
+   "C": 8192,
+   "layers": 24,
+   "median_ms": 39.579856872558594,
+   "p10_ms": 39.55676612854004,
+   "p90_ms": 39.60155029296875,
+   "iqr_ms": 0.02678394317626953,
+   "n": 50,
+   "compile_s": 10.8,
+   "graph_breaks": 0,
+   "achieved_gbps": 713.4841785034097,
+   "util_measured": 1.1228821774336402,
+   "util_read": 0.9583878288123026
+  }
+ ],
+ "uncompiled_reference": [
+  {
+   "B": 1,
+   "C": 128,
+   "graph_static_ms": 5.803760051727295,
+   "compiled_graph_ms": 4.177295923233032,
+   "speedup": 1.3893581298486164,
+   "saved_ms": 1.6264641284942627
+  },
+  {
+   "B": 16,
+   "C": 2048,
+   "graph_static_ms": 15.052480220794678,
+   "compiled_graph_ms": 14.064048290252686,
+   "speedup": 1.070280754882436,
+   "saved_ms": 0.9884319305419922
+  },
+  {
+   "B": 16,
+   "C": 8192,
+   "graph_static_ms": 40.67153739929199,
+   "compiled_graph_ms": 39.579856872558594,
+   "speedup": 1.0275817199200201,
+   "saved_ms": 1.0916805267333984
+  }
+ ],
+ "compile_variants": [
+  {
+   "mode": "max-autotune-no-cudagraphs",
+   "B": 1,
+   "C": 128,
+   "graph_ms": 4.229375839233398,
+   "compile_s": 84.9,
+   "graph_breaks": 0
+  },
+  {
+   "mode": "max-autotune-no-cudagraphs",
+   "B": 16,
+   "C": 2048,
+   "graph_ms": 13.084383964538574,
+   "compile_s": 74.2,
+   "graph_breaks": 0
+  }
+ ],
+ "grid_fit": {
+  "M1": {
+   "params": {
+    "delta": 1.623780034124294,
+    "gamma": 0.3352559615168569,
+    "alpha": 0.002065856598089666
+   },
+   "se": {
+    "delta": 1.5513563984450374,
+    "gamma": 0.04982163493454097,
+    "alpha": 0.0003892315229260988
+   },
+   "r2": 0.5876681681387252,
+   "aic": 174.25171187285912,
+   "max_abs_resid_ms": 20.27920850430027,
+   "n": 46
+  },
+  "M2": {
+   "params": {
+    "delta": 4.206370253462099,
+    "gamma": 0.07037873061491337,
+    "alpha_prime": 0.0002628763643762605
+   },
+   "se": {
+    "delta": 0.02386267299580046,
+    "gamma": 0.00103766613605069,
+    "alpha_prime": 5.907854095079212e-07
+   },
+   "r2": 0.9998518147539383,
+   "aic": -190.57983423811044,
+   "max_abs_resid_ms": 0.2665697778148193,
+   "n": 46
+  },
+  "M3": {
+   "params": {
+    "delta": 4.220815902476743,
+    "gamma": 0.0698892244485846,
+    "alpha": -7.321035256226127e-06,
+    "alpha_prime": 0.0002632459650030311
+   },
+   "se": {
+    "delta": 0.03049996787038851,
+    "gamma": 0.0012227702318946345,
+    "alpha": 9.552892436797828e-06,
+    "alpha_prime": 7.648523268714165e-07
+   },
+   "r2": 0.9998538583726471,
+   "aic": -189.21863402045673,
+   "max_abs_resid_ms": 0.2631739928870509,
+   "n": 46
+  }
+ },
+ "analysis": {
+  "onchip_weights_upper_bound": {
+   "rows": [
+    {
+     "B": 1,
+     "C": 128,
+     "gpu_graph_ms": 4.177295923233032,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 0.38431572323299923,
+     "speedup_if_weights_free": 10.869437992523823
+    },
+    {
+     "B": 2,
+     "C": 128,
+     "gpu_graph_ms": 4.438543796539307,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 0.6455635965392736,
+     "speedup_if_weights_free": 6.875455524960479
+    },
+    {
+     "B": 4,
+     "C": 128,
+     "gpu_graph_ms": 4.538927793502808,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 0.7459475935027746,
+     "speedup_if_weights_free": 6.084781066440862
+    },
+    {
+     "B": 8,
+     "C": 128,
+     "gpu_graph_ms": 5.003247976303101,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 1.2102677763030676,
+     "speedup_if_weights_free": 4.134000817229244
+    },
+    {
+     "B": 16,
+     "C": 128,
+     "gpu_graph_ms": 5.920447826385498,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 2.127467626385465,
+     "speedup_if_weights_free": 2.782861535921112
+    },
+    {
+     "B": 32,
+     "C": 128,
+     "gpu_graph_ms": 7.76366400718689,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 3.9706838071868567,
+     "speedup_if_weights_free": 1.9552460946738737
+    },
+    {
+     "B": 64,
+     "C": 128,
+     "gpu_graph_ms": 10.655488014221191,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 6.862507814221159,
+     "speedup_if_weights_free": 1.5527105108922206
+    },
+    {
+     "B": 1,
+     "C": 256,
+     "gpu_graph_ms": 4.185967922210693,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 0.39298772221066036,
+     "speedup_if_weights_free": 10.651650638507258
+    },
+    {
+     "B": 2,
+     "C": 256,
+     "gpu_graph_ms": 4.507503986358643,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 0.7145237863586096,
+     "speedup_if_weights_free": 6.30840298449685
+    },
+    {
+     "B": 4,
+     "C": 256,
+     "gpu_graph_ms": 4.696655988693237,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 0.9036757886932043,
+     "speedup_if_weights_free": 5.197279873443351
+    },
+    {
+     "B": 8,
+     "C": 256,
+     "gpu_graph_ms": 5.275968074798584,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 1.482987874798551,
+     "speedup_if_weights_free": 3.557660965714417
+    },
+    {
+     "B": 16,
+     "C": 256,
+     "gpu_graph_ms": 6.45635199546814,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 2.6633717954681067,
+     "speedup_if_weights_free": 2.424127193377217
+    },
+    {
+     "B": 32,
+     "C": 256,
+     "gpu_graph_ms": 8.811264038085938,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 5.018283838085905,
+     "speedup_if_weights_free": 1.755832137515515
+    },
+    {
+     "B": 64,
+     "C": 256,
+     "gpu_graph_ms": 12.850480079650879,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 9.057499879650846,
+     "speedup_if_weights_free": 1.418766795517335
+    },
+    {
+     "B": 1,
+     "C": 512,
+     "gpu_graph_ms": 4.271744012832642,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 0.4787638128326086,
+     "speedup_if_weights_free": 8.922445469633233
+    },
+    {
+     "B": 2,
+     "C": 512,
+     "gpu_graph_ms": 4.652367830276489,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 0.8593876302764563,
+     "speedup_if_weights_free": 5.413584820600536
+    },
+    {
+     "B": 4,
+     "C": 512,
+     "gpu_graph_ms": 4.958863973617554,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 1.1658837736175207,
+     "speedup_if_weights_free": 4.253309022589036
+    },
+    {
+     "B": 8,
+     "C": 512,
+     "gpu_graph_ms": 5.822272062301636,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 2.0292918623016027,
+     "speedup_if_weights_free": 2.8691151679374856
+    },
+    {
+     "B": 16,
+     "C": 512,
+     "gpu_graph_ms": 7.538000106811523,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 3.7450199068114904,
+     "speedup_if_weights_free": 2.0128064187593
+    },
+    {
+     "B": 32,
+     "C": 512,
+     "gpu_graph_ms": 10.967535972595215,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 7.174555772595182,
+     "speedup_if_weights_free": 1.528671087133808
+    },
+    {
+     "B": 64,
+     "C": 512,
+     "gpu_graph_ms": 17.216272354125977,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 13.423292154125944,
+     "speedup_if_weights_free": 1.2825670600363248
+    },
+    {
+     "B": 1,
+     "C": 1024,
+     "gpu_graph_ms": 4.455983877182007,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 0.6630036771819738,
+     "speedup_if_weights_free": 6.720903715227779
+    },
+    {
+     "B": 2,
+     "C": 1024,
+     "gpu_graph_ms": 4.95742392539978,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 1.1644437253997473,
+     "speedup_if_weights_free": 4.257332335830934
+    },
+    {
+     "B": 4,
+     "C": 1024,
+     "gpu_graph_ms": 5.498111963272095,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 1.7051317632720617,
+     "speedup_if_weights_free": 3.224449911554926
+    },
+    {
+     "B": 8,
+     "C": 1024,
+     "gpu_graph_ms": 6.90062403678894,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 3.1076438367889074,
+     "speedup_if_weights_free": 2.2205324674269225
+    },
+    {
+     "B": 16,
+     "C": 1024,
+     "gpu_graph_ms": 9.721776008605957,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 5.9287958086059245,
+     "speedup_if_weights_free": 1.639755579791489
+    },
+    {
+     "B": 32,
+     "C": 1024,
+     "gpu_graph_ms": 15.33899211883545,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 11.546011918835417,
+     "speedup_if_weights_free": 1.328509984803706
+    },
+    {
+     "B": 64,
+     "C": 1024,
+     "gpu_graph_ms": 25.889455795288086,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 22.09647559528805,
+     "speedup_if_weights_free": 1.1716554381554345
+    },
+    {
+     "B": 1,
+     "C": 2048,
+     "gpu_graph_ms": 4.739680051803589,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 0.9466998518035559,
+     "speedup_if_weights_free": 5.006528777599399
+    },
+    {
+     "B": 2,
+     "C": 2048,
+     "gpu_graph_ms": 5.507584095001221,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 1.7146038950011877,
+     "speedup_if_weights_free": 3.212161194231631
+    },
+    {
+     "B": 4,
+     "C": 2048,
+     "gpu_graph_ms": 6.588320016860962,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 2.795339816860929,
+     "speedup_if_weights_free": 2.356894133987409
+    },
+    {
+     "B": 8,
+     "C": 2048,
+     "gpu_graph_ms": 9.169280052185059,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 5.376299852185026,
+     "speedup_if_weights_free": 1.7055001216977317
+    },
+    {
+     "B": 16,
+     "C": 2048,
+     "gpu_graph_ms": 14.064048290252686,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 10.271068090252653,
+     "speedup_if_weights_free": 1.3692878059682623
+    },
+    {
+     "B": 32,
+     "C": 2048,
+     "gpu_graph_ms": 23.93116855621338,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 20.138188356213345,
+     "speedup_if_weights_free": 1.1883476374790072
+    },
+    {
+     "B": 64,
+     "C": 2048,
+     "gpu_graph_ms": 43.035295486450195,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 39.242315286450165,
+     "speedup_if_weights_free": 1.0966553622617088
+    },
+    {
+     "B": 1,
+     "C": 4096,
+     "gpu_graph_ms": 5.285552024841309,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 1.4925718248412756,
+     "speedup_if_weights_free": 3.5412379738599107
+    },
+    {
+     "B": 2,
+     "C": 4096,
+     "gpu_graph_ms": 6.6280481815338135,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 2.8350679815337805,
+     "speedup_if_weights_free": 2.3378798056009997
+    },
+    {
+     "B": 4,
+     "C": 4096,
+     "gpu_graph_ms": 8.740848064422607,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 4.947867864422575,
+     "speedup_if_weights_free": 1.7665888224851938
+    },
+    {
+     "B": 8,
+     "C": 4096,
+     "gpu_graph_ms": 13.410032272338867,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 9.617052072338835,
+     "speedup_if_weights_free": 1.394401545449633
+    },
+    {
+     "B": 16,
+     "C": 4096,
+     "gpu_graph_ms": 22.57151985168457,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 18.778539651684536,
+     "speedup_if_weights_free": 1.2019848332380725
+    },
+    {
+     "B": 32,
+     "C": 4096,
+     "gpu_graph_ms": 41.09292793273926,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 37.29994773273923,
+     "speedup_if_weights_free": 1.1016886197047087
+    },
+    {
+     "B": 1,
+     "C": 8192,
+     "gpu_graph_ms": 6.350047826766968,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 2.5570676267669348,
+     "speedup_if_weights_free": 2.483331985550864
+    },
+    {
+     "B": 2,
+     "C": 8192,
+     "gpu_graph_ms": 8.732175827026367,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 4.939195627026335,
+     "speedup_if_weights_free": 1.767934798784962
+    },
+    {
+     "B": 4,
+     "C": 8192,
+     "gpu_graph_ms": 13.045295715332031,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 9.252315515331999,
+     "speedup_if_weights_free": 1.4099492925543546
+    },
+    {
+     "B": 8,
+     "C": 8192,
+     "gpu_graph_ms": 21.921775817871094,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 18.12879561787106,
+     "speedup_if_weights_free": 1.2092240587819842
+    },
+    {
+     "B": 16,
+     "C": 8192,
+     "gpu_graph_ms": 39.579856872558594,
+     "weight_term_ms": 3.792980200000033,
+     "remaining_ms": 35.78687667255856,
+     "speedup_if_weights_free": 1.105988019985787
+    }
+   ],
+   "weight_term_source": "GEMM kernel time (profiled)",
+   "note": "Upper bound on the step-time gain from removing ONLY the weight-streaming term from the best-case (CUDA-graph, static-cache) GPU step; KV still comes from DRAM and SRAM read time is taken as zero. Vaibhav's model replaces this."
+  },
+  "attention_per_token": [
+   {
+    "impl": "compiled",
+    "B": 1,
+    "C": 128,
+    "attention_ms": 0.1592015999999957,
+    "us_per_cached_token": 1.2437624999999664,
+    "read_gbps": 158.0751952241729
+   },
+   {
+    "impl": "compiled_graph",
+    "B": 1,
+    "C": 128,
+    "attention_ms": 0.14894820000000378,
+    "us_per_cached_token": 1.1636578125000294,
+    "read_gbps": 168.95688568240072
+   },
+   {
+    "impl": "compiled",
+    "B": 16,
+    "C": 512,
+    "attention_ms": 2.265913600000004,
+    "us_per_cached_token": 0.27660078125000054,
+    "read_gbps": 710.8005953978109
+   },
+   {
+    "impl": "compiled_graph",
+    "B": 16,
+    "C": 512,
+    "attention_ms": 2.2626794000000072,
+    "us_per_cached_token": 0.2762059814453134,
+    "read_gbps": 711.8165905430504
+   },
+   {
+    "impl": "compiled",
+    "B": 16,
+    "C": 2048,
+    "attention_ms": 8.77427160000001,
+    "us_per_cached_token": 0.26776951904296903,
+    "read_gbps": 734.2433922378233
+   },
+   {
+    "impl": "compiled_graph",
+    "B": 16,
+    "C": 2048,
+    "attention_ms": 8.773758999999991,
+    "us_per_cached_token": 0.2677538757324216,
+    "read_gbps": 734.286289833127
+   },
+   {
+    "impl": "compiled",
+    "B": 16,
+    "C": 8192,
+    "attention_ms": 34.40460780000001,
+    "us_per_cached_token": 0.26248632659912113,
+    "read_gbps": 749.0218730527134
+   },
+   {
+    "impl": "compiled_graph",
+    "B": 16,
+    "C": 8192,
+    "attention_ms": 34.405134600000004,
+    "us_per_cached_token": 0.2624903457641602,
+    "read_gbps": 749.0104042784357
+   },
+   {
+    "impl": "graph_static",
+    "B": 1,
+    "C": 128,
+    "attention_ms": 0.15567199999999465,
+    "us_per_cached_token": 1.2161874999999582,
+    "read_gbps": 161.65928362197997
+   }
+  ],
+  "calibration_inputs": {
+   "gpu": "NVIDIA L40S",
+   "spec_gbps": 864,
+   "copy_gbps": 635.4043129743905,
+   "read_gbps": 744.4628959735501,
+   "weight_ms": 3.771510199999991,
+   "weight_gbps": 654.0224024848205,
+   "weight_pct_read": 87.8515781004158,
+   "delta_ms": 4.206370253462099,
+   "delta_se": 0.02386267299580046,
+   "gamma_ms": 0.07037873061491337,
+   "gamma_se": 0.00103766613605069,
+   "alpha_prime_us": 0.2628763643762605,
+   "alpha_prime_se_us": 0.0005907854095079212,
+   "kv_gbps": 747.9105261764455,
+   "kv_pct_read": 100.46310302656346,
+   "attention_us_per_token": {
+    "1x128": 1.1636578125000294,
+    "16x512": 0.2762059814453134,
+    "16x2048": 0.2677538757324216,
+    "16x8192": 0.2624903457641602
+   },
+   "small_kernels_ms": 0.17318939999999602,
+   "gap_ms": 0.08364812323304083,
+   "x1_crossover_tokens": 14347.087494719566,
+   "lm_head_graph_ms_b1": 0.3012640029191971,
+   "lm_head_bytes": 201326592
+  }
+ }
+}

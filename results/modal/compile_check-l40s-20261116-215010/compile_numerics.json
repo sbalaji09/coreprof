@@ -1,0 +1,25 @@
+{
+ "B": 16,
+ "C": 64,
+ "compile_mode": "default",
+ "runs": {
+  "eager_bf16": {
+   "rel_err_hidden_vs_fp32": 0.023608917370438576,
+   "max_abs_err_gate_vs_fp32": 0.0628504753112793,
+   "top1_agreement_vs_fp32": 0.875
+  },
+  "compiled_bf16": {
+   "rel_err_hidden_vs_fp32": 0.017621997743844986,
+   "max_abs_err_gate_vs_fp32": 0.05853128433227539,
+   "top1_agreement_vs_fp32": 0.9375,
+   "compile_s": 25.7,
+   "graph_breaks": 0
+  }
+ },
+ "compiled_vs_eager": {
+  "rel_err_hidden": 0.028846953064203262,
+  "max_abs_err_gate": 0.09375
+ },
+ "compiled_over_eager_error_ratio": 0.746412784091066,
+ "verdict": "rounding: compiled bf16 is as close to fp32 as eager bf16 (ratio <= 1.5)"
+}
