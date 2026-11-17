@@ -1,5 +1,9 @@
 # Week 5: splitting δ into weight transfer vs. software overhead
 
+> **Note (2026-11-16):** every GPU number and speedup bound here is against the *uncompiled*
+> CUDA-graph step. A fused `torch.compile` step is up to 1.4× (L40S) / 2.1× (H100) faster at small
+> batch and is now the baseline (CALIBRATION.md, decision 4); see `results/WEEK5_COMPILE.md`.
+
 **Question.** Week 4 fit one recurrent step of Ouro-1.4B as t = δ + α′·(B·C) with δ ≈ 8.0 ms.
 How much of δ is moving the looped block's weights from DRAM, and how much is software
 overhead? Does the simple prediction *weight bytes ÷ memory bandwidth* get the weight part

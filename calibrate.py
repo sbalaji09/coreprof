@@ -1,36 +1,49 @@
-"""Check the analytical model's predictions against measured GPU data (stdlib only, runs on a laptop).
+"""Check the analytical model's predictions against the best measured GPU step (stdlib only, runs on a laptop).
+
+Target = the GPU "envelope": at each (B, C) the faster of the fused (torch.compile + CUDA graph) and the
+uncompiled CUDA-graph step, measured on the same day (see CALIBRATION.md, decision 4).
 
 Usage:
-  python calibrate.py [--gpu l40s|h100]            # measured values + table, predictions pending
+  python calibrate.py [--gpu l40s|h100]            # measured targets, predictions pending
   python calibrate.py --gpu h100 --pred calibration_predictions_h100.json [--tol 10] [--write]
+  python calibrate.py --gpu l40s --template        # (re)write the predictions template, keeping filled values
   python calibrate.py --selftest
 
+Two tests, both must pass:
+  1. six summary quantities, each within --tol percent (error is 0 inside a measured range);
+  2. step time at EVERY grid point ("grid": {"BxC": ms}): median |error| <= tol and max |error| <= 2 x tol.
 Measured values are recomputed from the raw run files every time, never copied by hand.
---write replaces the block between the calibration markers in CALIBRATION.md.
-Exit code: 0 only if every quantity has a prediction within --tol percent.
+--write replaces this GPU's block between the calibration markers in CALIBRATION.md.
+Exit code: 0 only if both tests pass.
 """
 import argparse
 import csv
 import json
+import statistics
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-# gpu -> (delta_grid run, expected grid points, device name). L40S stays on the run WEEK5.md is built on.
+
+# gpu -> device name, template path, and the runs whose per-point minimum is the target
 RUNS = {
-    "l40s": ("results/modal/delta_grid-l40s-20261112-172748", 46, "NVIDIA L40S"),
-    "h100": ("results/modal/delta_grid-h100-20261116-184347", 48, "NVIDIA H100 80GB HBM3"),
+    "l40s": ("NVIDIA L40S", "calibration_predictions.json",
+             ["results/modal/delta_compile-l40s-20261116-214809", "results/modal/delta_grid-l40s-20261116-184352"]),
+    "h100": ("NVIDIA H100 80GB HBM3", "calibration_predictions_h100.json",
+             ["results/modal/delta_compile-h100-20261116-214809", "results/modal/delta_grid-h100-20261116-184347"]),
 }
 markers = lambda gpu: (f"<!-- calibration:{gpu}:begin -->", f"<!-- calibration:{gpu}:end -->")
 
 # key -> (label, unit, source); order = table order
 ROWS = {
-    "weight_ms": ("weight streaming time per loop step", "ms", "delta_split.json kernel_breakdown (weight GEMV/GEMM kernels, 1x128 and 16x2048)"),
-    "kv_us_per_token": ("KV cost per cached token", "µs", "graph_grid.csv, M2 fit"),
+    "weight_ms": ("weight streaming time per loop step", "ms",
+                  "fastest weight GEMV/GEMM kernels of either implementation, 1x128 and 16x2048"),
+    "kv_us_per_token": ("KV cost per cached token", "µs", "M2 fit over the envelope"),
     "crossover_tokens": ("weight/KV crossover", "cached tokens", "weight_ms / kv_us_per_token"),
-    "step_ms_b1_c128": ("best-case step time, B=1, C=128 (CUDA graph, static cache)", "ms", "graph_grid.csv"),
-    "delta_ms": ("fixed cost δ (M2 fit)", "ms", "graph_grid.csv, M2 fit"),
-    "overhead_ms": ("non-weight GPU overhead (small kernels + gaps)", "ms", "step_ms_b1_c128 − weight kernels at 1x128"),
+    "step_ms_b1_c128": ("best GPU step time, B=1, C=128", "ms", "envelope"),
+    "delta_ms": ("fixed cost δ (M2 fit)", "ms", "M2 fit over the envelope"),
+    "overhead_ms": ("non-weight GPU time (attention + small kernels + gaps), B=1, C=128", "ms",
+                    "step − weight kernels of the fastest implementation"),
 }
 
 
@@ -60,26 +73,45 @@ def weight_kernel_ms(bd):
                 if ("gemvx" in k or "gemm" in k) and "flash" not in k)
 
 
+def load_run(run):
+    d = ROOT / run
+    rows = list(csv.DictReader(open(d / "graph_grid.csv")))
+    js = json.load(open(d / "delta_split.json"))
+    impl = js.get("grid_impl", "graph_static")
+    kb = js["kernel_breakdown"]
+    w = {bc: weight_kernel_ms(kb[f"{impl} {bc}"]) for bc in ("1x128", "16x2048")}
+    return {(int(r["B"]), int(r["C"])): float(r["median_ms"]) for r in rows}, impl, w
+
+
+def envelope(gpu):
+    """{(B, C): (ms, impl)} = fastest implementation per point, and per-impl weight times."""
+    env, weights = {}, {}
+    for run in RUNS[gpu][2]:
+        grid, impl, w = load_run(run)
+        weights[impl] = w
+        for bc, t in grid.items():
+            if bc not in env or t < env[bc][0]:
+                env[bc] = (t, impl)
+    return env, weights
+
+
 def measured(gpu="l40s"):
-    """Each value is (lo, hi); lo == hi for point values."""
-    run, n_expected, _ = RUNS[gpu]
-    grid = ROOT / run
-    rows = [{"B": int(r["B"]), "C": int(r["C"]), "t": float(r["median_ms"])}
-            for r in csv.DictReader(open(grid / "graph_grid.csv"))]
+    """Summary quantities, each (lo, hi); lo == hi for point values. Plus the envelope grid."""
+    env, weights = envelope(gpu)
+    rows = [{"B": B, "C": C, "t": t} for (B, C), (t, _) in env.items()]
     delta, _, alpha, r2 = fit_m2(rows)
-    assert len(rows) == n_expected and r2 > 0.99, f"{gpu} grid fit changed: n={len(rows)} R²={r2}"
-    kb = json.load(open(grid / "delta_split.json"))["kernel_breakdown"]
-    w1, w16 = weight_kernel_ms(kb["graph_static 1x128"]), weight_kernel_ms(kb["graph_static 16x2048"])
-    gemv, gemm = min(w1, w16), max(w1, w16)
-    step = next(r["t"] for r in rows if (r["B"], r["C"]) == (1, 128))
+    assert r2 > 0.99, f"{gpu} envelope fit changed: R²={r2}"
+    w1 = min(w["1x128"] for w in weights.values())
+    w16 = min(w["16x2048"] for w in weights.values())
+    step, win = env[(1, 128)]
     return {
-        "weight_ms": (gemv, gemm),
+        "weight_ms": (min(w1, w16), max(w1, w16)),
         "kv_us_per_token": (alpha * 1e3,) * 2,
-        "crossover_tokens": (gemv / alpha, gemm / alpha),
+        "crossover_tokens": (min(w1, w16) / alpha, max(w1, w16) / alpha),
         "step_ms_b1_c128": (step,) * 2,
         "delta_ms": (delta,) * 2,
-        "overhead_ms": (step - w1,) * 2,
-    }
+        "overhead_ms": (step - weights[win]["1x128"],) * 2,
+    }, env
 
 
 def error_pct(pred, lo, hi):
@@ -94,14 +126,26 @@ def fmt(v):
     return f"{v:,.0f}" if abs(v) >= 100 else f"{v:.3g}"
 
 
-def report(meas, pred, tol, gpu="l40s"):
+def grid_errors(env, pred):
+    """{(B, C): error %} for every predicted grid point."""
+    g = pred.get("grid") or {}
+    out = {}
+    for (B, C), (t, _) in env.items():
+        p = g.get(f"{B}x{C}")
+        if p is not None:
+            out[(B, C)] = 100 * (p - t) / t
+    return out
+
+
+def report(meas, env, pred, tol, gpu="l40s"):
     """Returns (markdown block, all_ok)."""
-    lines = [f"| quantity | measured ({RUNS[gpu][2]}) | source | model prediction | error % |", "|---|---|---|---|---|"]
+    name, tmpl, runs = RUNS[gpu]
+    lines = [f"| quantity | measured ({name}, best GPU) | source | model prediction | error % |", "|---|---|---|---|---|"]
     ok = True
     for key, (label, unit, src) in ROWS.items():
         lo, hi = meas[key]
         m = f"{fmt(lo)} {unit}" if lo == hi else f"{fmt(lo)}–{fmt(hi)} {unit}"
-        p = pred.get("predictions", {}).get(key)
+        p = (pred.get("predictions") or {}).get(key)
         if p is None:
             ok = False
             lines.append(f"| {label} | {m} | {src} | pending | pending |")
@@ -109,32 +153,73 @@ def report(meas, pred, tol, gpu="l40s"):
         e = error_pct(p, lo, hi)
         ok &= abs(e) <= tol
         lines.append(f"| {label} | {m} | {src} | {fmt(p)} {unit} | {e:+.1f}{'' if abs(e) <= tol else ' ✗'} |")
-    n = sum(pred.get("predictions", {}).get(k) is not None for k in ROWS)
-    run, _, name = RUNS[gpu]
-    if ok:
-        status = f"Calibrated on {name}: {pred.get('date', '?')} (all {len(ROWS)} within ±{tol:g} %)."
+    n = sum((pred.get("predictions") or {}).get(k) is not None for k in ROWS)
+
+    ge = grid_errors(env, pred)
+    n_comp = sum(impl != "graph_static" for _, impl in env.values())
+    if len(ge) < len(env):
+        ok = False
+        grid_line = f"pending ({len(ge)}/{len(env)} grid points predicted)"
     else:
-        status = f"Calibrated on {name}: **no** ({n}/{len(ROWS)} predictions recorded, tolerance ±{tol:g} %)."
+        med = statistics.median(abs(e) for e in ge.values())
+        (wB, wC), we = max(ge.items(), key=lambda kv: abs(kv[1]))
+        g_ok = med <= tol and abs(we) <= 2 * tol
+        ok &= g_ok
+        grid_line = (f"median |error| {med:.1f} %, max {we:+.1f} % at B={wB}, C={wC} "
+                     f"({'pass' if g_ok else '**fail**'}: needs median ≤ {tol:g} %, max ≤ {2 * tol:g} %)")
+    if ok:
+        status = f"Calibrated on {name}: {pred.get('date', '?')} (summary within ±{tol:g} %, grid passes)."
+    else:
+        status = f"Calibrated on {name}: **no** ({n}/{len(ROWS)} summary predictions, {len(ge)}/{len(env)} grid points)."
     inputs = pred.get("inputs") or {}
     inp = "\n".join(f"- {k}: {'pending' if v is None else v}" for k, v in inputs.items()) or "- pending"
-    body = (f"**Status:** {status}\n\nMeasured: `{run}/`. Predictions: `{pred.get('_path', 'none')}`"
+    body = (f"**Status:** {status}\n\n"
+            f"Measured: the faster of `{runs[0]}/` (fused) and `{runs[1]}/` (uncompiled) at each point "
+            f"(fused wins {n_comp}/{len(env)}). Predictions: `{pred.get('_path', tmpl)}`"
             f"{', from ' + pred['source'] if pred.get('source') else ''}. "
-            f"Error % is 0 inside the measured range, else the distance to its nearest end.\n\n"
-            + "\n".join(lines) + f"\n\n**Model inputs:**\n\n{inp}")
+            f"Error % is 0 inside a measured range, else the distance to its nearest end.\n\n"
+            + "\n".join(lines) + f"\n\n**Step time over the whole grid ({len(env)} points):** {grid_line}\n\n"
+            f"**Model inputs:**\n\n{inp}")
     begin, end = markers(gpu)
     return f"{begin}\n{body}\n{end}", ok
 
 
+def write_template(gpu, env):
+    """Predictions template with every grid point; keeps values already filled in."""
+    path = ROOT / RUNS[gpu][1]
+    old = json.load(open(path)) if path.exists() else {}
+    grid = old.get("grid") or {}
+    tmpl = {
+        "date": old.get("date"), "source": old.get("source"),
+        "inputs": old.get("inputs") or {"weight_bytes": None, "weight_bandwidth_GBps": None,
+                                         "kv_bytes_per_token": None, "kv_bandwidth_GBps": None,
+                                         "overhead_term": None},
+        "predictions": {k: (old.get("predictions") or {}).get(k) for k in ROWS},
+        "grid": {f"{B}x{C}": grid.get(f"{B}x{C}") for (B, C) in sorted(env, key=lambda bc: (bc[1], bc[0]))},
+    }
+    path.write_text(json.dumps(tmpl, indent=2) + "\n")
+    print(f"wrote {path.name}: {len(tmpl['grid'])} grid points")
+
+
 def selftest():
     for gpu in RUNS:
-        meas = measured(gpu)
-        exact = {"predictions": {k: v[0] for k, v in meas.items()}, "date": "x"}
-        assert report(meas, exact, 10, gpu)[1]
-        assert not report(meas, {}, 10, gpu)[1]
-        off = {"predictions": {**exact["predictions"], "delta_ms": meas["delta_ms"][0] * 1.2}}
-        assert not report(meas, off, 10, gpu)[1] and report(meas, off, 25, gpu)[1]
-    l40s, h100 = measured("l40s"), measured("h100")
-    assert round(l40s["weight_ms"][0], 2) == 3.77 and round(h100["weight_ms"][0], 2) == 1.49
+        meas, env = measured(gpu)
+        exact = {"predictions": {k: v[0] for k, v in meas.items()}, "date": "x",
+                 "grid": {f"{B}x{C}": t for (B, C), (t, _) in env.items()}}
+        assert report(meas, env, exact, 10, gpu)[1]
+        assert not report(meas, env, {}, 10, gpu)[1]
+        assert not report(meas, env, {**exact, "grid": {}}, 10, gpu)[1]           # grid required
+        off = {**exact, "predictions": {**exact["predictions"], "delta_ms": meas["delta_ms"][0] * 1.2}}
+        assert not report(meas, env, off, 10, gpu)[1] and report(meas, env, off, 25, gpu)[1]
+        one_bad = {**exact, "grid": {**exact["grid"], "1x128": env[(1, 128)][0] * 1.25}}
+        assert not report(meas, env, one_bad, 10, gpu)[1]                         # max > 2 x tol fails
+        # the M2 formula fitted to the envelope is itself a (data-fitted) model: how would it score?
+        _, d, g, a = (None, *fit_m2([{"B": B, "C": C, "t": t} for (B, C), (t, _) in env.items()])[:3])
+        m2 = {**exact, "grid": {f"{B}x{C}": d + g * B + a * B * C for (B, C) in env}}
+        print(f"{gpu}: envelope {len(env)} points, fused wins {sum(i != 'graph_static' for _, i in env.values())}; "
+              f"weight {meas['weight_ms'][0]:.2f}-{meas['weight_ms'][1]:.2f} ms, step {meas['step_ms_b1_c128'][0]:.2f} ms, "
+              f"δ {meas['delta_ms'][0]:.2f} ms, α′ {meas['kv_us_per_token'][0]:.4f} µs, overhead {meas['overhead_ms'][0]:.2f} ms; "
+              f"M2-fit-as-model grid: {report(meas, env, m2, 10, gpu)[0].split(' points):** ')[1].splitlines()[0]}")
     assert error_pct(3.9, 3.77, 3.98) == 0 and round(error_pct(2.85, 3.77, 3.98)) == -24  # datasheet case
     print("selftest OK")
 
@@ -142,21 +227,26 @@ def selftest():
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gpu", choices=list(RUNS), default="l40s")
-    ap.add_argument("--pred", help="JSON: {date, source, inputs: {...}, predictions: {key: number|null}}")
-    ap.add_argument("--tol", type=float, default=10.0, help="max |error %%| to count as calibrated (default 10)")
-    ap.add_argument("--write", action="store_true", help="update the calibration block in CALIBRATION.md")
+    ap.add_argument("--pred", help="JSON: {date, source, inputs, predictions: {key: number|null}, grid: {BxC: ms|null}}")
+    ap.add_argument("--tol", type=float, default=10.0, help="summary tolerance and grid median tolerance, %% (default 10)")
+    ap.add_argument("--write", action="store_true", help="update this GPU's calibration block in CALIBRATION.md")
+    ap.add_argument("--template", action="store_true", help="(re)write this GPU's predictions template")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
     if a.selftest:
         return selftest()
+    meas, env = measured(a.gpu)
+    if a.template:
+        return write_template(a.gpu, env)
     pred = {}
     if a.pred:
         pred = json.load(open(a.pred))
         pred["_path"] = a.pred
-        unknown = set(pred.get("predictions", {})) - set(ROWS)
-        if unknown:
-            sys.exit(f"unknown prediction keys {sorted(unknown)}; expected {list(ROWS)}")
-    block, ok = report(measured(a.gpu), pred, a.tol, a.gpu)
+        unknown = set(pred.get("predictions") or {}) - set(ROWS)
+        bad_pts = set(pred.get("grid") or {}) - {f"{B}x{C}" for B, C in env}
+        if unknown or bad_pts:
+            sys.exit(f"unknown keys: predictions {sorted(unknown)}, grid {sorted(bad_pts)}")
+    block, ok = report(meas, env, pred, a.tol, a.gpu)
     print(block)
     if a.write:
         doc = (ROOT / "CALIBRATION.md").read_text()

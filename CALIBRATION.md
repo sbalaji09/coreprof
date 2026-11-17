@@ -10,28 +10,43 @@ No model predictions are recorded yet, so the analytical model is **not calibrat
 LoopCore numbers should not be quoted. To check it:
 
 1. Run the model for each GPU (bf16 Ouro-1.4B, one recurrent step, decode) and fill in
-   `calibration_predictions.json` (L40S) and `calibration_predictions_h100.json` (H100), same
-   units as the tables; leave unknowns `null`.
+   `calibration_predictions.json` (L40S) and `calibration_predictions_h100.json` (H100): the six
+   summary quantities **and the step time at every grid point** (`"grid": {"BxC": ms}`, 46 and 48
+   points), same units as the tables; leave unknowns `null`.
 2. `python calibrate.py --gpu l40s --pred calibration_predictions.json --write` and
    `python calibrate.py --gpu h100 --pred calibration_predictions_h100.json --write` recompute
-   the measured values from the raw run files, fill in that GPU's table and status line below,
-   and exit non-zero unless every quantity is within the tolerance (`--tol`, default 10 %).
+   the measured values from the raw run files and fill in that GPU's block below.
+3. **Pass** = every summary quantity within ±10 % (`--tol`) **and**, over the grid, median
+   |error| ≤ 10 % and max |error| ≤ 20 %. For scale: the δ + γB + α′BC formula fitted to the
+   data itself scores median 1.7 % / max 8.7 % (L40S) and 2.8 % / 14.2 % (H100).
 
-## Measured vs. predicted: L40S (Ouro-1.4B bf16, one recurrent step, decode)
+**Target = best GPU step** (decision 4): at each (B, C), the faster of the fused
+(`torch.compile` + CUDA graph) and uncompiled CUDA-graph step, both measured 2026-11-16. Fused
+is faster at 41/46 L40S points (all but B ≥ 32 at short context) and 48/48 H100 points. Weight
+time is the fastest weight-kernel time of either implementation (fused GEMMs are slower at
+B=16), since that is what the hardware can do. Rationale: weight time and α′ are the same in
+both implementations; only the overhead differs, and the uncompiled ≈ 2 ms of per-kernel launch
+cost is a PyTorch artifact LoopCore will not have, so reproducing it would not test the chip model.
+
+## Measured vs. predicted: best GPU step (Ouro-1.4B bf16, one recurrent step, decode)
+
+### L40S
 
 <!-- calibration:l40s:begin -->
-**Status:** Calibrated on NVIDIA L40S: **no** (0/6 predictions recorded, tolerance ±10 %).
+**Status:** Calibrated on NVIDIA L40S: **no** (0/6 summary predictions, 0/46 grid points).
 
-Measured: `results/modal/delta_grid-l40s-20261112-172748/`. Predictions: `calibration_predictions.json`. Error % is 0 inside the measured range, else the distance to its nearest end.
+Measured: the faster of `results/modal/delta_compile-l40s-20261116-214809/` (fused) and `results/modal/delta_grid-l40s-20261116-184352/` (uncompiled) at each point (fused wins 41/46). Predictions: `calibration_predictions.json`. Error % is 0 inside a measured range, else the distance to its nearest end.
 
-| quantity | measured (NVIDIA L40S) | source | model prediction | error % |
+| quantity | measured (NVIDIA L40S, best GPU) | source | model prediction | error % |
 |---|---|---|---|---|
-| weight streaming time per loop step | 3.77–3.97 ms | delta_split.json kernel_breakdown (weight GEMV/GEMM kernels, 1x128 and 16x2048) | pending | pending |
-| KV cost per cached token | 0.265 µs | graph_grid.csv, M2 fit | pending | pending |
-| weight/KV crossover | 14,238–15,008 cached tokens | weight_ms / kv_us_per_token | pending | pending |
-| best-case step time, B=1, C=128 (CUDA graph, static cache) | 5.82 ms | graph_grid.csv | pending | pending |
-| fixed cost δ (M2 fit) | 6.13 ms | graph_grid.csv, M2 fit | pending | pending |
-| non-weight GPU overhead (small kernels + gaps) | 2.05 ms | step_ms_b1_c128 − weight kernels at 1x128 | pending | pending |
+| weight streaming time per loop step | 3.77–3.98 ms | fastest weight GEMV/GEMM kernels of either implementation, 1x128 and 16x2048 | pending | pending |
+| KV cost per cached token | 0.265 µs | M2 fit over the envelope | pending | pending |
+| weight/KV crossover | 14,244–15,020 cached tokens | weight_ms / kv_us_per_token | pending | pending |
+| best GPU step time, B=1, C=128 | 4.18 ms | envelope | pending | pending |
+| fixed cost δ (M2 fit) | 4.32 ms | M2 fit over the envelope | pending | pending |
+| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.406 ms | step − weight kernels of the fastest implementation | pending | pending |
+
+**Step time over the whole grid (46 points):** pending (0/46 grid points predicted)
 
 **Model inputs:**
 
@@ -42,21 +57,23 @@ Measured: `results/modal/delta_grid-l40s-20261112-172748/`. Predictions: `calibr
 - overhead_term: pending
 <!-- calibration:l40s:end -->
 
-## Measured vs. predicted: H100 80GB HBM3
+### H100 80GB HBM3
 
 <!-- calibration:h100:begin -->
-**Status:** Calibrated on NVIDIA H100 80GB HBM3: **no** (0/6 predictions recorded, tolerance ±10 %).
+**Status:** Calibrated on NVIDIA H100 80GB HBM3: **no** (0/6 summary predictions, 0/48 grid points).
 
-Measured: `results/modal/delta_grid-h100-20261116-184347/`. Predictions: `calibration_predictions_h100.json`. Error % is 0 inside the measured range, else the distance to its nearest end.
+Measured: the faster of `results/modal/delta_compile-h100-20261116-214809/` (fused) and `results/modal/delta_grid-h100-20261116-184347/` (uncompiled) at each point (fused wins 48/48). Predictions: `calibration_predictions_h100.json`. Error % is 0 inside a measured range, else the distance to its nearest end.
 
-| quantity | measured (NVIDIA H100 80GB HBM3) | source | model prediction | error % |
+| quantity | measured (NVIDIA H100 80GB HBM3, best GPU) | source | model prediction | error % |
 |---|---|---|---|---|
-| weight streaming time per loop step | 1.49–1.77 ms | delta_split.json kernel_breakdown (weight GEMV/GEMM kernels, 1x128 and 16x2048) | pending | pending |
-| KV cost per cached token | 0.0758 µs | graph_grid.csv, M2 fit | pending | pending |
-| weight/KV crossover | 19,666–23,299 cached tokens | weight_ms / kv_us_per_token | pending | pending |
-| best-case step time, B=1, C=128 (CUDA graph, static cache) | 4.23 ms | graph_grid.csv | pending | pending |
-| fixed cost δ (M2 fit) | 4.62 ms | graph_grid.csv, M2 fit | pending | pending |
-| non-weight GPU overhead (small kernels + gaps) | 2.74 ms | step_ms_b1_c128 − weight kernels at 1x128 | pending | pending |
+| weight streaming time per loop step | 1.49–1.77 ms | fastest weight GEMV/GEMM kernels of either implementation, 1x128 and 16x2048 | pending | pending |
+| KV cost per cached token | 0.0767 µs | M2 fit over the envelope | pending | pending |
+| weight/KV crossover | 19,435–23,025 cached tokens | weight_ms / kv_us_per_token | pending | pending |
+| best GPU step time, B=1, C=128 | 2.14 ms | envelope | pending | pending |
+| fixed cost δ (M2 fit) | 2.12 ms | M2 fit over the envelope | pending | pending |
+| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.628 ms | step − weight kernels of the fastest implementation | pending | pending |
+
+**Step time over the whole grid (48 points):** pending (0/48 grid points predicted)
 
 **Model inputs:**
 
@@ -66,6 +83,31 @@ Measured: `results/modal/delta_grid-h100-20261116-184347/`. Predictions: `calibr
 - kv_bandwidth_GBps: pending
 - overhead_term: pending
 <!-- calibration:h100:end -->
+
+## Reference: earlier uncompiled targets (superseded 2026-11-16)
+
+
+### Uncompiled CUDA-graph step, L40S (`results/modal/delta_grid-l40s-20261112-172748/`, the run WEEK5.md uses)
+
+| quantity | measured (NVIDIA L40S) | source |
+|---|---|---|
+| weight streaming time per loop step | 3.77–3.97 ms | delta_split.json kernel_breakdown (weight GEMV/GEMM kernels, 1x128 and 16x2048) |
+| KV cost per cached token | 0.265 µs | graph_grid.csv, M2 fit |
+| weight/KV crossover | 14,238–15,008 cached tokens | weight_ms / kv_us_per_token |
+| best-case step time, B=1, C=128 (CUDA graph, static cache) | 5.82 ms | graph_grid.csv |
+| fixed cost δ (M2 fit) | 6.13 ms | graph_grid.csv, M2 fit |
+| non-weight GPU overhead (small kernels + gaps) | 2.05 ms | step_ms_b1_c128 − weight kernels at 1x128 |
+
+### Uncompiled CUDA-graph step, H100 (`results/modal/delta_grid-h100-20261116-184347/`)
+
+| quantity | measured (NVIDIA H100 80GB HBM3) | source |
+|---|---|---|
+| weight streaming time per loop step | 1.49–1.77 ms | delta_split.json kernel_breakdown (weight GEMV/GEMM kernels, 1x128 and 16x2048) |
+| KV cost per cached token | 0.0758 µs | graph_grid.csv, M2 fit |
+| weight/KV crossover | 19,666–23,299 cached tokens | weight_ms / kv_us_per_token |
+| best-case step time, B=1, C=128 (CUDA graph, static cache) | 4.23 ms | graph_grid.csv |
+| fixed cost δ (M2 fit) | 4.62 ms | graph_grid.csv, M2 fit |
+| non-weight GPU overhead (small kernels + gaps) | 2.74 ms | step_ms_b1_c128 − weight kernels at 1x128 |
 
 Notes:
 
@@ -100,10 +142,8 @@ Notes:
 
 ## Fused GPU baseline (torch.compile + CUDA graph), 2026-11-16
 
-The calibration targets above use the **uncompiled** CUDA-graph step. A fused step
-(`torch.compile`, details in `results/WEEK5_COMPILE.md`) is faster at small batch and is the
-stronger GPU baseline for LoopCore comparisons. Whether to also calibrate against it is open
-(see "Open questions"); its measured values, for reference:
+Details in `results/WEEK5_COMPILE.md`. Since 2026-11-16 the calibration targets above are the
+best GPU step, which is this fused step at nearly every point. Its measured values:
 
 | | L40S compiled | H100 compiled |
 |---|---:|---:|
@@ -127,6 +167,12 @@ are slower. Numerically valid: the compiled bf16 step is closer to fp32 than eag
    HBM. KV compression across loops is under evaluation.
 4. **Baselines:** best-case GPU step (CUDA graph + static KV cache) on L40S and H100. Never
    compare against the eager HF path.
+   **Amended 2026-11-16:** "best-case" means the fastest measured implementation at each
+   (B, C): currently the faster of the fused (`torch.compile` + CUDA graph) and uncompiled
+   CUDA-graph steps; add better implementations as they are measured. The analytical model is
+   calibrated against this envelope over the whole B × C grid on both GPUs. Before any final
+   LoopCore claim, the GPU baseline must also include **int8 weight-only** GEMMs, matching
+   LoopCore's int8 weights (decision 2); otherwise LoopCore gets ≈ 2× on weight bytes for free.
 
 ## Open questions
 
@@ -136,6 +182,5 @@ are slower. Numerically valid: the compiled bf16 step is closer to fp32 than eag
   4.23 ms at B=1, C=128, so removing them gives at most ≈ 1.5× (vs ≈ 2.9× on L40S); small kernels
   and gaps (≈ 2.6 ms) dominate the H100 step.
 - Is ~1 GB of on-chip SRAM across several chips realistic?
-- Should the calibration targets (and the GPU baseline in decision 4) switch to the fused
-  `torch.compile` step? It is up to 2.1× faster at B=1, which makes weights ≈ 70–90 % of a
-  small-batch step, so LoopCore's real gain there depends almost entirely on its SRAM read time.
+- How fast is the GPU with int8 weight-only GEMMs? With the fused step, weights are ≈ 70–90 % of
+  a small-batch step, so this is now the largest open term in the LoopCore comparison.
