@@ -76,6 +76,9 @@ def parse_args():
                         "(impl compiled_graph); also times the uncompiled graph at a few points, same container")
     p.add_argument("--compile-mode", default="default",
                    help="torch.compile mode for the grid (default keeps cuBLAS GEMMs, so the breakdown classifies them)")
+    p.add_argument("--compile-check", action="store_true",
+                   help="only: compare eager-bf16 and compiled-bf16 static steps against an fp32 reference "
+                        "(is the compiled step's difference rounding, or a bug?); writes compile_numerics.json")
     p.add_argument("--out-dir", required=True)
     a = p.parse_args()
     if a.compile and not a.grid:
@@ -354,6 +357,47 @@ def check_compiled_matches_eager(model, args, mode, B=2, C=64):
                 ok=bool(rel < 2e-2 and gate_err < 5e-2), **info)
 
 
+def compile_numerics(args, B=16, C=64):
+    """Is compiled-bf16 vs eager-bf16 disagreement just bf16 rounding? Measure both against an fp32 step on
+    the same (bf16-rounded) cache and the same token ids. Rounding: compiled is about as close to fp32 as
+    eager is. Bug: compiled is clearly further away. Also top-1 next-token agreement via the LM head."""
+    res = dict(B=B, C=C, compile_mode=args.compile_mode, runs={})
+    with torch.inference_mode():
+        m32 = harness.load_model("fp32")
+        L = m32.model.config.num_hidden_layers
+        step, cache, _ = make_step(m32, B, C, L, SimpleNamespace(dtype="fp32", seed=args.seed))
+        for t in cache.k + cache.v:                 # same cache values as the bf16 runs
+            t.copy_(t.to(torch.bfloat16).float())
+        h32, g32 = (x.float().clone() for x in step())
+        top32 = m32.lm_head(h32).argmax(-1)
+        del step, cache, m32
+        harness.free_cuda()
+        m16 = harness.load_model("bf16")
+        for name, mode in (("eager_bf16", None), ("compiled_bf16", args.compile_mode)):
+            step, cache, info = make_step(m16, B, C, L, SimpleNamespace(dtype="bf16", seed=args.seed), mode)
+            h, g = (x.float().clone() for x in step())
+            top = m16.lm_head(h.to(torch.bfloat16)).argmax(-1)
+            res["runs"][name] = dict(rel_err_hidden_vs_fp32=float((h - h32).norm() / h32.norm()),
+                                     max_abs_err_gate_vs_fp32=float((g - g32).abs().max()),
+                                     top1_agreement_vs_fp32=float((top == top32).float().mean()), **info)
+            res["runs"][name]["_h"], res["runs"][name]["_g"] = h, g
+            del step, cache
+            harness.free_cuda()
+    e, c = res["runs"]["eager_bf16"], res["runs"]["compiled_bf16"]
+    res["compiled_vs_eager"] = dict(rel_err_hidden=float((c["_h"] - e["_h"]).norm() / e["_h"].norm()),
+                                    max_abs_err_gate=float((c["_g"] - e["_g"]).abs().max()))
+    for r in res["runs"].values():
+        del r["_h"], r["_g"]
+    ratio = c["rel_err_hidden_vs_fp32"] / e["rel_err_hidden_vs_fp32"]
+    res["compiled_over_eager_error_ratio"] = ratio
+    res["verdict"] = ("rounding: compiled bf16 is as close to fp32 as eager bf16 (ratio <= 1.5)" if ratio <= 1.5
+                      else "SUSPECT: compiled bf16 is further from fp32 than eager bf16 (ratio > 1.5)")
+    with open(os.path.join(args.out_dir, "compile_numerics.json"), "w") as f:
+        json.dump(res, f, indent=1)
+    print(json.dumps(res, indent=1))
+    return res
+
+
 def check_static_matches_hf(model, dtype, seed):
     """Sanity check: with the SAME cache contents, the static step must equal the HF step."""
     m = model.model
@@ -392,6 +436,9 @@ def main():
     args = parse_args()
     os.makedirs(args.out_dir, exist_ok=True)
     torch.manual_seed(args.seed)
+    if args.compile_check:
+        compile_numerics(args)
+        return
     t_start = time.time()
     model = harness.load_model(args.dtype)
     dtype = harness.DTYPES[args.dtype]

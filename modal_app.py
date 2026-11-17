@@ -81,6 +81,8 @@ TASKS = {
     # Stronger GPU baseline: the same grid with the step torch.compile'd (kernel fusion) + CUDA graph,
     # plus the uncompiled graph at 3 points in the same container. One compile per grid point (~1 h).
     "delta_compile": CHECK + ["python delta_split.py --grid --compile --out-dir $OUT"],
+    # Is the compiled step's bf16 difference rounding or a bug? eager vs compiled, both against fp32 (~3 min).
+    "compile_check": CHECK + ["python delta_split.py --compile-check --out-dir $OUT"],
     "bench_q03": CHECK + [
         "python bench_cdb.py --q 0.3 --slots 2 4 8 16 32 64 --repeats 3 --run-id $RID --out-dir $OUT",
         "python bench_cdb.py --q 1.0 --slots 4 16 64 --repeats 2 --run-id $RID --out-dir $OUT",
