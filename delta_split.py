@@ -76,6 +76,10 @@ def parse_args():
                         "(impl compiled_graph); also times the uncompiled graph at a few points, same container")
     p.add_argument("--compile-mode", default="default",
                    help="torch.compile mode for the grid (default keeps cuBLAS GEMMs, so the breakdown classifies them)")
+    p.add_argument("--int8", action="store_true",
+                   help="with --grid --compile: int8 weight-only linears in the looped block (per-output-channel "
+                        "scales, gpt-fast style; the cast is fused into the matmul by torch.compile); also times the "
+                        "bf16 compiled step at a few points in the same container")
     p.add_argument("--compile-check", action="store_true",
                    help="only: compare eager-bf16 and compiled-bf16 static steps against an fp32 reference "
                         "(is the compiled step's difference rounding, or a bug?); writes compile_numerics.json")
@@ -83,6 +87,8 @@ def parse_args():
     a = p.parse_args()
     if a.compile and not a.grid:
         p.error("--compile needs --grid")
+    if a.int8 and not a.compile:
+        p.error("--int8 needs --grid --compile (without compile the int8->bf16 cast is not fused and reads MORE bytes)")
     if a.quick:
         a.configs, a.layers, a.reps, a.warmup = "1x128,8x512", [6, 24], 10, 3
     a.configs = [tuple(int(v) for v in c.lower().split("x")) for c in a.configs.split(",")]
@@ -341,6 +347,61 @@ def make_step(model, B, C, L, args, mode=None):
     return step, cache, info
 
 
+class Int8WeightOnlyLinear(torch.nn.Module):
+    """int8 weights + one bf16 scale per output channel (symmetric). forward() casts the int8 weight to the
+    activation dtype; under torch.compile that cast is fused into the matmul, so only int8 bytes are read.
+    Parameters (not buffers) so loopprof.byte_model counts their bytes."""
+
+    def __init__(self, lin):
+        super().__init__()
+        w = lin.weight.detach().float()
+        scale = w.abs().amax(dim=1, keepdim=True).clamp(min=1e-8) / 127
+        self.weight = torch.nn.Parameter((w / scale).round().clamp(-128, 127).to(torch.int8), requires_grad=False)
+        self.scales = torch.nn.Parameter(scale.squeeze(1).to(lin.weight.dtype), requires_grad=False)
+        self.bias = lin.bias
+
+    def forward(self, x):
+        y = torch.nn.functional.linear(x, self.weight.to(x.dtype)) * self.scales
+        return y if self.bias is None else y + self.bias
+
+
+def quantize_int8(model):
+    """Replace every nn.Linear inside the looped layers (q/k/v/o, gate/up/down) with Int8WeightOnlyLinear.
+    Embedding, LM head, norms and the exit gate stay bf16. Returns the number of linears replaced."""
+    n = 0
+    for layer in model.model.layers:
+        for mod in list(layer.modules()):
+            for name, child in list(mod.named_children()):
+                if isinstance(child, torch.nn.Linear):
+                    setattr(mod, name, Int8WeightOnlyLinear(child))
+                    n += 1
+    harness.free_cuda()
+    return n
+
+
+def int8_quantize_and_check(model, args, B=16, C=64):
+    """Quantize the model in place, and report how far the int8 step moves from the bf16 step (same cache and
+    input; eager, so no compile effects): hidden state, exit gate, top-1 next token via the bf16 LM head."""
+    L = model.model.config.num_hidden_layers
+    bf16_bytes = loopprof.byte_model(model, harness.DTYPES[args.dtype]).weight_bytes
+
+    def run():
+        step, cache, _ = make_step(model, B, C, L, args)
+        h, g = (x.float().clone() for x in step())
+        top = model.lm_head(h.to(model.lm_head.weight.dtype)).argmax(-1)
+        del step, cache
+        return h, g, top
+
+    with torch.inference_mode():
+        h0, g0, t0 = run()
+        n = quantize_int8(model)
+        h1, g1, t1 = run()
+    return dict(B=B, C=C, linears_quantized=n, bf16_weight_bytes=bf16_bytes,
+                rel_err_hidden=float((h1 - h0).norm() / h0.norm()), max_abs_err_gate=float((g1 - g0).abs().max()),
+                top1_agreement=float((t1 == t0).float().mean()),
+                note="int8 vs bf16, eager. For scale: eager bf16 vs fp32 is ~2.4 % on the hidden state.")
+
+
 def check_compiled_matches_eager(model, args, mode, B=2, C=64):
     """Same static cache, same input: the compiled step must compute what the eager static step computes."""
     m = model.model
@@ -440,7 +501,14 @@ def main():
         compile_numerics(args)
         return
     t_start = time.time()
+    if args.compile:
+        import torch._inductor.config as ind
+        ind.triton.unique_kernel_names = True      # readable kernel names in the breakdown
     model = harness.load_model(args.dtype)
+    int8_check = None
+    if args.int8:
+        int8_check = int8_quantize_and_check(model, args)
+        print("int8 vs bf16 (eager):", int8_check)
     dtype = harness.DTYPES[args.dtype]
     bm = loopprof.byte_model(model, dtype)
     L = model.model.config.num_hidden_layers
@@ -454,6 +522,12 @@ def main():
                torch=torch.__version__, weight_bytes_looped_block=bm.weight_bytes,
                kv_bytes_per_token_per_loop=bm.kv_per_token_per_loop,
                spec_peak_gbps=peak_spec, measured_peak_gbps=peak_meas, measured_read_gbps=peak_read, errors={})
+    if int8_check:
+        out["int8_vs_bf16_check"] = int8_check
+    if args.compile:
+        import torch._inductor.config as ind
+        out["inductor_config"] = {k: getattr(ind, k, None) for k in
+                                  ("use_mixed_mm", "mixed_mm_choice", "force_mixed_mm", "coordinate_descent_tuning")}
     hm = harness.run_metadata(SimpleNamespace(dtype=args.dtype, targets=[], ut_step=0, seed=args.seed,
                                               warmup=args.warmup, reps=args.reps), model)
     out["meta"] = {k: hm[k] for k in ("nvidia_smi", "torch", "cuda", "transformers", "model_revision",
@@ -614,7 +688,8 @@ def fit_models(rows):
 def run_grid(args, model, bm, L, out, save):
     out["tool"] = "delta_split v1 (grid)"
     mode = args.compile_mode if args.compile else None
-    eager_name, graph_name = ("compiled", "compiled_graph") if mode else ("eager_static", "graph_static")
+    eager_name, graph_name = (("int8_compiled", "int8_graph") if args.int8 else ("compiled", "compiled_graph")) if mode \
+        else ("eager_static", "graph_static")
     out["grid_impl"], out["compile_mode"] = graph_name, mode
     rows, csv_path = [], os.path.join(args.out_dir, "graph_grid.csv")
     total_mem = torch.cuda.get_device_properties(0).total_memory
@@ -684,7 +759,10 @@ def run_grid(args, model, bm, L, out, save):
                     w.writerows(rows)
         out["grid"] = rows
         save()
-        if mode:
+        if args.int8:
+            int8_references(L, args, mode, rows, out, save)
+            compile_variants(model, L, args, out, save)
+        elif mode:
             compile_references(model, L, args, mode, rows, out, save)
     analyze_grid(out, rows)
     save()
@@ -716,8 +794,54 @@ def compile_references(model, L, args, mode, rows, out, save, points=((1, 128), 
         harness.free_cuda()
     out["uncompiled_reference"] = ref
     save()
+    compile_variants(model, L, args, out, save, points[:2])
+
+
+def int8_references(L, args, mode, rows, out, save, points=((1, 128), (16, 2048), (16, 8192))):
+    """Same container as the int8 grid: the bf16 compiled CUDA-graph step at a few points (a fresh bf16 model),
+    and its 1x128 breakdown. Weight time of the int8 step is estimated from step times, assuming the
+    non-weight work is unchanged: w_int8 = t_int8 - (t_bf16 - w_bf16). (Fused int8 matmul kernels are Triton
+    kernels, which the name-based breakdown cannot reliably tell apart from the other fused kernels.)"""
+    ref = []
+    try:
+        m16 = harness.load_model(args.dtype)
+    except Exception:
+        out["errors"]["int8 reference model"] = traceback.format_exc().strip().splitlines()[-1]
+        return
+    for B, C in points:
+        try:
+            step, cache, _ = make_step(m16, B, C, L, args, mode)
+            g, _ = capture_graph(step)
+            if (B, C) == (1, 128):
+                out["kernel_breakdown"]["compiled_graph 1x128"] = safe_breakdown(g.replay)
+            base = stats(gpu_times(g.replay, args.warmup, args.reps))["median_ms"]
+            q = next((r["median_ms"] for r in rows if (r["B"], r["C"]) == (B, C)), None)
+            ref.append(dict(B=B, C=C, bf16_ms=base, int8_ms=q, speedup=base / q if q else None,
+                            saved_ms=base - q if q else None))
+            print("int8 reference:", ref[-1])
+            del g, step, cache
+        except Exception:
+            out["errors"][f"int8 reference {B}x{C}"] = traceback.format_exc().strip().splitlines()[-1]
+        harness.free_cuda()
+    del m16
+    harness.free_cuda()
+    out["int8_reference"] = ref
+    r1 = next((r for r in ref if (r["B"], r["C"]) == (1, 128) and r["int8_ms"]), None)
+    w16 = ((out["kernel_breakdown"].get("compiled_graph 1x128") or {}).get("gemm_ms"))
+    if r1 and w16:
+        w8 = r1["int8_ms"] - (r1["bf16_ms"] - w16)
+        b8, b16 = out["weight_bytes_looped_block"], out["int8_vs_bf16_check"]["bf16_weight_bytes"]
+        out["int8_weight_estimate"] = dict(
+            w_bf16_ms=w16, t_bf16_ms=r1["bf16_ms"], t_int8_ms=r1["int8_ms"], w_int8_est_ms=w8,
+            int8_weight_bytes=b8, bf16_weight_bytes=b16, int8_gbps=b8 / (w8 * 1e-3) / 1e9 if w8 > 0 else None,
+            bf16_gbps=b16 / (w16 * 1e-3) / 1e9, weight_time_ratio=w8 / w16, byte_ratio=b8 / b16)
+    save()
+
+
+def compile_variants(model, L, args, out, save, points=((1, 128), (16, 2048))):
+    """max-autotune (Triton GEMM templates, slow compile) at a couple of points, timing only."""
     variants = []
-    for B, C in points[:2]:
+    for B, C in points:
         try:
             step, cache, info = make_step(model, B, C, L, args, "max-autotune-no-cudagraphs")
             g, _ = capture_graph(step)
@@ -777,7 +901,8 @@ def calibration_inputs(out, rows):
     p, se = m2.get("params", {}), m2.get("se", {})
     read = out.get("measured_read_gbps")
     pct = lambda bw: 100 * bw / read if bw and read else None
-    w_ms = g1.get("gemm_ms")
+    est = out.get("int8_weight_estimate") or {}
+    w_ms = est.get("w_int8_est_ms") or g1.get("gemm_ms")
     ap = p.get("alpha_prime")                          # ms per cached token
     t1 = next((r["median_ms"] for r in rows if (r["B"], r["C"]) == (1, 128)), None)
     w_bw = out["weight_bytes_looped_block"] / (w_ms * 1e-3) / 1e9 if w_ms else None
@@ -787,6 +912,8 @@ def calibration_inputs(out, rows):
     return dict(
         gpu=out["gpu"], spec_gbps=out.get("spec_peak_gbps"), copy_gbps=out.get("measured_peak_gbps"), read_gbps=read,
         weight_ms=w_ms, weight_gbps=w_bw, weight_pct_read=pct(w_bw),
+        weight_ms_source="int8 estimate: t_int8 - (t_bf16 - w_bf16), B=1, C=128" if est.get("w_int8_est_ms")
+        else "GEMV/GEMM kernels, graph, B=1, C=128",
         delta_ms=p.get("delta"), delta_se=se.get("delta"), gamma_ms=p.get("gamma"), gamma_se=se.get("gamma"),
         alpha_prime_us=ap * 1e3 if ap is not None else None,
         alpha_prime_se_us=se["alpha_prime"] * 1e3 if "alpha_prime" in se else None,
@@ -814,7 +941,7 @@ def calibration_md(ci):
     rows = [("GPU", ci["gpu"]), ("spec bandwidth", f"{f(ci['spec_gbps'], 0)} GB/s"),
             ("copy bandwidth (read + write)", f"{f(ci['copy_gbps'], 0)} GB/s"),
             ("read bandwidth (torch.sum, 2 GiB)", f"{f(ci['read_gbps'], 0)} GB/s"),
-            ("weight time (GEMV/GEMM kernels, graph, B=1, C=128)", f"{f(ci['weight_ms'], 3)} ms"),
+            (f"weight time ({ci.get('weight_ms_source', 'GEMV/GEMM kernels, graph, B=1, C=128')})", f"{f(ci['weight_ms'], 3)} ms"),
             ("effective weight bandwidth", f"{f(ci['weight_gbps'], 0)} GB/s ({f(ci['weight_pct_read'], 0)}% of read peak)"),
             ("δ (M2)", f"{pm(ci['delta_ms'], ci['delta_se'], 3)} ms"),
             ("γ (M2)", f"{pm(ci['gamma_ms'], ci['gamma_se'], 4)} ms per sequence"),
@@ -833,6 +960,8 @@ def compile_md(out):
     """Compiled vs uncompiled CUDA-graph step, same container, plus the correctness check."""
     if not out.get("compile_mode"):
         return []
+    if out.get("int8_vs_bf16_check") is not None:
+        return int8_md(out)
     f = lambda v, nd=2: "n/a" if v is None else f"{v:.{nd}f}"
     L = ["## torch.compile vs uncompiled (same container)\n"]
     chk = out.get("compiled_vs_eager_check")
@@ -860,6 +989,32 @@ def compile_md(out):
         L.append("")
     for v in out.get("compile_variants") or []:
         L.append(f"- {v['mode']} at B={v['B']}, C={v['C']}: {f(v['graph_ms'])} ms (compile {v.get('compile_s', 'n/a')} s)")
+    return L + [""]
+
+
+def int8_md(out):
+    """int8 weight-only (compiled) vs bf16 compiled, same container."""
+    f = lambda v, nd=2: "n/a" if v is None else f"{v:.{nd}f}"
+    c = out["int8_vs_bf16_check"]
+    L = ["## int8 weight-only vs bf16, both torch.compile + CUDA graph (same container)\n",
+         f"Looped-block weights: {c['bf16_weight_bytes'] / 1e9:.3f} GB bf16 → {out['weight_bytes_looped_block'] / 1e9:.3f} GB "
+         f"int8 + scales ({c['linears_quantized']} linears). Embedding, LM head, norms, exit gate stay bf16.\n",
+         f"Accuracy, int8 vs bf16 step (eager, B={c['B']}, C={c['C']}): hidden state {100 * c['rel_err_hidden']:.1f} %, "
+         f"exit gate {c['max_abs_err_gate']:.3f}, top-1 next token agrees {100 * c['top1_agreement']:.0f} %. "
+         f"({c['note']} GSM8K accuracy is the Week 6 test.)\n"]
+    ref = out.get("int8_reference") or []
+    if ref:
+        L += ["| B | C | bf16 compiled ms | int8 compiled ms | saved ms | speedup |", "|---:|---:|---:|---:|---:|---:|"]
+        L += [f"| {r['B']} | {r['C']} | {f(r['bf16_ms'])} | {f(r['int8_ms'])} | {f(r['saved_ms'])} | {f(r['speedup'])}× |"
+              for r in ref]
+        L.append("")
+    e = out.get("int8_weight_estimate")
+    if e:
+        L.append(f"Weight time at B=1, C=128: bf16 {f(e['w_bf16_ms'], 3)} ms ({f(e['bf16_gbps'], 0)} GB/s) → int8 ≈ "
+                 f"{f(e['w_int8_est_ms'], 3)} ms ({f(e['int8_gbps'], 0)} GB/s), i.e. {f(e['weight_time_ratio'])}× the bf16 time "
+                 f"for {f(e['byte_ratio'])}× the bytes (estimate: t_int8 − (t_bf16 − w_bf16)).\n")
+    for v in out.get("compile_variants") or []:
+        L.append(f"- int8, {v['mode']} at B={v['B']}, C={v['C']}: {f(v['graph_ms'])} ms (compile {v.get('compile_s', 'n/a')} s)")
     return L + [""]
 
 
@@ -907,7 +1062,8 @@ def breakdown_md(out):
 
 def report_grid(out):
     f = lambda v, nd=2: "n/a" if v is None else f"{v:.{nd}f}"
-    what = (f"torch.compile ({out['compile_mode']}) + CUDA-graph" if out.get("compile_mode") else "CUDA-graph")
+    what = ((("int8 weight-only + " if out.get("int8_vs_bf16_check") is not None else "")
+             + f"torch.compile ({out['compile_mode']}) + CUDA-graph") if out.get("compile_mode") else "CUDA-graph")
     L = [f"# Week 5 v1: {what} static-cache step over B x C on {out['gpu']}\n",
          f"Predicted weight fetch {f(out['predicted_weight_fetch_ms']['spec'])} ms (spec), "
          f"{f(out['predicted_weight_fetch_ms']['measured_peak'])} ms (measured copy peak "
@@ -1027,6 +1183,9 @@ def onchip_bound(out, steps, impl):
     kb = next((v for k, v in (out.get("kernel_breakdown") or {}).items() if v and "gemm_ms" in v), None)
     wt = kb["gemm_ms"] if kb else out["predicted_weight_fetch_ms"]["measured_peak"]
     src = "GEMM kernel time (profiled)" if kb else "weight bytes / measured copy peak"
+    est = (out.get("int8_weight_estimate") or {}).get("w_int8_est_ms")
+    if est:
+        wt, src = est, "int8 weight time, estimated from step times"
     pts = [r for r in steps if r["impl"] == impl]
     if pts:
         est = []

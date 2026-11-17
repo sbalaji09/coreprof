@@ -22,7 +22,7 @@ fi
 
 # Long jobs (Week 3 bench, Week 4 LoopProf, Week 5 delta split): detach so closing the laptop doesn't kill them.
 # Results stay on the Modal volume; fetch them later with --run-id <id> --pull.
-if [[ " $* " == *" bench_q03 "* || " $* " == *" loopprof "* || " $* " == *" delta_split "* || " $* " == *" delta_grid "* || " $* " == *" delta_compile "* ]] && [[ " $* " != *" --pull "* ]]; then
+if [[ " $* " == *" bench_q03 "* || " $* " == *" loopprof "* || " $* " == *" delta_split "* || " $* " == *" delta_grid "* || " $* " == *" delta_compile "* || " $* " == *" delta_int8 "* ]] && [[ " $* " != *" --pull "* ]]; then
   exec "$MODAL" run --detach modal_app.py "$@"
 fi
 exec "$MODAL" run modal_app.py "$@"

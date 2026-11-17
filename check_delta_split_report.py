@@ -6,6 +6,7 @@ sys.path.insert(0, __import__("os").path.dirname(__import__("os").path.abspath(_
 for m in ("torch", "harness", "loopprof"):
     sys.modules[m] = types.ModuleType(m)
 sys.modules["harness"].DTYPES = {"bf16": None}
+sys.modules["torch"].nn = types.SimpleNamespace(Module=object)
 import delta_split as ds
 
 KVB, WB = 196608, 2466652162
@@ -77,4 +78,24 @@ bad = {**outc, "compiled_vs_eager_check": {**outc["compiled_vs_eager_check"], "o
 assert "MISMATCH" in ds.report_grid(bad)
 assert "unverified" in ds.report_grid({**outc, "compiled_vs_eager_check": None})
 print(mdc[mdc.index("## torch.compile vs"):mdc.index("## Calibration inputs")])
+# --int8 mode: weight time comes from the step-time estimate, not the (unreliable) Triton kernel names
+oi = {**outc, "grid_impl": "int8_graph", "weight_bytes_looped_block": 1_240_000_000,
+      "kernel_breakdown": {"int8_graph 1x128": dict(gemm_ms=0.0, attention_ms=0.12, copy_ms=0.0, other_ms=2.3,
+                                                     busy_ms=2.42, kernels=342, top_kernels_ms={}),
+                           "compiled_graph 1x128": dict(gemm_ms=3.77, attention_ms=0.12, copy_ms=0.0, other_ms=0.17,
+                                                         busy_ms=4.06, kernels=342, top_kernels_ms={})},
+      "int8_vs_bf16_check": dict(B=16, C=64, linears_quantized=168, bf16_weight_bytes=WB, rel_err_hidden=0.03,
+                                 max_abs_err_gate=0.05, top1_agreement=0.94, note="n"),
+      "int8_reference": [dict(B=1, C=128, bf16_ms=4.18, int8_ms=2.5, speedup=4.18 / 2.5, saved_ms=1.68)],
+      "int8_weight_estimate": dict(w_bf16_ms=3.77, t_bf16_ms=4.18, t_int8_ms=2.5, w_int8_est_ms=2.09,
+                                   int8_weight_bytes=1_240_000_000, bf16_weight_bytes=WB, int8_gbps=593.0,
+                                   bf16_gbps=654.0, weight_time_ratio=2.09 / 3.77, byte_ratio=0.503)}
+irows = [{**r, "impl": "int8_graph"} for r in crow]
+ds.analyze_grid(oi, irows)
+ci8 = oi["analysis"]["calibration_inputs"]
+assert ci8["weight_ms"] == 2.09 and "int8 estimate" in ci8["weight_ms_source"], ci8["weight_ms"]
+assert oi["analysis"]["onchip_weights_upper_bound"]["rows"][0]["weight_term_ms"] == 2.09
+mdi = ds.report_grid(oi)
+assert "int8 weight-only + torch.compile" in mdi and "## int8 weight-only vs bf16" in mdi and "1.67×" in mdi
+print(mdi[mdi.index("## int8 weight-only vs"):mdi.index("## Calibration inputs")])
 print("SYNTHETIC TEST OK")

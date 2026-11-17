@@ -1,4 +1,4 @@
-"""Live progress + results of the torch.compile baseline runs (reads the Modal volume; no GPU needed).
+"""Live progress + results of the torch.compile / int8 baseline runs (reads the Modal volume; no GPU needed).
 
 Usage:
   .venv/bin/python watch_runs.py                  # the two delta_compile runs, once
@@ -20,7 +20,11 @@ import modal
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_RUNS = ["delta_compile-h100-20261116-214809", "delta_compile-l40s-20261116-214809"]
-BASELINE = {"h100": "delta_grid-h100-20261116-184347", "l40s": "delta_grid-l40s-20261116-184352"}
+# (task, gpu) -> the run each task is compared against: compile vs uncompiled, int8 vs bf16 compiled
+BASELINE = {("delta_compile", "h100"): "delta_grid-h100-20261116-184347",
+            ("delta_compile", "l40s"): "delta_grid-l40s-20261116-184352",
+            ("delta_int8", "h100"): "delta_compile-h100-20261116-214809",
+            ("delta_int8", "l40s"): "delta_compile-l40s-20261116-214809"}
 
 
 def read(vol, path):
@@ -40,17 +44,17 @@ def bar(done, total, width=30):
 
 
 def show(vol, rid):
-    gpu = rid.split("-")[1]
-    base_dir = ROOT / "results/modal" / BASELINE[gpu]
+    task, gpu = rid.split("-")[:2]
+    base_dir = ROOT / "results/modal" / BASELINE[(task, gpu)]
+    base_js = json.loads((base_dir / "delta_split.json").read_text())
     base = grid((base_dir / "graph_grid.csv").read_text())
-    base_kb = json.loads((base_dir / "delta_split.json").read_text())["kernel_breakdown"]
     comp = grid(read(vol, f"/results/{rid}/graph_grid.csv"))
     js = json.loads(read(vol, f"/results/{rid}/delta_split.json") or "{}")
     finished = read(vol, f"/results/{rid}/delta_split_grid.md") is not None
 
     if finished:
-        stage = "FINISHED (pull: ./run_modal.sh --task delta_compile --run-id %s --pull)" % rid
-    elif "compile_variants" in js or "uncompiled_reference" in js:
+        stage = f"FINISHED (pull: ./run_modal.sh --task {task} --run-id {rid} --pull)"
+    elif "compile_variants" in js or "uncompiled_reference" in js or "int8_reference" in js:
         stage = "same-container reference + max-autotune (last step)"
     elif comp:
         stage = "timing the grid"
@@ -62,13 +66,19 @@ def show(vol, rid):
     print(f"stage:    {stage}")
     print(f"grid:     {bar(len(comp), len(base))}")
     chk = js.get("compiled_vs_eager_check")
+    q = js.get("int8_vs_bf16_check")
+    if q:
+        print(f"int8:     {q['linears_quantized']} linears, {q['bf16_weight_bytes'] / 1e9:.2f} -> "
+              f"{js['weight_bytes_looped_block'] / 1e9:.2f} GB; vs bf16 step: hidden {100 * q['rel_err_hidden']:.1f} %, "
+              f"top-1 token agrees {100 * q['top1_agreement']:.0f} %")
     if chk:
         print(f"numerics: compiled vs eager {100 * chk['rel_err_hidden']:.1f} % (bf16 rounding level, see "
               f"compile_check runs); compile {chk.get('compile_s')} s per shape, {chk.get('graph_breaks')} graph breaks")
     if not comp:
         return
 
-    print(f"\n{'B':>4} {'C':>5}  {'uncompiled ms':>13} {'compiled ms':>11} {'saved ms':>8}  speedup")
+    old, new = ("bf16 ms", "int8 ms") if task == "delta_int8" else ("uncompiled ms", "compiled ms")
+    print(f"\n{'B':>4} {'C':>5}  {old:>13} {new:>11} {'saved ms':>8}  speedup")
     sp = []
     for (B, C), t in sorted(comp.items(), key=lambda kv: (kv[0][1], kv[0][0])):
         u = base.get((B, C))
@@ -80,12 +90,14 @@ def show(vol, rid):
         med = statistics.median(sp)
         verdict = ("YES, clearly faster" if med >= 1.10 else "slightly faster" if med >= 1.03
                    else "no real difference (within container noise)" if med > 0.97 else "SLOWER")
-        print(f"\nso far: compiled is {verdict}: median {med:.2f}x, range {min(sp):.2f}-{max(sp):.2f}x "
+        print(f"\nso far: {new.split()[0]} is {verdict}: median {med:.2f}x, range {min(sp):.2f}-{max(sp):.2f}x "
               f"over {len(sp)} points")
 
     # what it means for LoopCore: the "if weights were free" bound at B=1, C=128
-    w_comp = ((js.get("kernel_breakdown") or {}).get("compiled_graph 1x128") or {}).get("gemm_ms")
-    w_base = (base_kb.get("graph_static 1x128") or {}).get("gemm_ms")
+    if task == "delta_int8":
+        return      # int8 weight time is estimated from same-container step times at the end of the run
+    w_comp = ((js.get("kernel_breakdown") or {}).get(f"{js.get('grid_impl')} 1x128") or {}).get("gemm_ms")
+    w_base = (base_js["kernel_breakdown"].get(f"{base_js.get('grid_impl', 'graph_static')} 1x128") or {}).get("gemm_ms")
     t_c, t_u = comp.get((1, 128)), base.get((1, 128))
     if w_comp and w_base and t_c and t_u:
         print(f"LoopCore bound at B=1, C=128 (step ÷ step-without-weights): uncompiled {t_u / (t_u - w_base):.2f}x "
