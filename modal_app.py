@@ -83,6 +83,9 @@ TASKS = {
     "delta_compile": CHECK + ["python delta_split.py --grid --compile --out-dir $OUT"],
     # int8 weight-only looped block (fused cast under torch.compile) vs the bf16 compiled step, same grid (~1 h).
     "delta_int8": CHECK + ["python delta_split.py --grid --compile --int8 --out-dir $OUT"],
+    # Per-kernel microbenchmarks (weight GEMV/GEMM per shape and batch, small fused kernels, decode attention)
+    # for loopcore_model's kernel-sum GPU model (~10 min). No model weights or step timings involved.
+    "delta_kernel_bench": CHECK + ["python delta_split.py --kernel-bench --out-dir $OUT"],
     # Which int8 path reads int8 bytes? inductor settings vs a Triton int8 kernel, 3 points (~15 min).
     "int8_probe": CHECK + ["python int8_kernel.py | tee $OUT/int8_kernel_check.txt",
                            "python delta_split.py --int8-probe --out-dir $OUT"],

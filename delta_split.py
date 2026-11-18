@@ -86,6 +86,9 @@ def parse_args():
     p.add_argument("--coord-descent", action="store_true",
                    help="with --compile: inductor coordinate_descent_tuning (gpt-fast's setting; fuses the int8 cast "
                         "into a reduction at B=1). Applies to every compile in the run, incl. the bf16 reference")
+    p.add_argument("--kernel-bench", action="store_true",
+                   help="only: per-kernel microbenchmarks in CUDA graphs (weight GEMV/GEMM per Ouro shape and batch, "
+                        "small fused kernels, decode attention) for loopcore_model's GPU term; writes kernel_bench.json")
     p.add_argument("--int8-probe", action="store_true",
                    help="only: bf16 compiled vs int8 variants (inductor settings, Triton kernel) at a few points; "
                         "writes int8_probe.json")
@@ -385,6 +388,91 @@ def set_int8_impl(impl):
     Int8WeightOnlyLinear.impl = impl
 
 
+def kernel_bench(args, copies=24, batches=(1, 2, 4, 8, 16, 32, 64)):
+    """Per-kernel costs measured in isolation, the inputs of loopcore_model's kernel-sum GPU model.
+
+    Each op is captured `copies` times in one CUDA graph on distinct tensors (like 24 layers: no L2 reuse of
+    weights or KV), replayed, and reported per op as slot_us (graph time / ops: kernel + launch gap) and busy_us
+    (profiled kernel time / ops). No model weights or step timings are involved: synthetic tensors with Ouro's
+    shapes (hidden 2048, MLP 5632, 16 heads x 128, bf16)."""
+    import torch._inductor.config as ind
+    ind.triton.unique_kernel_names = True
+    dev, bf = "cuda", torch.bfloat16
+    res = dict(gpu=torch.cuda.get_device_name(), torch=torch.__version__, copies=copies,
+               gemm={}, small={}, attention={}, errors={})
+    path = os.path.join(args.out_dir, "kernel_bench.json")
+
+    def per_op(fns):
+        def run():
+            for fn in fns:
+                fn()
+        g, _ = capture_graph(run)
+        slot = stats(gpu_times(g.replay, args.warmup, args.reps))["median_ms"] * 1e3 / len(fns)
+        bd = safe_breakdown(g.replay)
+        busy = bd["busy_ms"] * 1e3 / len(fns) if bd else None
+        kernels = bd["kernels"] / len(fns) if bd else None
+        del g
+        return dict(slot_us=slot, busy_us=busy, kernels_per_op=kernels)
+
+    def save():
+        with open(path, "w") as f:
+            json.dump(res, f, indent=1)
+
+    with torch.inference_mode():
+        res["measured_peak_gbps"] = loopprof.measured_peak_gbps()
+        res["measured_read_gbps"] = measured_read_gbps()
+        # weight matmuls: q/k/v/o 2048x2048, gate/up 5632x2048, down 2048x5632 (out x in), as F.linear on [B, 1, in]
+        for N, K in ((2048, 2048), (5632, 2048), (2048, 5632)):
+            key = f"{N}x{K}"
+            try:
+                ws = [torch.randn(N, K, device=dev, dtype=bf) for _ in range(copies)]
+                for B in batches:
+                    x = torch.randn(B, 1, K, device=dev, dtype=bf)
+                    res["gemm"].setdefault(key, {})[str(B)] = per_op([lambda w=w, x=x: torch.nn.functional.linear(x, w)
+                                                                      for w in ws])
+                del ws
+            except Exception:
+                res["errors"][f"gemm {key}"] = traceback.format_exc().strip().splitlines()[-1]
+            harness.free_cuda()
+            print("gemm", key, json.dumps(res["gemm"].get(key), default=str)[:300])
+            save()
+        # small fused kernels: compiled RMSNorm over hidden (one Triton reduction) and SiLU*mul over the MLP width
+        # (one Triton pointwise kernel): representative of the fused step's ~123 non-GEMM, non-attention kernels
+        rms = torch.compile(lambda x, w: (x.float() * torch.rsqrt(x.float().pow(2).mean(-1, keepdim=True) + 1e-6))
+                            .to(bf) * w, dynamic=False)
+        silu = torch.compile(lambda a, b: torch.nn.functional.silu(a) * b, dynamic=False)
+        for B in (1, 16, 64):
+            try:
+                w = torch.randn(2048, device=dev, dtype=bf)
+                xs = [torch.randn(B, 1, 2048, device=dev, dtype=bf) for _ in range(copies)]
+                a_s = [torch.randn(B, 1, 5632, device=dev, dtype=bf) for _ in range(copies)]
+                b_s = [torch.randn(B, 1, 5632, device=dev, dtype=bf) for _ in range(copies)]
+                res["small"].setdefault("rmsnorm_2048", {})[str(B)] = per_op([lambda x=x: rms(x, w) for x in xs])
+                res["small"].setdefault("silu_mul_5632", {})[str(B)] = per_op(
+                    [lambda a=a, b=b: silu(a, b) for a, b in zip(a_s, b_s)])
+                del xs, a_s, b_s
+            except Exception:
+                res["errors"][f"small B={B}"] = traceback.format_exc().strip().splitlines()[-1]
+            harness.free_cuda()
+        print("small", json.dumps(res["small"], default=str)[:400])
+        save()
+        # decode attention: SDPA (flash) with one query over C+1 cached positions, 16 heads x 128, per layer
+        for B, C in ((1, 128), (16, 128), (64, 128), (1, 2048), (16, 2048)):
+            try:
+                q = torch.randn(B, 16, 1, 128, device=dev, dtype=bf)
+                kv = [(torch.randn(B, 16, C + 1, 128, device=dev, dtype=bf), torch.randn(B, 16, C + 1, 128, device=dev, dtype=bf))
+                      for _ in range(copies)]
+                res["attention"][f"{B}x{C}"] = per_op([lambda k=k, v=v: torch.nn.functional.scaled_dot_product_attention(q, k, v)
+                                                      for k, v in kv])
+                del kv
+            except Exception:
+                res["errors"][f"attention {B}x{C}"] = traceback.format_exc().strip().splitlines()[-1]
+            harness.free_cuda()
+        print("attention", json.dumps(res["attention"], default=str)[:400])
+        save()
+    return res
+
+
 def int8_probe(args, points=((1, 128), (16, 2048), (64, 128))):
     """Which int8 path actually reads int8 bytes? bf16 compiled reference vs int8 variants, same container.
     Weight time per variant at B=1, C=128 is estimated as t_int8 - (t_bf16 - w_bf16)."""
@@ -610,6 +698,9 @@ def main():
     torch.manual_seed(args.seed)
     if args.compile_check:
         compile_numerics(args)
+        return
+    if args.kernel_bench:
+        kernel_bench(args)
         return
     if args.int8_probe:
         int8_probe(args)
