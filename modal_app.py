@@ -88,6 +88,8 @@ TASKS = {
                            "python delta_split.py --int8-probe --out-dir $OUT"],
     # Full int8 grid with the Triton int8 kernel (int8_kernel.py) instead of the unfused cast (~1 h).
     "delta_int8_triton": CHECK + ["python delta_split.py --grid --compile --int8 --int8-impl triton --out-dir $OUT"],
+    # Full int8 grid, cast path + coordinate_descent_tuning (best at B=1 in int8_probe) (~1 h).
+    "delta_int8_cd": CHECK + ["python delta_split.py --grid --compile --int8 --coord-descent --out-dir $OUT"],
     # Is the compiled step's bf16 difference rounding or a bug? eager vs compiled, both against fp32 (~3 min).
     "compile_check": CHECK + ["python delta_split.py --compile-check --out-dir $OUT"],
     "bench_q03": CHECK + [

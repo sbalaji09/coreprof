@@ -83,6 +83,9 @@ def parse_args():
     p.add_argument("--int8-impl", choices=["cast", "triton"], default="cast",
                    help="cast: F.linear(x, w.to(bf16)) * s, fusion left to torch.compile (not fused in torch 2.5.1); "
                         "triton: int8_kernel.py, reads int8 weights directly")
+    p.add_argument("--coord-descent", action="store_true",
+                   help="with --compile: inductor coordinate_descent_tuning (gpt-fast's setting; fuses the int8 cast "
+                        "into a reduction at B=1). Applies to every compile in the run, incl. the bf16 reference")
     p.add_argument("--int8-probe", action="store_true",
                    help="only: bf16 compiled vs int8 variants (inductor settings, Triton kernel) at a few points; "
                         "writes int8_probe.json")
@@ -617,6 +620,8 @@ def main():
     if args.compile:
         import torch._inductor.config as ind
         ind.triton.unique_kernel_names = True      # readable kernel names in the breakdown
+        if args.coord_descent:
+            ind.coordinate_descent_tuning = True
     model = harness.load_model(args.dtype)
     int8_check = None
     if args.int8:

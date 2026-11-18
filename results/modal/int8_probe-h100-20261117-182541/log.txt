@@ -1,0 +1,48 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=int8_probe-h100-20261117-182541
+git=9a04616
+Wed Nov 18 02:25:44 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA H100 80GB HBM3, GPU-bc7b64d8-6336-b47d-5832-d8092b2bd5ab, 81559 MiB, 610.57.04
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python int8_kernel.py | tee $OUT/int8_kernel_check.txt
+{'max_rel_err': 0.0017067150911316276, 'ok': True}
+[exit 0]
+
+$ python delta_split.py --int8-probe --out-dir $OUT
+cast, default {"ms": {"1x128": 3.1115039587020874, "16x2048": 6.369823932647705, "64x128": 7.003760099411011}, "w_int8_est_ms": 2.5884263345855736, "weight_time_ratio": 1.729960449101805, "to_copy_ms_1x128": 1.3337209999999997}
+cast, mixed_mm_choice=triton {"ms": {"1x128": 3.1162400245666504, "16x2048": 6.380095958709717, "64x128": 6.996031999588013}, "w_int8_est_ms": 2.5931624004501366, "weight_time_ratio": 1.7331257725728888, "to_copy_ms_1x128": 1.3499298000000015}
+cast, coordinate_descent_tuning {"ms": {"1x128": 1.2467679977416992, "16x2048": 6.165600061416626, "64x128": 5.818863868713379}, "w_int8_est_ms": 0.7236903736251854, "weight_time_ratio": 0.48367446546155085, "to_copy_ms_1x128": 0.10332320000000068}
+cast, both {"ms": {"1x128": 1.2249119877815247, "16x2048": 6.159744024276733, "64x128": 5.822400093078613}, "w_int8_est_ms": 0.7018343636650108, "weight_time_ratio": 0.46906712187943933, "to_copy_ms_1x128": 0.10388159999999926}
+triton int8 kernel {"ms": {"1x128": 2.4741119146347046, "16x2048": 4.965280055999756, "64x128": 4.8733601570129395}, "w_int8_est_ms": 1.9510342905181908, "weight_time_ratio": 1.3039629957165721, "to_copy_ms_1x128": 0.11528300000000155}
+# int8 probe on NVIDIA H100 80GB HBM3
+
+bf16 compiled: 1x128 2.02 ms, 16x2048 5.19 ms, 64x128 6.07 ms; bf16 weight kernels at 1x128: 1.496 ms
+
+| variant | 1x128 ms | 16x2048 ms | 64x128 ms | int8 weight est. ms (× bf16) | to_copy ms |
+|---|---:|---:|---:|---:|---:|
+| cast, default | 3.11 | 6.37 | 7.00 | 2.588 (1.73×) | 1.334 |
+| cast, mixed_mm_choice=triton | 3.12 | 6.38 | 7.00 | 2.593 (1.73×) | 1.350 |
+| cast, coordinate_descent_tuning | 1.25 | 6.17 | 5.82 | 0.724 (0.48×) | 0.103 |
+| cast, both | 1.22 | 6.16 | 5.82 | 0.702 (0.47×) | 0.104 |
+| triton int8 kernel | 2.47 | 4.97 | 4.87 | 1.951 (1.30×) | 0.115 |
+
+Triton kernel check: {'max_rel_err': 0.0017067150911316276, 'ok': True}. Ideal: int8 weight time ≈ 0.5× bf16.
+[exit 0]

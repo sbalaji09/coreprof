@@ -25,6 +25,9 @@ BASELINE = {("delta_compile", "h100"): "delta_grid-h100-20261116-184347",
             ("delta_compile", "l40s"): "delta_grid-l40s-20261116-184352",
             ("delta_int8", "h100"): "delta_compile-h100-20261116-214809",
             ("delta_int8", "l40s"): "delta_compile-l40s-20261116-214809"}
+for _t in ("delta_int8_triton", "delta_int8_cd"):
+    for _g in ("h100", "l40s"):
+        BASELINE[(_t, _g)] = BASELINE[("delta_int8", _g)]
 
 
 def read(vol, path):
@@ -77,7 +80,7 @@ def show(vol, rid):
     if not comp:
         return
 
-    old, new = ("bf16 ms", "int8 ms") if task == "delta_int8" else ("uncompiled ms", "compiled ms")
+    old, new = ("bf16 ms", "int8 ms") if task.startswith("delta_int8") else ("uncompiled ms", "compiled ms")
     print(f"\n{'B':>4} {'C':>5}  {old:>13} {new:>11} {'saved ms':>8}  speedup")
     sp = []
     for (B, C), t in sorted(comp.items(), key=lambda kv: (kv[0][1], kv[0][0])):
@@ -94,7 +97,7 @@ def show(vol, rid):
               f"over {len(sp)} points")
 
     # what it means for LoopCore: the "if weights were free" bound at B=1, C=128
-    if task == "delta_int8":
+    if task.startswith("delta_int8"):
         return      # int8 weight time is estimated from same-container step times at the end of the run
     w_comp = ((js.get("kernel_breakdown") or {}).get(f"{js.get('grid_impl')} 1x128") or {}).get("gemm_ms")
     w_base = (base_js["kernel_breakdown"].get(f"{base_js.get('grid_impl', 'graph_static')} 1x128") or {}).get("gemm_ms")
