@@ -443,13 +443,13 @@ def kernel_bench(args, copies=24, batches=(1, 2, 4, 8, 16, 32, 64)):
             print("gemm", key, json.dumps(res["gemm"].get(key), default=str)[:300])
             save()
         # v1.2 (pre-registered): weight matmuls as torch.compile issues them, compiled fresh per (shape, B)
-        import torch._dynamo
+        import torch._dynamo as dynamo   # (not `import torch._dynamo`: that would make `torch` local here)
         for N, K in ((2048, 2048), (5632, 2048), (2048, 5632)):
             key = f"{N}x{K}"
             try:
                 ws = [torch.randn(N, K, device=dev, dtype=bf) for _ in range(copies)]
                 for B in batches:
-                    torch._dynamo.reset()
+                    dynamo.reset()
                     lin = torch.compile(lambda x, w: torch.nn.functional.linear(x, w), dynamic=False)
                     x = torch.randn(B, 1, K, device=dev, dtype=bf)
                     res.setdefault("gemm_compiled", {}).setdefault(key, {})[str(B)] = per_op(
