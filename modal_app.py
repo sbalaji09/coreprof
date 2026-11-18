@@ -83,6 +83,11 @@ TASKS = {
     "delta_compile": CHECK + ["python delta_split.py --grid --compile --out-dir $OUT"],
     # int8 weight-only looped block (fused cast under torch.compile) vs the bf16 compiled step, same grid (~1 h).
     "delta_int8": CHECK + ["python delta_split.py --grid --compile --int8 --out-dir $OUT"],
+    # Which int8 path reads int8 bytes? inductor settings vs a Triton int8 kernel, 3 points (~15 min).
+    "int8_probe": CHECK + ["python int8_kernel.py | tee $OUT/int8_kernel_check.txt",
+                           "python delta_split.py --int8-probe --out-dir $OUT"],
+    # Full int8 grid with the Triton int8 kernel (int8_kernel.py) instead of the unfused cast (~1 h).
+    "delta_int8_triton": CHECK + ["python delta_split.py --grid --compile --int8 --int8-impl triton --out-dir $OUT"],
     # Is the compiled step's bf16 difference rounding or a bug? eager vs compiled, both against fp32 (~3 min).
     "compile_check": CHECK + ["python delta_split.py --compile-check --out-dir $OUT"],
     "bench_q03": CHECK + [

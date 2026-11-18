@@ -80,6 +80,12 @@ def parse_args():
                    help="with --grid --compile: int8 weight-only linears in the looped block (per-output-channel "
                         "scales, gpt-fast style; the cast is fused into the matmul by torch.compile); also times the "
                         "bf16 compiled step at a few points in the same container")
+    p.add_argument("--int8-impl", choices=["cast", "triton"], default="cast",
+                   help="cast: F.linear(x, w.to(bf16)) * s, fusion left to torch.compile (not fused in torch 2.5.1); "
+                        "triton: int8_kernel.py, reads int8 weights directly")
+    p.add_argument("--int8-probe", action="store_true",
+                   help="only: bf16 compiled vs int8 variants (inductor settings, Triton kernel) at a few points; "
+                        "writes int8_probe.json")
     p.add_argument("--compile-check", action="store_true",
                    help="only: compare eager-bf16 and compiled-bf16 static steps against an fp32 reference "
                         "(is the compiled step's difference rounding, or a bug?); writes compile_numerics.json")
@@ -350,7 +356,9 @@ def make_step(model, B, C, L, args, mode=None):
 class Int8WeightOnlyLinear(torch.nn.Module):
     """int8 weights + one bf16 scale per output channel (symmetric). forward() casts the int8 weight to the
     activation dtype; under torch.compile that cast is fused into the matmul, so only int8 bytes are read.
-    Parameters (not buffers) so loopprof.byte_model counts their bytes."""
+    Parameters (not buffers) so loopprof.byte_model counts their bytes.
+    impl (class-wide): "cast" leaves fusion to torch.compile; "triton" calls int8_kernel's custom op."""
+    impl = "cast"
 
     def __init__(self, lin):
         super().__init__()
@@ -361,8 +369,108 @@ class Int8WeightOnlyLinear(torch.nn.Module):
         self.bias = lin.bias
 
     def forward(self, x):
-        y = torch.nn.functional.linear(x, self.weight.to(x.dtype)) * self.scales
+        if Int8WeightOnlyLinear.impl == "triton":
+            y = torch.ops.loopcore.int8_wo_linear(x, self.weight, self.scales)
+        else:
+            y = torch.nn.functional.linear(x, self.weight.to(x.dtype)) * self.scales
         return y if self.bias is None else y + self.bias
+
+
+def set_int8_impl(impl):
+    if impl == "triton":
+        import int8_kernel  # noqa: F401  (registers torch.ops.loopcore.int8_wo_linear)
+    Int8WeightOnlyLinear.impl = impl
+
+
+def int8_probe(args, points=((1, 128), (16, 2048), (64, 128))):
+    """Which int8 path actually reads int8 bytes? bf16 compiled reference vs int8 variants, same container.
+    Weight time per variant at B=1, C=128 is estimated as t_int8 - (t_bf16 - w_bf16)."""
+    import torch._inductor.config as ind
+    ind.triton.unique_kernel_names = True
+    variants = [("cast, default", "cast", {}),
+                ("cast, mixed_mm_choice=triton", "cast", {"mixed_mm_choice": "triton"}),
+                ("cast, coordinate_descent_tuning", "cast", {"coordinate_descent_tuning": True}),
+                ("cast, both", "cast", {"mixed_mm_choice": "triton", "coordinate_descent_tuning": True}),
+                ("triton int8 kernel", "triton", {})]
+    res = dict(gpu=torch.cuda.get_device_name(), torch=torch.__version__, points=[f"{B}x{C}" for B, C in points],
+               bf16={}, variants={}, errors={})
+    path = os.path.join(args.out_dir, "int8_probe.json")
+
+    def save():
+        with open(path, "w") as f:
+            json.dump(res, f, indent=1, default=str)
+
+    def time_point(model, B, C, L, breakdown):
+        step, cache, info = make_step(model, B, C, L, args, "default")
+        g, _ = capture_graph(step)
+        t = stats(gpu_times(g.replay, args.warmup, args.reps))["median_ms"]
+        bd = safe_breakdown(g.replay) if breakdown else None
+        del g, step, cache
+        harness.free_cuda()
+        return t, bd, info
+
+    with torch.inference_mode():
+        model = harness.load_model(args.dtype)
+        L = model.model.config.num_hidden_layers
+        for B, C in points:
+            t, bd, _ = time_point(model, B, C, L, (B, C) == (1, 128))
+            res["bf16"][f"{B}x{C}"] = t
+            if bd:
+                res["bf16_breakdown_1x128"] = bd
+        res["bf16_weight_bytes"] = loopprof.byte_model(model, harness.DTYPES[args.dtype]).weight_bytes
+        res["linears_quantized"] = quantize_int8(model)
+        res["int8_weight_bytes"] = loopprof.byte_model(model, harness.DTYPES[args.dtype]).weight_bytes
+        try:
+            set_int8_impl("triton")
+            import int8_kernel
+            res["triton_kernel_check"] = int8_kernel.check()
+        except Exception:
+            res["errors"]["triton kernel check"] = traceback.format_exc()
+        save()
+        w16 = (res.get("bf16_breakdown_1x128") or {}).get("gemm_ms")
+        for name, impl, cfg in variants:
+            old = {k: getattr(ind, k) for k in cfg}
+            v = res["variants"][name] = dict(impl=impl, inductor=cfg, ms={})
+            try:
+                for k, val in cfg.items():
+                    setattr(ind, k, val)
+                set_int8_impl(impl)
+                for B, C in points:
+                    t, bd, info = time_point(model, B, C, L, (B, C) == (1, 128))
+                    v["ms"][f"{B}x{C}"] = t
+                    v.setdefault("compile_s", {})[f"{B}x{C}"] = info.get("compile_s")
+                    if bd:
+                        v["top_kernels_1x128"] = dict(list(bd["top_kernels_ms"].items())[:6])
+                        v["to_copy_ms_1x128"] = sum(ms for n, ms in bd["top_kernels_ms"].items() if "to_copy" in n)
+                t1, b1 = v["ms"].get("1x128"), res["bf16"].get("1x128")
+                if t1 and b1 and w16:
+                    v["w_int8_est_ms"] = t1 - (b1 - w16)
+                    v["weight_time_ratio"] = v["w_int8_est_ms"] / w16
+                    v["int8_gbps"] = res["int8_weight_bytes"] / (v["w_int8_est_ms"] * 1e-3) / 1e9
+                v["speedup_vs_bf16"] = {k: res["bf16"][k] / t for k, t in v["ms"].items()}
+            except Exception:
+                res["errors"][name] = traceback.format_exc()
+                harness.free_cuda()
+            finally:
+                for k, val in old.items():
+                    setattr(ind, k, val)
+            print(name, json.dumps({k: v.get(k) for k in ("ms", "w_int8_est_ms", "weight_time_ratio", "to_copy_ms_1x128")},
+                                   default=str))
+            save()
+    res["w_bf16_ms"] = w16
+    lines = [f"# int8 probe on {res['gpu']}\n", f"bf16 compiled: " + ", ".join(f"{k} {t:.2f} ms" for k, t in res["bf16"].items())
+             + f"; bf16 weight kernels at 1x128: {w16 if w16 is None else round(w16, 3)} ms\n",
+             "| variant | " + " | ".join(f"{k} ms" for k in res["points"]) + " | int8 weight est. ms (× bf16) | to_copy ms |",
+             "|---|" + "---:|" * (len(points) + 2)]
+    for name, v in res["variants"].items():
+        f2 = lambda x, nd=2: "n/a" if x is None else f"{x:.{nd}f}"
+        lines.append(f"| {name} | " + " | ".join(f2(v["ms"].get(k)) for k in res["points"]) +
+                     f" | {f2(v.get('w_int8_est_ms'), 3)} ({f2(v.get('weight_time_ratio'))}×) | {f2(v.get('to_copy_ms_1x128'), 3)} |")
+    lines.append(f"\nTriton kernel check: {res.get('triton_kernel_check')}. Ideal: int8 weight time ≈ 0.5× bf16.")
+    save()
+    with open(os.path.join(args.out_dir, "int8_probe.md"), "w") as f:
+        f.write("\n".join(lines) + "\n")
+    print("\n".join(lines))
 
 
 def quantize_int8(model):
@@ -500,6 +608,11 @@ def main():
     if args.compile_check:
         compile_numerics(args)
         return
+    if args.int8_probe:
+        int8_probe(args)
+        return
+    if args.int8:
+        set_int8_impl(args.int8_impl)
     t_start = time.time()
     if args.compile:
         import torch._inductor.config as ind
@@ -524,6 +637,7 @@ def main():
                spec_peak_gbps=peak_spec, measured_peak_gbps=peak_meas, measured_read_gbps=peak_read, errors={})
     if int8_check:
         out["int8_vs_bf16_check"] = int8_check
+        out["int8_impl"] = args.int8_impl
     if args.compile:
         import torch._inductor.config as ind
         out["inductor_config"] = {k: getattr(ind, k, None) for k in
