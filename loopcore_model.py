@@ -224,6 +224,60 @@ def predict_gpu(src, gpu):
                    source=f"predicted from {src.source}; {gpu} datasheet clock/compute; measured bandwidth")
 
 
+# ---------------------------------------------------------------- GPU, kernel-sum model (v1.1)
+#
+# Pre-registered 2026-11-18, before the microbenchmarks ran: the fused step is a sequence of kernels whose
+# counts come from the profiler (same on both GPUs), each costing its time measured IN ISOLATION on that GPU
+# (delta_split.py --kernel-bench: synthetic tensors, CUDA graphs, no L2 reuse). Nothing is fitted on step
+# timings and nothing is scaled by clock, so both GPUs are predictions.
+#   step(B, C) = sum_shapes n_s * gemm_s(B) + n_small * small(B) + n_calls * (attn(B, 128) + kv * B * (C - 128))
+# Counts: fused breakdown at 1x128 (compiled_graph): 170 GEMM kernels = 24 x (4 qkvo 2048x2048 + 2 gate/up
+# 5632x2048 + 1 down 2048x5632) + 2 tiny (counted as small); 48 attention kernels = 24 SDPA calls; 123 other
+# + 1 copy. Slot times (kernel + graph gap) give the step; kernel-only times give the weight/non-weight split.
+
+KERNEL_BENCH = {"l40s": "results/modal/delta_kernel_bench-l40s-20261118-120529",
+                "h100": "results/modal/delta_kernel_bench-h100-20261118-120542"}
+KERNEL_COUNTS = dict(gemm={"2048x2048": 96, "5632x2048": 48, "2048x5632": 24}, small=126, attention_calls=24)
+
+
+def _interp(table, B, field):
+    """Value at batch B from {str(B): {field: v}}, linear in B between measured batches."""
+    pts = sorted((int(b), v[field]) for b, v in table.items())
+    for (b0, v0), (b1, v1) in zip(pts, pts[1:]):
+        if b0 <= B <= b1:
+            return v0 + (v1 - v0) * (B - b0) / (b1 - b0)
+    return pts[0][1] if B < pts[0][0] else pts[-1][1]
+
+
+def kernel_sum(gpu, B, C, field="slot_us"):
+    """(weights, small, attention) in µs per loop step from the GPU's own microbenchmarks."""
+    kb = json.load(open(ROOT / KERNEL_BENCH[gpu] / "kernel_bench.json"))
+    w = sum(n * _interp(kb["gemm"][shape], B, field) for shape, n in KERNEL_COUNTS["gemm"].items())
+    small = KERNEL_COUNTS["small"] * statistics.mean(_interp(t, B, field) for t in kb["small"].values())
+    att = kb["attention"]
+    a128 = _interp({b: att[f"{b}x128"] for b in ("1", "16", "64")}, B, field)
+    kv = (att["16x2048"][field] - att["16x128"][field]) / (16 * (2048 - 128))     # µs per cached token per call
+    return w, small, KERNEL_COUNTS["attention_calls"] * (a128 + kv * B * (C - 128))
+
+
+def kernel_sum_predictions(gpu):
+    """calibrate.py predictions from the kernel-sum model."""
+    env, _ = cal.envelope(gpu)
+    grid = {f"{B}x{C}": sum(kernel_sum(gpu, B, C)) / 1e3 for (B, C) in env}
+    delta, _, _, _ = cal.fit_m2([{"B": B, "C": C, "t": grid[f"{B}x{C}"]} for (B, C) in env])
+    kb = json.load(open(ROOT / KERNEL_BENCH[gpu] / "kernel_bench.json"))
+    w_busy = kernel_sum(gpu, 1, 128, "busy_us")[0] / 1e3
+    att = kb["attention"]
+    kv = KERNEL_COUNTS["attention_calls"] * (att["16x2048"]["slot_us"] - att["16x128"]["slot_us"]) / (16 * 1920)
+    return {"date": __import__("time").strftime("%Y-%m-%d"),
+            "source": f"loopcore_model.py v1.1 kernel-sum: {KERNEL_BENCH[gpu]}/kernel_bench.json",
+            "inputs": {"kernel_counts": KERNEL_COUNTS, "microbenchmarks": KERNEL_BENCH[gpu],
+                       "measured_copy_peak_GBps": kb["measured_peak_gbps"], "measured_read_peak_GBps": kb["measured_read_gbps"]},
+            "predictions": {"weight_ms": w_busy, "kv_us_per_token": kv, "crossover_tokens": w_busy * 1e3 / kv,
+                            "step_ms_b1_c128": grid["1x128"], "delta_ms": delta, "overhead_ms": grid["1x128"] - w_busy},
+            "grid": grid}
+
+
 # ---------------------------------------------------------------- measured GPU baselines (decision 4)
 
 INT8_RUNS = {"l40s": ["results/modal/delta_int8_triton-l40s-20261117-233833",
@@ -320,12 +374,27 @@ def validate(m=OURO_1_4B, write=False):
     print("sequence over-predicts the B=1 step's non-weight time (calibrate.py: +56 % L40S, +20 % H100), the B=1 -> B=2")
     print("GEMV -> GEMM jump v0 noted. Anchoring the overhead at the measured B=1 step fixes L40S but worsens the H100")
     print("prediction (median 12.6 %), so it is not used; more variants tuned against H100 would overfit it.")
+    have_bench = all((ROOT / KERNEL_BENCH[g] / "kernel_bench.json").exists() for g in KERNEL_BENCH)
+    if have_bench:
+        print("\nv1.1 kernel-sum model (microbenchmarks only; both GPUs are predictions):")
+        for gpu in ("l40s", "h100"):
+            env, _ = cal.envelope(gpu)
+            e = {bc: 100 * (sum(kernel_sum(gpu, *bc)) / 1e3 - t) / t for bc, (t, _) in env.items()}
+            (wB, wC), we = max(e.items(), key=lambda kv: abs(kv[1]))
+            w, sm, at = kernel_sum(gpu, 1, 128)
+            print(f"  {gpu.upper():5s} grid: median |error| {statistics.median(map(abs, e.values())):.1f} %, max {we:+.1f} % "
+                  f"at B={wB}, C={wC}; 1x128: weights {w / 1e3:.3f} + small {sm / 1e3:.3f} + attention {at / 1e3:.3f} ms")
+        print("  Known misses (2026-11-18): isolated small kernels cost ~2.1 µs per slot on L40S vs ~1.65 in the step")
+        print("  (launch gaps hide behind long GEMVs in the real step), so the L40S B=1 non-weight time is +39 %; and the")
+        print("  compiled step's batched GEMMs are slower than isolated cuBLAS at B >= 32 (grid max -26 % L40S, -43 % H100).")
     if write:
         for gpu, hw in (("l40s", l40s), ("h100", h100)):
             p = ROOT / cal.RUNS[gpu][1]
-            pred = {**predictions(m, hw, gpu), "date": __import__("time").strftime("%Y-%m-%d")}
+            # pre-registered: the kernel-sum model's predictions are the ones recorded, whatever they score
+            pred = kernel_sum_predictions(gpu) if have_bench else \
+                {**predictions(m, hw, gpu), "date": __import__("time").strftime("%Y-%m-%d")}
             p.write_text(json.dumps(pred, indent=2) + "\n")
-            print(f"wrote {p.name}")
+            print(f"wrote {p.name} ({'kernel-sum' if have_bench else 'v1 transfer'} model)")
     return l40s, h100
 
 

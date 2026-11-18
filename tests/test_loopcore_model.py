@@ -108,3 +108,19 @@ def test_kv_write_independent_of_exit_depth():
 def test_bad_combine_rejected():
     with pytest.raises(ValueError):
         lm.step_time(M, replace(lm.fit_gpu("l40s"), combine="avg"), 1, 128)
+
+
+def test_kernel_sum_weight_split_matches_both_gpus():
+    # v1.1 (microbenchmarks only): weight kernel time at 1x128 within 10 % of the fused step's GEMM time on both GPUs
+    for gpu, meas in (("l40s", 3.772), ("h100", 1.515)):
+        w = lm.kernel_sum(gpu, 1, 128, "busy_us")[0] / 1e3
+        assert abs(w - meas) / meas < 0.10
+
+
+def test_kernel_sum_known_misses_documented():
+    # recorded, not hidden: isolated small kernels overstate L40S in-step overhead, and the compiled step's
+    # batched GEMMs at B >= 32 are slower than isolated cuBLAS (both under-/over-predictions exceed 20 %)
+    import calibrate as cal
+    env, _ = cal.envelope("h100")
+    t, _ = env[(64, 128)]
+    assert sum(lm.kernel_sum("h100", 64, 128)) / 1e3 < 0.8 * t
