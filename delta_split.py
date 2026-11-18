@@ -402,17 +402,23 @@ def kernel_bench(args, copies=24, batches=(1, 2, 4, 8, 16, 32, 64)):
                gemm={}, small={}, attention={}, errors={})
     path = os.path.join(args.out_dir, "kernel_bench.json")
 
-    def per_op(fns):
+    def per_op(fns, n=None, top=False):
+        """n: ops to divide by (default len(fns))."""
+        n = n or len(fns)
+
         def run():
             for fn in fns:
                 fn()
         g, _ = capture_graph(run)
-        slot = stats(gpu_times(g.replay, args.warmup, args.reps))["median_ms"] * 1e3 / len(fns)
+        slot = stats(gpu_times(g.replay, args.warmup, args.reps))["median_ms"] * 1e3 / n
         bd = safe_breakdown(g.replay)
-        busy = bd["busy_ms"] * 1e3 / len(fns) if bd else None
-        kernels = bd["kernels"] / len(fns) if bd else None
+        busy = bd["busy_ms"] * 1e3 / n if bd else None
+        kernels = bd["kernels"] / n if bd else None
         del g
-        return dict(slot_us=slot, busy_us=busy, kernels_per_op=kernels)
+        r = dict(slot_us=slot, busy_us=busy, kernels_per_op=kernels)
+        if top and bd:
+            r["top_kernels"] = [k[:90] for k in list(bd["top_kernels_ms"])[:3]]
+        return r
 
     def save():
         with open(path, "w") as f:
@@ -436,6 +442,24 @@ def kernel_bench(args, copies=24, batches=(1, 2, 4, 8, 16, 32, 64)):
             harness.free_cuda()
             print("gemm", key, json.dumps(res["gemm"].get(key), default=str)[:300])
             save()
+        # v1.2 (pre-registered): weight matmuls as torch.compile issues them, compiled fresh per (shape, B)
+        import torch._dynamo
+        for N, K in ((2048, 2048), (5632, 2048), (2048, 5632)):
+            key = f"{N}x{K}"
+            try:
+                ws = [torch.randn(N, K, device=dev, dtype=bf) for _ in range(copies)]
+                for B in batches:
+                    torch._dynamo.reset()
+                    lin = torch.compile(lambda x, w: torch.nn.functional.linear(x, w), dynamic=False)
+                    x = torch.randn(B, 1, K, device=dev, dtype=bf)
+                    res.setdefault("gemm_compiled", {}).setdefault(key, {})[str(B)] = per_op(
+                        [lambda w=w, x=x: lin(x, w) for w in ws], top=B in (1, 16, 64))
+                del ws
+            except Exception:
+                res["errors"][f"gemm_compiled {key}"] = traceback.format_exc().strip().splitlines()[-1]
+            harness.free_cuda()
+            print("gemm_compiled", key, json.dumps(res.get("gemm_compiled", {}).get(key), default=str)[:300])
+            save()
         # small fused kernels: compiled RMSNorm over hidden (one Triton reduction) and SiLU*mul over the MLP width
         # (one Triton pointwise kernel): representative of the fused step's ~123 non-GEMM, non-attention kernels
         rms = torch.compile(lambda x, w: (x.float() * torch.rsqrt(x.float().pow(2).mean(-1, keepdim=True) + 1e-6))
@@ -450,7 +474,20 @@ def kernel_bench(args, copies=24, batches=(1, 2, 4, 8, 16, 32, 64)):
                 res["small"].setdefault("rmsnorm_2048", {})[str(B)] = per_op([lambda x=x: rms(x, w) for x in xs])
                 res["small"].setdefault("silu_mul_5632", {})[str(B)] = per_op(
                     [lambda a=a, b=b: silu(a, b) for a, b in zip(a_s, b_s)])
-                del xs, a_s, b_s
+                # v1.2 (pre-registered): small kernels in context, alternating with the 2048x2048 GEMV as in the
+                # step; per small kernel = (pairs - GEMV alone) / copies
+                ws = [torch.randn(2048, 2048, device=dev, dtype=bf) for _ in range(copies)]
+                xg = torch.randn(B, 1, 2048, device=dev, dtype=bf)
+                alone = per_op([lambda w=w: torch.nn.functional.linear(xg, w) for w in ws])
+                for name, fns in (("rmsnorm_2048", [lambda x=x: rms(x, w) for x in xs]),
+                                  ("silu_mul_5632", [lambda a=a, b=b: silu(a, b) for a, b in zip(a_s, b_s)])):
+                    seq = [f for pair in zip([lambda w=w: torch.nn.functional.linear(xg, w) for w in ws], fns) for f in pair]
+                    pr = per_op(seq, n=copies)
+                    res.setdefault("small_after_gemv", {}).setdefault(name, {})[str(B)] = dict(
+                        slot_us=pr["slot_us"] - alone["slot_us"],
+                        busy_us=(pr["busy_us"] - alone["busy_us"]) if pr["busy_us"] and alone["busy_us"] else None,
+                        pair_slot_us=pr["slot_us"], gemv_alone_slot_us=alone["slot_us"])
+                del xs, a_s, b_s, ws
             except Exception:
                 res["errors"][f"small B={B}"] = traceback.format_exc().strip().splitlines()[-1]
             harness.free_cuda()

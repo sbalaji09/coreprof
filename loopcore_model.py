@@ -237,6 +237,11 @@ def predict_gpu(src, gpu):
 
 KERNEL_BENCH = {"l40s": "results/modal/delta_kernel_bench-l40s-20261118-120529",
                 "h100": "results/modal/delta_kernel_bench-h100-20261118-120542"}
+# v1.2 (pre-registered 2026-11-18, before running): same sum, but (a) weight matmuls as torch.compile issues them
+# (gemm_compiled: compiled lone F.linear per shape and B), for the compiled step's slower batched GEMMs; (b) small
+# kernels measured in context, alternating with a 2048x2048 GEMV (small_after_gemv), for launch gaps that hide
+# behind long kernels. Attention, KV and counts as v1.1. Recorded whatever it scores.
+KERNEL_BENCH_V12 = {"l40s": None, "h100": None}   # filled with the v1.2 run directories
 KERNEL_COUNTS = dict(gemm={"2048x2048": 96, "5632x2048": 48, "2048x5632": 24}, small=126, attention_calls=24)
 
 
@@ -249,11 +254,14 @@ def _interp(table, B, field):
     return pts[0][1] if B < pts[0][0] else pts[-1][1]
 
 
-def kernel_sum(gpu, B, C, field="slot_us"):
+def kernel_sum(gpu, B, C, field="slot_us", version="v1.1"):
     """(weights, small, attention) in µs per loop step from the GPU's own microbenchmarks."""
-    kb = json.load(open(ROOT / KERNEL_BENCH[gpu] / "kernel_bench.json"))
-    w = sum(n * _interp(kb["gemm"][shape], B, field) for shape, n in KERNEL_COUNTS["gemm"].items())
-    small = KERNEL_COUNTS["small"] * statistics.mean(_interp(t, B, field) for t in kb["small"].values())
+    run = KERNEL_BENCH_V12[gpu] if version == "v1.2" else KERNEL_BENCH[gpu]
+    kb = json.load(open(ROOT / run / "kernel_bench.json"))
+    gemm = kb["gemm_compiled"] if version == "v1.2" else kb["gemm"]
+    small_tab = kb["small_after_gemv"] if version == "v1.2" else kb["small"]
+    w = sum(n * _interp(gemm[shape], B, field) for shape, n in KERNEL_COUNTS["gemm"].items())
+    small = KERNEL_COUNTS["small"] * statistics.mean(_interp(t, B, field) for t in small_tab.values())
     att = kb["attention"]
     a128 = _interp({b: att[f"{b}x128"] for b in ("1", "16", "64")}, B, field)
     kv = (att["16x2048"][field] - att["16x128"][field]) / (16 * (2048 - 128))     # µs per cached token per call
