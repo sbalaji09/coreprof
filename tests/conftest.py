@@ -2,19 +2,21 @@ import sys
 from pathlib import Path
 
 import pytest
-import torch
-from transformers import AutoConfig
-from transformers.dynamic_module_utils import get_class_from_dynamic_module
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from batching.common import MODEL, REVISION, set_numerics  # noqa: E402
+# torch / transformers are imported inside the fixture, so pure-Python tests (test_loopcore_model.py)
+# can run on a laptop without them.
 
 
 @pytest.fixture(scope="session")
 def tiny_model():
     """A 2-layer, randomly initialised Ouro built from Ouro's own remote code (fp32).
     Same architecture and loop/cache code paths as the real model, but runs in milliseconds."""
+    import torch
+    from transformers import AutoConfig
+    from transformers.dynamic_module_utils import get_class_from_dynamic_module
+
+    from batching.common import MODEL, REVISION, set_numerics
     set_numerics()
     cfg = AutoConfig.from_pretrained(MODEL, revision=REVISION, trust_remote_code=True)
     cfg.update(dict(hidden_size=64, intermediate_size=128, num_hidden_layers=2, num_attention_heads=4,

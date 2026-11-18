@@ -33,55 +33,57 @@ cost is a PyTorch artifact LoopCore will not have, so reproducing it would not t
 ### L40S
 
 <!-- calibration:l40s:begin -->
-**Status:** Calibrated on NVIDIA L40S: **no** (0/6 summary predictions, 0/46 grid points).
+**Status:** Calibrated on NVIDIA L40S: **no** (6/6 summary predictions, 46/46 grid points).
 
-Measured: the faster of `results/modal/delta_compile-l40s-20261116-214809/` (fused) and `results/modal/delta_grid-l40s-20261116-184352/` (uncompiled) at each point (fused wins 41/46). Predictions: `calibration_predictions.json`. Error % is 0 inside a measured range, else the distance to its nearest end.
+Measured: the faster of `results/modal/delta_compile-l40s-20261116-214809/` (fused) and `results/modal/delta_grid-l40s-20261116-184352/` (uncompiled) at each point (fused wins 41/46). Predictions: `calibration_predictions.json`, from loopcore_model.py v1: L40S (fitted). Error % is 0 inside a measured range, else the distance to its nearest end.
 
 | quantity | measured (NVIDIA L40S, best GPU) | source | model prediction | error % |
 |---|---|---|---|---|
-| weight streaming time per loop step | 3.77–3.98 ms | fastest weight GEMV/GEMM kernels of either implementation, 1x128 and 16x2048 | pending | pending |
-| KV cost per cached token | 0.265 µs | M2 fit over the envelope | pending | pending |
-| weight/KV crossover | 14,244–15,020 cached tokens | weight_ms / kv_us_per_token | pending | pending |
-| best GPU step time, B=1, C=128 | 4.18 ms | envelope | pending | pending |
-| fixed cost δ (M2 fit) | 4.32 ms | M2 fit over the envelope | pending | pending |
-| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.406 ms | step − weight kernels of the fastest implementation | pending | pending |
+| weight streaming time per loop step | 3.77–3.98 ms | fastest weight GEMV/GEMM kernels of either implementation, 1x128 and 16x2048 | 3.77 ms | +0.0 |
+| KV cost per cached token | 0.265 µs | M2 fit over the envelope | 0.265 µs | +0.0 |
+| weight/KV crossover | 14,244–15,020 cached tokens | weight_ms / kv_us_per_token | 14,244 cached tokens | +0.0 |
+| best GPU step time, B=1, C=128 | 4.18 ms | envelope | 4.4 ms | +5.4 |
+| fixed cost δ (M2 fit) | 4.32 ms | M2 fit over the envelope | 4.32 ms | +0.0 |
+| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.406 ms | step − weight kernels of the fastest implementation | 0.632 ms | +55.8 ✗ |
 
-**Step time over the whole grid (46 points):** pending (0/46 grid points predicted)
+**Step time over the whole grid (46 points):** median |error| 1.8 %, max -8.7 % at B=32, C=128 (pass: needs median ≤ 10 %, max ≤ 20 %)
 
 **Model inputs:**
 
-- weight_bytes: pending
-- weight_bandwidth_GBps: pending
-- kv_bytes_per_token: pending
-- kv_bandwidth_GBps: pending
-- overhead_term: pending
+- weight_bytes: 2466648064
+- weight_bandwidth_GBps: 744.4628959735501
+- kv_bytes_per_token: 196608.0
+- kv_bandwidth_GBps: 742.5228827114364
+- overhead_term: 170 weight kernels x 2.70 us + 0.545 ms per step + 45.9 us/seq
+- fitted_on: fitted: l40s envelope (results/modal/delta_compile-l40s-20261116-214809, results/modal/delta_grid-l40s-20261116-184352) + results/modal/delta_compile-l40s-20261116-214809 breakdown
 <!-- calibration:l40s:end -->
 
 ### H100 80GB HBM3
 
 <!-- calibration:h100:begin -->
-**Status:** Calibrated on NVIDIA H100 80GB HBM3: **no** (0/6 summary predictions, 0/48 grid points).
+**Status:** Calibrated on NVIDIA H100 80GB HBM3: **no** (6/6 summary predictions, 48/48 grid points).
 
-Measured: the faster of `results/modal/delta_compile-h100-20261116-214809/` (fused) and `results/modal/delta_grid-h100-20261116-184347/` (uncompiled) at each point (fused wins 48/48). Predictions: `calibration_predictions_h100.json`. Error % is 0 inside a measured range, else the distance to its nearest end.
+Measured: the faster of `results/modal/delta_compile-h100-20261116-214809/` (fused) and `results/modal/delta_grid-h100-20261116-184347/` (uncompiled) at each point (fused wins 48/48). Predictions: `calibration_predictions_h100.json`, from loopcore_model.py v1: H100 (predicted from L40S (fitted)). Error % is 0 inside a measured range, else the distance to its nearest end.
 
 | quantity | measured (NVIDIA H100 80GB HBM3, best GPU) | source | model prediction | error % |
 |---|---|---|---|---|
-| weight streaming time per loop step | 1.49–1.77 ms | fastest weight GEMV/GEMM kernels of either implementation, 1x128 and 16x2048 | pending | pending |
-| KV cost per cached token | 0.0767 µs | M2 fit over the envelope | pending | pending |
-| weight/KV crossover | 19,435–23,025 cached tokens | weight_ms / kv_us_per_token | pending | pending |
-| best GPU step time, B=1, C=128 | 2.14 ms | envelope | pending | pending |
-| fixed cost δ (M2 fit) | 2.12 ms | M2 fit over the envelope | pending | pending |
-| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.628 ms | step − weight kernels of the fastest implementation | pending | pending |
+| weight streaming time per loop step | 1.49–1.77 ms | fastest weight GEMV/GEMM kernels of either implementation, 1x128 and 16x2048 | 1.4 ms | -5.8 |
+| KV cost per cached token | 0.0767 µs | M2 fit over the envelope | 0.0656 µs | -14.5 ✗ |
+| weight/KV crossover | 19,435–23,025 cached tokens | weight_ms / kv_us_per_token | 21,403 cached tokens | +0.0 |
+| best GPU step time, B=1, C=128 | 2.14 ms | envelope | 2.16 ms | +0.5 |
+| fixed cost δ (M2 fit) | 2.12 ms | M2 fit over the envelope | 2.1 ms | -1.2 |
+| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.628 ms | step − weight kernels of the fastest implementation | 0.751 ms | +19.5 ✗ |
 
-**Step time over the whole grid (48 points):** pending (0/48 grid points predicted)
+**Step time over the whole grid (48 points):** median |error| 6.3 %, max -17.8 % at B=2, C=4096 (pass: needs median ≤ 10 %, max ≤ 20 %)
 
 **Model inputs:**
 
-- weight_bytes: pending
-- weight_bandwidth_GBps: pending
-- kv_bytes_per_token: pending
-- kv_bandwidth_GBps: pending
-- overhead_term: pending
+- weight_bytes: 2466648064
+- weight_bandwidth_GBps: 3004.919376477507
+- kv_bytes_per_token: 196608.0
+- kv_bandwidth_GBps: 2997.0887868356617
+- overhead_term: 170 weight kernels x 3.43 us + 0.694 ms per step + 45.9 us/seq
+- fitted_on: predicted from fitted: l40s envelope (results/modal/delta_compile-l40s-20261116-214809, results/modal/delta_grid-l40s-20261116-184352) + results/modal/delta_compile-l40s-20261116-214809 breakdown; h100 datasheet clock/compute; measured bandwidth
 <!-- calibration:h100:end -->
 
 ## Reference: earlier uncompiled targets (superseded 2026-11-16)
