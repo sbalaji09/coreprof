@@ -1,0 +1,34 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=delta_kernel_bench-l40s-20261118-123411
+git=c4338a2
+Wed Nov 18 20:35:11 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-5151ca8a-1edf-117b-c7fa-e6b24bfcbc78, 46068 MiB, 620.70.06
+CPU(s):              21
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python delta_split.py --kernel-bench --out-dir $OUT
+gemm 2048x2048 {"1": {"slot_us": 13.738666971524557, "busy_us": 13.232466666666683, "kernels_per_op": 1.0833333333333333}, "2": {"slot_us": 15.802666544914246, "busy_us": 14.729608333333344, "kernels_per_op": 1.0833333333333333}, "4": {"slot_us": 15.850666910409927, "busy_us": 14.70275833333335, "kernels_per_op": 
+gemm 5632x2048 {"1": {"slot_us": 35.75133408109347, "busy_us": 34.60179166666669, "kernels_per_op": 1.0833333333333333}, "2": {"slot_us": 35.45000031590462, "busy_us": 34.287874999999985, "kernels_per_op": 1.0833333333333333}, "4": {"slot_us": 35.461333890755974, "busy_us": 34.291108333333355, "kernels_per_op": 1.
+gemm 2048x5632 {"1": {"slot_us": 35.22133330504099, "busy_us": 34.057874999999996, "kernels_per_op": 1.0833333333333333}, "2": {"slot_us": 39.719333251317344, "busy_us": 38.49214999999999, "kernels_per_op": 1.0833333333333333}, "4": {"slot_us": 39.71600035826365, "busy_us": 38.50797500000005, "kernels_per_op": 1.0
+gemm_compiled 2048x2048 {"1": {"slot_us": 14.616000155607859, "busy_us": 13.524683333333323, "kernels_per_op": 1.0833333333333333, "top_kernels": ["std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv", "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, a
+gemm_compiled 5632x2048 {"1": {"slot_us": 35.814000914494194, "busy_us": 34.603883333333314, "kernels_per_op": 1.0833333333333333, "top_kernels": ["std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv", "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, a
+gemm_compiled 2048x5632 {"1": {"slot_us": 35.281999657551445, "busy_us": 34.08684166666663, "kernels_per_op": 1.0833333333333333, "top_kernels": ["std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv", "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at
+small {"rmsnorm_2048": {"1": {"slot_us": 2.416666674738129, "busy_us": 1.4024166666667155, "kernels_per_op": 1.0833333333333333}, "16": {"slot_us": 2.525999986877044, "busy_us": 1.4671333333333383, "kernels_per_op": 1.0833333333333333}, "64": {"slot_us": 2.745333438118299, "busy_us": 1.665033333333332, "kernels_per_op": 1.0833333333333333}}, "silu_mul_5632": {"1": {"slot_us": 2.11666664108634, "busy_us"
+attention {"1x128": {"slot_us": 7.473333428303401, "busy_us": 6.227208333333317, "kernels_per_op": 2.0833333333333335}, "16x128": {"slot_us": 28.058666735887527, "busy_us": 26.856875000000002, "kernels_per_op": 1.0833333333333333}, "64x128": {"slot_us": 96.37600183486938, "busy_us": 95.35595833333328, "kernels_per_op": 1.0833333333333333}, "1x2048": {"slot_us": 30.625998973846436, "busy_us": 29.287299999999
+[exit 0]

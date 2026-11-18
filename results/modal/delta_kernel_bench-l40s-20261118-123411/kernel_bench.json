@@ -1,0 +1,375 @@
+{
+ "gpu": "NVIDIA L40S",
+ "torch": "2.5.1+cu124",
+ "copies": 24,
+ "gemm": {
+  "2048x2048": {
+   "1": {
+    "slot_us": 13.738666971524557,
+    "busy_us": 13.232466666666683,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "2": {
+    "slot_us": 15.802666544914246,
+    "busy_us": 14.729608333333344,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "4": {
+    "slot_us": 15.850666910409927,
+    "busy_us": 14.70275833333335,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "8": {
+    "slot_us": 15.79266662398974,
+    "busy_us": 14.732325000000008,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "16": {
+    "slot_us": 15.784666563073793,
+    "busy_us": 14.690216666666672,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "32": {
+    "slot_us": 16.643332938353222,
+    "busy_us": 15.315191666666685,
+    "kernels_per_op": 2.0833333333333335
+   },
+   "64": {
+    "slot_us": 15.585333108901978,
+    "busy_us": 14.489133333333337,
+    "kernels_per_op": 1.0833333333333333
+   }
+  },
+  "5632x2048": {
+   "1": {
+    "slot_us": 35.75133408109347,
+    "busy_us": 34.60179166666669,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "2": {
+    "slot_us": 35.45000031590462,
+    "busy_us": 34.287874999999985,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "4": {
+    "slot_us": 35.461333890755974,
+    "busy_us": 34.291108333333355,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "8": {
+    "slot_us": 35.466667264699936,
+    "busy_us": 34.29063333333335,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "16": {
+    "slot_us": 35.48533345262209,
+    "busy_us": 34.32064166666664,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "32": {
+    "slot_us": 35.57133302092552,
+    "busy_us": 34.46610000000003,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "64": {
+    "slot_us": 37.51999884843826,
+    "busy_us": 36.31995833333335,
+    "kernels_per_op": 1.0833333333333333
+   }
+  },
+  "2048x5632": {
+   "1": {
+    "slot_us": 35.22133330504099,
+    "busy_us": 34.057874999999996,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "2": {
+    "slot_us": 39.719333251317344,
+    "busy_us": 38.49214999999999,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "4": {
+    "slot_us": 39.71600035826365,
+    "busy_us": 38.50797500000005,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "8": {
+    "slot_us": 39.74266598622004,
+    "busy_us": 38.555424999999936,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "16": {
+    "slot_us": 39.73533337314924,
+    "busy_us": 38.55030833333334,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "32": {
+    "slot_us": 38.62333421905836,
+    "busy_us": 37.280433333333335,
+    "kernels_per_op": 2.0833333333333335
+   },
+   "64": {
+    "slot_us": 39.67000047365824,
+    "busy_us": 38.43728333333332,
+    "kernels_per_op": 1.0833333333333333
+   }
+  }
+ },
+ "small": {
+  "rmsnorm_2048": {
+   "1": {
+    "slot_us": 2.416666674738129,
+    "busy_us": 1.4024166666667155,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "16": {
+    "slot_us": 2.525999986877044,
+    "busy_us": 1.4671333333333383,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "64": {
+    "slot_us": 2.745333438118299,
+    "busy_us": 1.665033333333332,
+    "kernels_per_op": 1.0833333333333333
+   }
+  },
+  "silu_mul_5632": {
+   "1": {
+    "slot_us": 2.11666664108634,
+    "busy_us": 1.0936000000000017,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "16": {
+    "slot_us": 2.3666666820645332,
+    "busy_us": 1.2408833333333358,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "64": {
+    "slot_us": 2.680666589488586,
+    "busy_us": 1.5732249999999992,
+    "kernels_per_op": 1.0833333333333333
+   }
+  }
+ },
+ "attention": {
+  "1x128": {
+   "slot_us": 7.473333428303401,
+   "busy_us": 6.227208333333317,
+   "kernels_per_op": 2.0833333333333335
+  },
+  "16x128": {
+   "slot_us": 28.058666735887527,
+   "busy_us": 26.856875000000002,
+   "kernels_per_op": 1.0833333333333333
+  },
+  "64x128": {
+   "slot_us": 96.37600183486938,
+   "busy_us": 95.35595833333328,
+   "kernels_per_op": 1.0833333333333333
+  },
+  "1x2048": {
+   "slot_us": 30.625998973846436,
+   "busy_us": 29.28729999999997,
+   "kernels_per_op": 2.0833333333333335
+  },
+  "16x2048": {
+   "slot_us": 364.1693393389384,
+   "busy_us": 363.01932500000004,
+   "kernels_per_op": 1.0833333333333333
+  }
+ },
+ "errors": {},
+ "measured_peak_gbps": 635.3080904340032,
+ "measured_read_gbps": 745.538045208966,
+ "gemm_compiled": {
+  "2048x2048": {
+   "1": {
+    "slot_us": 14.616000155607859,
+    "busy_us": 13.524683333333323,
+    "kernels_per_op": 1.0833333333333333,
+    "top_kernels": [
+     "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv",
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detai"
+    ]
+   },
+   "2": {
+    "slot_us": 15.905999888976416,
+    "busy_us": 14.650499999999992,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "4": {
+    "slot_us": 15.88133287926515,
+    "busy_us": 14.69536666666667,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "8": {
+    "slot_us": 15.87133357922236,
+    "busy_us": 14.705383333333339,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "16": {
+    "slot_us": 15.880666673183441,
+    "busy_us": 14.713475000000004,
+    "kernels_per_op": 1.0833333333333333,
+    "top_kernels": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8",
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detai"
+    ]
+   },
+   "32": {
+    "slot_us": 16.64000004529953,
+    "busy_us": 15.330583333333342,
+    "kernels_per_op": 2.0833333333333335
+   },
+   "64": {
+    "slot_us": 15.628666306535402,
+    "busy_us": 14.48545,
+    "kernels_per_op": 1.0833333333333333,
+    "top_kernels": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8",
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detai"
+    ]
+   }
+  },
+  "5632x2048": {
+   "1": {
+    "slot_us": 35.814000914494194,
+    "busy_us": 34.603883333333314,
+    "kernels_per_op": 1.0833333333333333,
+    "top_kernels": [
+     "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv",
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detai"
+    ]
+   },
+   "2": {
+    "slot_us": 35.60466691851616,
+    "busy_us": 34.35616666666668,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "4": {
+    "slot_us": 35.54333373904228,
+    "busy_us": 34.31584166666668,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "8": {
+    "slot_us": 35.545999805132546,
+    "busy_us": 34.33389166666665,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "16": {
+    "slot_us": 35.65999989708265,
+    "busy_us": 34.34333333333335,
+    "kernels_per_op": 1.0833333333333333,
+    "top_kernels": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8",
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detai"
+    ]
+   },
+   "32": {
+    "slot_us": 35.63733398914337,
+    "busy_us": 34.533766666666686,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "64": {
+    "slot_us": 37.60800013939539,
+    "busy_us": 36.344325,
+    "kernels_per_op": 1.0833333333333333,
+    "top_kernels": [
+     "ampere_bf16_s16816gemm_bf16_64x64_ldg8_f2f_stages_64x5_tn",
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detai"
+    ]
+   }
+  },
+  "2048x5632": {
+   "1": {
+    "slot_us": 35.281999657551445,
+    "busy_us": 34.08684166666663,
+    "kernels_per_op": 1.0833333333333333,
+    "top_kernels": [
+     "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv",
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detai"
+    ]
+   },
+   "2": {
+    "slot_us": 39.61266577243805,
+    "busy_us": 38.35408333333334,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "4": {
+    "slot_us": 39.62000086903572,
+    "busy_us": 38.39719166666669,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "8": {
+    "slot_us": 39.6399994691213,
+    "busy_us": 38.39284166666665,
+    "kernels_per_op": 1.0833333333333333
+   },
+   "16": {
+    "slot_us": 39.67400019367536,
+    "busy_us": 38.42774166666667,
+    "kernels_per_op": 1.0833333333333333,
+    "top_kernels": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8",
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detai"
+    ]
+   },
+   "32": {
+    "slot_us": 38.58533253272375,
+    "busy_us": 37.15366666666659,
+    "kernels_per_op": 2.0833333333333335
+   },
+   "64": {
+    "slot_us": 39.592000345389046,
+    "busy_us": 38.30210833333334,
+    "kernels_per_op": 1.0833333333333333,
+    "top_kernels": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8",
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detai"
+    ]
+   }
+  }
+ },
+ "small_after_gemv": {
+  "rmsnorm_2048": {
+   "1": {
+    "slot_us": 1.4973338693380374,
+    "busy_us": 1.3244833333333048,
+    "pair_slot_us": 16.10266665617625,
+    "gemv_alone_slot_us": 14.605332786838213
+   },
+   "16": {
+    "slot_us": 1.8066664536794033,
+    "busy_us": 1.5799250000000047,
+    "pair_slot_us": 17.661333084106445,
+    "gemv_alone_slot_us": 15.854666630427042
+   },
+   "64": {
+    "slot_us": 2.0546671003103256,
+    "busy_us": 1.8267749999999925,
+    "pair_slot_us": 17.68733374774456,
+    "gemv_alone_slot_us": 15.632666647434235
+   }
+  },
+  "silu_mul_5632": {
+   "1": {
+    "slot_us": 1.1973337580760326,
+    "busy_us": 1.0133499999999867,
+    "pair_slot_us": 15.802666544914246,
+    "gemv_alone_slot_us": 14.605332786838213
+   },
+   "16": {
+    "slot_us": 1.9353330135345477,
+    "busy_us": 1.7408000000000055,
+    "pair_slot_us": 17.78999964396159,
+    "gemv_alone_slot_us": 15.854666630427042
+   },
+   "64": {
+    "slot_us": 3.3719999094804116,
+    "busy_us": 3.1672416666666496,
+    "pair_slot_us": 19.004666556914646,
+    "gemv_alone_slot_us": 15.632666647434235
+   }
+  }
+ }
+}
