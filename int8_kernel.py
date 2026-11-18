@@ -99,7 +99,8 @@ def int8_wo_linear(x: torch.Tensor, w: torch.Tensor, s: torch.Tensor) -> torch.T
     x2 = x.reshape(-1, x.shape[-1]).contiguous()
     M, K = x2.shape
     N = w.shape[0]
-    assert M <= 64, "decode kernel: one BLOCK_M covers M <= 64"
+    if M > 64:   # prefill: this is a decode kernel (one BLOCK_M covers M <= 64); fall back to the plain cast
+        return (torch.nn.functional.linear(x2, w.to(x2.dtype)) * s).reshape(*x.shape[:-1], N)
     bm = min(64, max(16, triton.next_power_of_2(M)))
     key = (M, N, K)
     if key not in CHOICE:

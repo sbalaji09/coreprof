@@ -1,0 +1,1 @@
+{'max_rel_err': 11.22992992401123, 'ok': False, 'choice': {'1x2048x2048': 'plain', '16x2048x2048': 'plain', '64x2048x2048': 'plain', '1x5632x2048': 'plain', '16x5632x2048': 'plain', '64x5632x2048': 'plain', '1x2048x5632': 'plain', '16x2048x5632': 'plain', '64x2048x5632': 'splitk'}}

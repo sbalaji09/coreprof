@@ -1,0 +1,946 @@
+{
+ "tool": "delta_split v1 (grid)",
+ "gpu": "NVIDIA H100 80GB HBM3",
+ "args": {
+  "configs": [
+   [
+    1,
+    128
+   ],
+   [
+    1,
+    2048
+   ],
+   [
+    8,
+    512
+   ],
+   [
+    16,
+    2048
+   ],
+   [
+    32,
+    1024
+   ],
+   [
+    4,
+    8192
+   ]
+  ],
+  "layers": [
+   3,
+   6,
+   12,
+   18,
+   24
+  ],
+  "reps": 50,
+  "warmup": 10,
+  "dtype": "bf16",
+  "seed": 0,
+  "quick": false,
+  "grid": true,
+  "grid_batch": [
+   1,
+   2
+  ],
+  "grid_ctx": [
+   128,
+   256,
+   512,
+   1024,
+   2048,
+   4096,
+   8192
+  ],
+  "grid_mem_gb": null,
+  "compile": true,
+  "compile_mode": "default",
+  "int8": true,
+  "int8_impl": "cast",
+  "coord_descent": true,
+  "int8_probe": false,
+  "compile_check": false,
+  "out_dir": "/vol/results/delta_int8_cd_small-h100-20261117-233847"
+ },
+ "torch": "2.5.1+cu124",
+ "weight_bytes_looped_block": 1234558978,
+ "kv_bytes_per_token_per_loop": 196608,
+ "spec_peak_gbps": 3350,
+ "measured_peak_gbps": 3021.22069768495,
+ "measured_read_gbps": 2876.0119676557165,
+ "errors": {},
+ "int8_vs_bf16_check": {
+  "B": 16,
+  "C": 64,
+  "linears_quantized": 168,
+  "bf16_weight_bytes": 2466652162,
+  "rel_err_hidden": 0.06379365921020508,
+  "max_abs_err_gate": 0.4375,
+  "top1_agreement": 0.9375,
+  "note": "int8 vs bf16, eager. For scale: eager bf16 vs fp32 is ~2.4 % on the hidden state."
+ },
+ "int8_impl": "cast",
+ "inductor_config": {
+  "use_mixed_mm": true,
+  "mixed_mm_choice": "heuristic",
+  "force_mixed_mm": null,
+  "coordinate_descent_tuning": true
+ },
+ "meta": {
+  "nvidia_smi": "NVIDIA H100 80GB HBM3, 610.57.04, 1980 MHz, 700.00 W",
+  "torch": "2.5.1+cu124",
+  "cuda": "12.4",
+  "transformers": "4.57.1",
+  "model_revision": "574fa66cb8bf5abdc979642d01cf2b79b16bfab1",
+  "attn_implementation": "sdpa"
+ },
+ "predicted_weight_fetch_ms": {
+  "spec": 0.36852506805970153,
+  "measured_peak": 0.40862919380434437,
+  "read_peak": 0.42926072348937716
+ },
+ "static_vs_hf_check": {
+  "B": 2,
+  "C": 64,
+  "rel_err_hidden": 0.0,
+  "max_abs_err_gate": 0.0,
+  "ok": true
+ },
+ "grid_impl": "int8_graph",
+ "compile_mode": "default",
+ "grid_kv_limit_gb": 55.256088576,
+ "compiled_vs_eager_check": {
+  "B": 2,
+  "C": 64,
+  "mode": "default",
+  "rel_err_hidden": 0.035742245614528656,
+  "max_abs_err_gate": 0.109375,
+  "ok": false,
+  "compile_s": 37.1,
+  "graph_breaks": 0
+ },
+ "kernel_breakdown": {
+  "int8_compiled 1x128": {
+   "copy_ms": 0.28195699999999546,
+   "attention_ms": 0.2223932000000027,
+   "other_ms": 0.6441015999999923,
+   "gemm_ms": 0.004313799999999537,
+   "copy_kernels": 74.0,
+   "attention_kernels": 72.0,
+   "other_kernels": 72.0,
+   "gemm_kernels": 2.0,
+   "busy_ms": 1.15276559999999,
+   "kernels": 220.0,
+   "top_kernels_ms": {
+    "triton_red_fused_mm_5": 0.29366980000000026,
+    "triton_red_fused_mm_6": 0.24259519999999574,
+    "triton_red_fused_copy_mm_1": 0.174383400000003,
+    "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.13245900000000346,
+    "triton_red_fused_bmm_3": 0.10783659999999627,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_7": 0.0997591999999936,
+    "void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, 4, 1, true>(pytorch_flash::Flash_fwd_params)": 0.0571526000000018,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.032781599999997434,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.0026943999999999506,
+    "void reduce_1Block_kernel<float, 128, 7, cublasGemvTensorStridedBatched<float>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16> >(float const*, float, cublasGemvTensorStridedBatched<float>, int, float const*, float, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, cublasPointerMode_t, cublasLtEpilogue_t, cublasGemvTensorStridedBatched<biasType<cublasGemvTensorStridedBatched<__nv_bfloat16>::value_type, float>::type const>)": 0.0024833999999997105,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_4": 0.002374399999999605,
+    "void dot_kernel<float, 128, 0, cublasDotParams<cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<float> > >(cublasDotParams<cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<float> >)": 0.0018303999999998268
+   }
+  },
+  "int8_graph 1x128": {
+   "other_ms": 0.6391967999999981,
+   "copy_ms": 0.2764060000000006,
+   "attention_ms": 0.2162090000000009,
+   "gemm_ms": 0.004448200000000088,
+   "other_kernels": 74.0,
+   "copy_kernels": 74.0,
+   "attention_kernels": 72.0,
+   "gemm_kernels": 2.0,
+   "busy_ms": 1.1362599999999998,
+   "kernels": 222.0,
+   "top_kernels_ms": {
+    "triton_red_fused_mm_5": 0.28986499999999876,
+    "triton_red_fused_mm_6": 0.24221660000000003,
+    "triton_red_fused_copy_mm_1": 0.17094739999999964,
+    "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.13062900000000005,
+    "triton_red_fused_bmm_3": 0.1051503999999994,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_7": 0.0977082000000009,
+    "void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, 4, 1, true>(pytorch_flash::Flash_fwd_params)": 0.053650400000000716,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.03192960000000016,
+    "void reduce_1Block_kernel<float, 128, 7, cublasGemvTensorStridedBatched<float>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16> >(float const*, float, cublasGemvTensorStridedBatched<float>, int, float const*, float, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, cublasPointerMode_t, cublasLtEpilogue_t, cublasGemvTensorStridedBatched<biasType<cublasGemvTensorStridedBatched<__nv_bfloat16>::value_type, float>::type const>)": 0.002630600000000141,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.0026239999999999783,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_4": 0.002406399999999985,
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detail::Array<char*, 1> >(int, at::native::FillFunctor<long>, at::detail::Array<char*, 1>)": 0.0019647999999998322
+   }
+  },
+  "int8_compiled 16x512": {
+   "copy_ms": 1.2072497999999954,
+   "gemm_ms": 1.2646285999999989,
+   "attention_ms": 0.9462852000000017,
+   "other_ms": 0.503627199999991,
+   "copy_kernels": 218.0,
+   "gemm_kernels": 241.0,
+   "attention_kernels": 48.0,
+   "other_kernels": 48.0,
+   "busy_ms": 3.9217907999999864,
+   "kernels": 555.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 0.9059560000000008,
+    "triton_poi_fused__to_copy_6": 0.7238117999999981,
+    "void cutlass::Kernel2<cutlass_80_tensorop_s16816gemm_bf16_64x64_32x10_tn_align8>(cutlass_80_tensorop_s16816gemm_bf16_64x64_32x10_tn_align8::Params)": 0.5448495999999914,
+    "void cutlass::Kernel2<cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x64_64x6_tn_align8>(cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x64_64x6_tn_align8::Params)": 0.5419160000000096,
+    "triton_red_fused_bmm_4": 0.4617299999999997,
+    "triton_poi_fused__to_copy_1": 0.3137729999999963,
+    "void cublasLt::splitKreduce_kernel<32, 16, int, float, __nv_bfloat16, float, __nv_bfloat16, true, false, false>(cublasLt::cublasSplitKParams<float>, float const*, __nv_bfloat16 const*, __nv_bfloat16*, float const*, float const*, __nv_bfloat16 const*, float const*, __nv_bfloat16*, void*, long, float*, int*)": 0.17483939999999792,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.06296900000000223,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.06227820000000029,
+    "triton_poi_fused_mul_silu_7": 0.041897199999991246,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.040329200000000676,
+    "triton_poi_fused_copy_3": 0.03542339999999613
+   }
+  },
+  "int8_graph 16x512": {
+   "other_ms": 0.5179067999999997,
+   "copy_ms": 1.2610609999999993,
+   "gemm_ms": 1.3145023999999943,
+   "attention_ms": 0.9743323999999972,
+   "other_kernels": 50.0,
+   "copy_kernels": 218.0,
+   "gemm_kernels": 241.0,
+   "attention_kernels": 48.0,
+   "busy_ms": 4.0678025999999905,
+   "kernels": 557.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 0.9331161999999965,
+    "triton_poi_fused__to_copy_6": 0.7536672000000011,
+    "void cutlass::Kernel2<cutlass_80_tensorop_s16816gemm_bf16_64x64_32x10_tn_align8>(cutlass_80_tensorop_s16816gemm_bf16_64x64_32x10_tn_align8::Params)": 0.5798187999999997,
+    "void cutlass::Kernel2<cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x64_64x6_tn_align8>(cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x64_64x6_tn_align8::Params)": 0.5562296,
+    "triton_red_fused_bmm_4": 0.47400860000000256,
+    "triton_poi_fused__to_copy_1": 0.33502079999999906,
+    "void cublasLt::splitKreduce_kernel<32, 16, int, float, __nv_bfloat16, float, __nv_bfloat16, true, false, false>(cublasLt::cublasSplitKParams<float>, float const*, __nv_bfloat16 const*, __nv_bfloat16*, float const*, float const*, __nv_bfloat16 const*, float const*, __nv_bfloat16*, void*, long, float*, int*)": 0.17512519999999399,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.06323099999999995,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.06296620000000011,
+    "triton_poi_fused_mul_silu_7": 0.04189659999999676,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.04121620000000053,
+    "triton_poi_fused_copy_3": 0.03674340000000002
+   }
+  },
+  "int8_compiled 16x2048": {
+   "copy_ms": 1.207178199999991,
+   "gemm_ms": 1.2498823999999977,
+   "attention_ms": 2.8233892000000007,
+   "other_ms": 0.5227741999999951,
+   "copy_kernels": 218.0,
+   "gemm_kernels": 241.0,
+   "attention_kernels": 48.0,
+   "other_kernels": 48.0,
+   "busy_ms": 5.803223999999985,
+   "kernels": 555.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 2.7830561999999994,
+    "triton_poi_fused__to_copy_6": 0.7214867999999998,
+    "void cutlass::Kernel2<cutlass_80_tensorop_s16816gemm_bf16_64x64_32x10_tn_align8>(cutlass_80_tensorop_s16816gemm_bf16_64x64_32x10_tn_align8::Params)": 0.5398809999999937,
+    "void cutlass::Kernel2<cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x64_64x6_tn_align8>(cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x64_64x6_tn_align8::Params)": 0.5325987999999919,
+    "triton_red_fused_bmm_4": 0.47986819999999525,
+    "triton_poi_fused__to_copy_1": 0.3160781999999951,
+    "void cublasLt::splitKreduce_kernel<32, 16, int, float, __nv_bfloat16, float, __nv_bfloat16, true, false, false>(cublasLt::cublasSplitKParams<float>, float const*, __nv_bfloat16 const*, __nv_bfloat16*, float const*, float const*, __nv_bfloat16 const*, float const*, __nv_bfloat16*, void*, long, float*, int*)": 0.17426660000001307,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.063040199999998,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.06243220000000365,
+    "triton_poi_fused_mul_silu_7": 0.042905999999999854,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.04033300000000099,
+    "triton_poi_fused_copy_3": 0.03522559999999385
+   }
+  },
+  "int8_graph 16x2048": {
+   "other_ms": 0.5157239999999942,
+   "copy_ms": 1.2177307999999856,
+   "gemm_ms": 1.2793473999999982,
+   "attention_ms": 2.7917729999999996,
+   "other_kernels": 50.0,
+   "copy_kernels": 218.0,
+   "gemm_kernels": 241.0,
+   "attention_kernels": 48.0,
+   "busy_ms": 5.804575199999977,
+   "kernels": 557.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 2.7518045999999954,
+    "triton_poi_fused__to_copy_6": 0.7284902000000013,
+    "void cutlass::Kernel2<cutlass_80_tensorop_s16816gemm_bf16_64x64_32x10_tn_align8>(cutlass_80_tensorop_s16816gemm_bf16_64x64_32x10_tn_align8::Params)": 0.5650595999999933,
+    "void cutlass::Kernel2<cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x64_64x6_tn_align8>(cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x64_64x6_tn_align8::Params)": 0.5421670000000021,
+    "triton_red_fused_bmm_4": 0.473157199999998,
+    "triton_poi_fused__to_copy_1": 0.32369839999999306,
+    "void cublasLt::splitKreduce_kernel<32, 16, int, float, __nv_bfloat16, float, __nv_bfloat16, true, false, false>(cublasLt::cublasSplitKParams<float>, float const*, __nv_bfloat16 const*, __nv_bfloat16*, float const*, float const*, __nv_bfloat16 const*, float const*, __nv_bfloat16*, void*, long, float*, int*)": 0.1687992000000028,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.06111340000000009,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.06055699999999588,
+    "triton_poi_fused_mul_silu_7": 0.040563599999996404,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.03996840000000398,
+    "triton_poi_fused_copy_3": 0.03490559999999555
+   }
+  },
+  "int8_compiled 16x8192": {
+   "copy_ms": 1.207409399999975,
+   "gemm_ms": 1.250358000000011,
+   "attention_ms": 9.9431514,
+   "other_ms": 0.5011633999999944,
+   "copy_kernels": 218.0,
+   "gemm_kernels": 241.0,
+   "attention_kernels": 48.0,
+   "other_kernels": 48.0,
+   "busy_ms": 12.90208219999998,
+   "kernels": 555.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 9.9026004,
+    "triton_poi_fused__to_copy_6": 0.7243793999999928,
+    "void cutlass::Kernel2<cutlass_80_tensorop_s16816gemm_bf16_64x64_32x10_tn_align8>(cutlass_80_tensorop_s16816gemm_bf16_64x64_32x10_tn_align8::Params)": 0.5395360000000258,
+    "void cutlass::Kernel2<cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x64_64x6_tn_align8>(cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x64_64x6_tn_align8::Params)": 0.5342229999999842,
+    "triton_red_fused_bmm_4": 0.4576502000000013,
+    "triton_poi_fused__to_copy_1": 0.3179405999999768,
+    "void cublasLt::splitKreduce_kernel<32, 16, int, float, __nv_bfloat16, float, __nv_bfloat16, true, false, false>(cublasLt::cublasSplitKParams<float>, float const*, __nv_bfloat16 const*, __nv_bfloat16*, float const*, float const*, __nv_bfloat16 const*, float const*, __nv_bfloat16*, void*, long, float*, int*)": 0.17350280000000157,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.06216320000000269,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.06195700000000033,
+    "triton_poi_fused_mul_silu_7": 0.04351319999999305,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.04055099999999752,
+    "triton_poi_fused_copy_3": 0.0319744000000042
+   }
+  },
+  "int8_graph 16x8192": {
+   "other_ms": 0.5023003999999941,
+   "copy_ms": 1.2113114000000103,
+   "gemm_ms": 1.2682562000000126,
+   "attention_ms": 9.894506200000004,
+   "other_kernels": 50.0,
+   "copy_kernels": 218.0,
+   "gemm_kernels": 241.0,
+   "attention_kernels": 48.0,
+   "busy_ms": 12.87637420000002,
+   "kernels": 557.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 9.854794199999997,
+    "triton_poi_fused__to_copy_6": 0.7246198000000171,
+    "void cutlass::Kernel2<cutlass_80_tensorop_s16816gemm_bf16_64x64_32x10_tn_align8>(cutlass_80_tensorop_s16816gemm_bf16_64x64_32x10_tn_align8::Params)": 0.5590302000000031,
+    "void cutlass::Kernel2<cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x64_64x6_tn_align8>(cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x64_64x6_tn_align8::Params)": 0.5379609999999865,
+    "triton_red_fused_bmm_4": 0.4596315999999971,
+    "triton_poi_fused__to_copy_1": 0.324386999999988,
+    "void cublasLt::splitKreduce_kernel<32, 16, int, float, __nv_bfloat16, float, __nv_bfloat16, true, false, false>(cublasLt::cublasSplitKParams<float>, float const*, __nv_bfloat16 const*, __nv_bfloat16*, float const*, float const*, __nv_bfloat16 const*, float const*, __nv_bfloat16*, void*, long, float*, int*)": 0.16809060000002288,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.06087040000000879,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.05993659999999873,
+    "triton_poi_fused_mul_silu_7": 0.04069759999999705,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.039712000000004494,
+    "triton_poi_fused_copy_3": 0.032607999999998395
+   }
+  },
+  "compiled_graph 1x128": {
+   "other_ms": 0.9709931999999987,
+   "copy_ms": 0.409612999999998,
+   "attention_ms": 0.20741580000000304,
+   "gemm_ms": 0.004397200000000339,
+   "other_kernels": 74.0,
+   "copy_kernels": 74.0,
+   "attention_kernels": 72.0,
+   "gemm_kernels": 2.0,
+   "busy_ms": 1.5924192,
+   "kernels": 222.0,
+   "top_kernels_ms": {
+    "triton_red_fused_mm_5": 0.4703962000000014,
+    "triton_red_fused_mm_6": 0.3646655999999984,
+    "triton_red_fused_copy_mm_1": 0.29609459999999976,
+    "triton_red_fused_bmm_3": 0.1340049999999983,
+    "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.1280218000000006,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_4": 0.05872059999999901,
+    "void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, 4, 1, true>(pytorch_flash::Flash_fwd_params)": 0.05200760000000219,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_8": 0.046816999999999644,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.02738640000000023,
+    "void reduce_1Block_kernel<float, 128, 7, cublasGemvTensorStridedBatched<float>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16> >(float const*, float, cublasGemvTensorStridedBatched<float>, int, float const*, float, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, cublasPointerMode_t, cublasLtEpilogue_t, cublasGemvTensorStridedBatched<biasType<cublasGemvTensorStridedBatched<__nv_bfloat16>::value_type, float>::type const>)": 0.002630800000000454,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.002598399999999856,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_7": 0.002534399999999823
+   }
+  }
+ },
+ "lm_head": {
+  "params": 100663296,
+  "bytes": 201326592,
+  "vocab_size": 49152,
+  "hidden_size": 2048,
+  "tie_word_embeddings": false,
+  "shares_embedding_tensor": false,
+  "embedding_params": 100663296,
+  "rows": [
+   {
+    "B": 1,
+    "eager_ms": 0.11353600025177002,
+    "graph_ms": 0.09411200135946274,
+    "graph_gbps": 2139.223362502184
+   },
+   {
+    "B": 16,
+    "eager_ms": 0.09824000298976898,
+    "graph_ms": 0.09107200056314468,
+    "graph_gbps": 2210.631047468979
+   },
+   {
+    "B": 64,
+    "eager_ms": 0.10644799843430519,
+    "graph_ms": 0.0989920012652874,
+    "graph_gbps": 2033.7662581491552
+   }
+  ]
+ },
+ "grid": [
+  {
+   "impl": "int8_graph",
+   "B": 1,
+   "C": 128,
+   "layers": 24,
+   "median_ms": 1.3260000348091125,
+   "p10_ms": 1.321225643157959,
+   "p90_ms": 1.3294911503791809,
+   "iqr_ms": 0.004184037446975708,
+   "n": 50,
+   "compile_s": 8.5,
+   "graph_breaks": 0,
+   "achieved_gbps": 950.1669509242321,
+   "util_measured": 0.31449769679266065,
+   "util_read": 0.33037656366177376
+  },
+  {
+   "impl": "int8_graph",
+   "B": 2,
+   "C": 128,
+   "layers": 24,
+   "median_ms": 3.262272000312805,
+   "p10_ms": 3.2561023235321045,
+   "p90_ms": 3.2703519582748415,
+   "iqr_ms": 0.009064137935638428,
+   "n": 50,
+   "compile_s": 21.4,
+   "graph_breaks": 0,
+   "achieved_gbps": 393.98426675542675,
+   "util_measured": 0.13040565591825926,
+   "util_read": 0.13698978696412367
+  },
+  {
+   "impl": "int8_graph",
+   "B": 1,
+   "C": 256,
+   "layers": 24,
+   "median_ms": 1.2965759634971619,
+   "p10_ms": 1.2926656365394593,
+   "p90_ms": 1.3003839612007142,
+   "iqr_ms": 0.0038080215454101562,
+   "n": 50,
+   "compile_s": 22.7,
+   "graph_breaks": 0,
+   "achieved_gbps": 991.1391774792938,
+   "util_measured": 0.32805917761610964,
+   "util_read": 0.3446227583980422
+  },
+  {
+   "impl": "int8_graph",
+   "B": 2,
+   "C": 256,
+   "layers": 24,
+   "median_ms": 3.452863931655884,
+   "p10_ms": 3.43851523399353,
+   "p90_ms": 3.4612735748291015,
+   "iqr_ms": 0.013832032680511475,
+   "n": 50,
+   "compile_s": 20.2,
+   "graph_breaks": 0,
+   "achieved_gbps": 386.81382076920744,
+   "util_measured": 0.1280322953783577,
+   "util_read": 0.13449659637004419
+  },
+  {
+   "impl": "int8_graph",
+   "B": 1,
+   "C": 512,
+   "layers": 24,
+   "median_ms": 1.3798719644546509,
+   "p10_ms": 1.3768608212471007,
+   "p90_ms": 1.3869792342185974,
+   "iqr_ms": 0.004064023494720459,
+   "n": 50,
+   "compile_s": 22.5,
+   "graph_breaks": 0,
+   "achieved_gbps": 967.7846324878269,
+   "util_measured": 0.3203290091417037,
+   "util_read": 0.3365022967121669
+  },
+  {
+   "impl": "int8_graph",
+   "B": 2,
+   "C": 512,
+   "layers": 24,
+   "median_ms": 3.5005120038986206,
+   "p10_ms": 3.492624020576477,
+   "p90_ms": 3.522828793525696,
+   "iqr_ms": 0.009319961071014404,
+   "n": 50,
+   "compile_s": 21.2,
+   "graph_breaks": 0,
+   "achieved_gbps": 410.30534516104365,
+   "util_measured": 0.13580780294383837,
+   "util_read": 0.14266468630013737
+  },
+  {
+   "impl": "int8_graph",
+   "B": 1,
+   "C": 1024,
+   "layers": 24,
+   "median_ms": 1.4451040029525757,
+   "p10_ms": 1.4423903822898865,
+   "p90_ms": 1.4491551756858825,
+   "iqr_ms": 0.0034800171852111816,
+   "n": 50,
+   "compile_s": 23.0,
+   "graph_breaks": 0,
+   "achieved_gbps": 993.756971862134,
+   "util_measured": 0.32892564671743885,
+   "util_read": 0.34553297518861203
+  },
+  {
+   "impl": "int8_graph",
+   "B": 2,
+   "C": 1024,
+   "layers": 24,
+   "median_ms": 3.5922080278396606,
+   "p10_ms": 3.582905650138855,
+   "p90_ms": 3.6031007051467894,
+   "iqr_ms": 0.01026386022567749,
+   "n": 50,
+   "compile_s": 20.5,
+   "graph_breaks": 0,
+   "achieved_gbps": 455.8770999086179,
+   "util_measured": 0.15089169098369398,
+   "util_read": 0.15851015400336133
+  },
+  {
+   "impl": "int8_graph",
+   "B": 1,
+   "C": 2048,
+   "layers": 24,
+   "median_ms": 1.5259999632835388,
+   "p10_ms": 1.5231264352798461,
+   "p90_ms": 1.5338623523712158,
+   "iqr_ms": 0.005736023187637329,
+   "n": 50,
+   "compile_s": 23.4,
+   "graph_breaks": 0,
+   "achieved_gbps": 1073.0070834842877,
+   "util_measured": 0.3551568027805759,
+   "util_read": 0.3730885321589649
+  },
+  {
+   "impl": "int8_graph",
+   "B": 2,
+   "C": 2048,
+   "layers": 24,
+   "median_ms": 3.7731679677963257,
+   "p10_ms": 3.7651937007904053,
+   "p90_ms": 3.7826689004898073,
+   "iqr_ms": 0.007911980152130127,
+   "n": 50,
+   "compile_s": 20.3,
+   "graph_breaks": 0,
+   "achieved_gbps": 540.7282632030795,
+   "util_measured": 0.17897675056225437,
+   "util_read": 0.18801321735939636
+  },
+  {
+   "impl": "int8_graph",
+   "B": 1,
+   "C": 4096,
+   "layers": 24,
+   "median_ms": 1.7411359548568726,
+   "p10_ms": 1.7388511896133423,
+   "p90_ms": 1.7435743689537049,
+   "iqr_ms": 0.0031759440898895264,
+   "n": 50,
+   "compile_s": 22.9,
+   "graph_breaks": 0,
+   "achieved_gbps": 1171.684467435916,
+   "util_measured": 0.38781823133071164,
+   "util_read": 0.4073990235829842
+  },
+  {
+   "impl": "int8_graph",
+   "B": 2,
+   "C": 4096,
+   "layers": 24,
+   "median_ms": 4.360111951828003,
+   "p10_ms": 4.347881746292114,
+   "p90_ms": 4.37190728187561,
+   "iqr_ms": 0.013224244117736816,
+   "n": 50,
+   "compile_s": 20.7,
+   "graph_breaks": 0,
+   "achieved_gbps": 652.6357491364366,
+   "util_measured": 0.2160172375478982,
+   "util_read": 0.22692386418280816
+  },
+  {
+   "impl": "int8_graph",
+   "B": 1,
+   "C": 8192,
+   "layers": 24,
+   "median_ms": 2.1051840782165527,
+   "p10_ms": 2.098128080368042,
+   "p90_ms": 2.1126463174819947,
+   "iqr_ms": 0.007519960403442383,
+   "n": 50,
+   "compile_s": 21.3,
+   "graph_breaks": 0,
+   "achieved_gbps": 1351.6007229213458,
+   "util_measured": 0.44736907964288325,
+   "util_read": 0.4699565711553896
+  },
+  {
+   "impl": "int8_graph",
+   "B": 2,
+   "C": 8192,
+   "layers": 24,
+   "median_ms": 4.469264030456543,
+   "p10_ms": 4.449008178710938,
+   "p90_ms": 4.488115072250366,
+   "iqr_ms": 0.023183703422546387,
+   "n": 50,
+   "compile_s": 20.3,
+   "graph_breaks": 0,
+   "achieved_gbps": 997.0719195895871,
+   "util_measured": 0.3300228680260288,
+   "util_read": 0.34668559477598987
+  }
+ ],
+ "int8_reference": [
+  {
+   "B": 1,
+   "C": 128,
+   "bf16_ms": 1.7087680101394653,
+   "int8_ms": 1.3260000348091125,
+   "speedup": 1.288663623893083,
+   "saved_ms": 0.3827679753303528
+  },
+  {
+   "B": 16,
+   "C": 2048,
+   "bf16_ms": 5.067808151245117,
+   "int8_ms": null,
+   "speedup": null,
+   "saved_ms": null
+  },
+  {
+   "B": 16,
+   "C": 8192,
+   "bf16_ms": 12.475344181060791,
+   "int8_ms": null,
+   "speedup": null,
+   "saved_ms": null
+  }
+ ],
+ "int8_weight_estimate": {
+  "w_bf16_ms": 0.004397200000000339,
+  "t_bf16_ms": 1.7087680101394653,
+  "t_int8_ms": 1.3260000348091125,
+  "w_int8_est_ms": -0.37837077533035246,
+  "int8_weight_bytes": 1234558978,
+  "bf16_weight_bytes": 2466652162,
+  "int8_gbps": null,
+  "bf16_gbps": 560959.7384698922,
+  "weight_time_ratio": -86.04811592156902,
+  "byte_ratio": 0.5004998260472203
+ },
+ "compile_variants": [
+  {
+   "mode": "max-autotune-no-cudagraphs",
+   "B": 1,
+   "C": 128,
+   "graph_ms": 1.2191359996795654,
+   "compile_s": 34.0,
+   "graph_breaks": 0
+  },
+  {
+   "mode": "max-autotune-no-cudagraphs",
+   "B": 16,
+   "C": 2048,
+   "graph_ms": 6.331455945968628,
+   "compile_s": 67.6,
+   "graph_breaks": 0
+  }
+ ],
+ "grid_fit": {
+  "M1": {
+   "params": {
+    "delta": -0.966680269228964,
+    "gamma": 2.2272182788167667,
+    "alpha": 0.00012279194727794963
+   },
+   "se": {
+    "delta": 0.12920320289814136,
+    "gamma": 0.07888705450465835,
+    "alpha": 1.4510665494605725e-05
+   },
+   "r2": 0.9874958924949854,
+   "aic": -50.95025513718205,
+   "max_abs_resid_ms": 0.36939984737295184,
+   "n": 14
+  },
+  "M2": {
+   "params": {
+    "delta": -0.6815222842345716,
+    "gamma": 2.0445633982990046,
+    "alpha_prime": 7.865306124657561e-05
+   },
+   "se": {
+    "delta": 0.11380841877784798,
+    "gamma": 0.07455931681168869,
+    "alpha_prime": 8.373672490286955e-06
+   },
+   "r2": 0.9895900177777404,
+   "aic": -53.516343359260695,
+   "max_abs_resid_ms": 0.308181561732618,
+   "n": 14
+  },
+  "M3": {
+   "params": {
+    "delta": -0.7932789264066712,
+    "gamma": 2.1116173836012613,
+    "alpha": 4.812355408486964e-05,
+    "alpha_prime": 4.977892879623548e-05
+   },
+   "se": {
+    "delta": 0.1472636246777756,
+    "gamma": 0.09313769409351944,
+    "alpha": 4.1190631283969655e-05,
+    "alpha_prime": 2.6051242623359373e-05
+   },
+   "r2": 0.9908402789389437,
+   "aic": -53.30763563821521,
+   "max_abs_resid_ms": 0.3252530488017644,
+   "n": 14
+  }
+ },
+ "analysis": {
+  "onchip_weights_upper_bound": {
+   "rows": [
+    {
+     "B": 1,
+     "C": 128,
+     "gpu_graph_ms": 1.3260000348091125,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 1.704370810139465,
+     "speedup_if_weights_free": 0.7779997327580427
+    },
+    {
+     "B": 2,
+     "C": 128,
+     "gpu_graph_ms": 3.262272000312805,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 3.6406427756431574,
+     "speedup_if_weights_free": 0.8960703373970798
+    },
+    {
+     "B": 1,
+     "C": 256,
+     "gpu_graph_ms": 1.2965759634971619,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 1.6749467388275143,
+     "speedup_if_weights_free": 0.7740998166931462
+    },
+    {
+     "B": 2,
+     "C": 256,
+     "gpu_graph_ms": 3.452863931655884,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 3.831234706986236,
+     "speedup_if_weights_free": 0.9012405127150276
+    },
+    {
+     "B": 1,
+     "C": 512,
+     "gpu_graph_ms": 1.3798719644546509,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 1.7582427397850033,
+     "speedup_if_weights_free": 0.7848017416658752
+    },
+    {
+     "B": 2,
+     "C": 512,
+     "gpu_graph_ms": 3.5005120038986206,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 3.878882779228973,
+     "speedup_if_weights_free": 0.9024536711043475
+    },
+    {
+     "B": 1,
+     "C": 1024,
+     "gpu_graph_ms": 1.4451040029525757,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 1.8234747782829281,
+     "speedup_if_weights_free": 0.7925001322548345
+    },
+    {
+     "B": 2,
+     "C": 1024,
+     "gpu_graph_ms": 3.5922080278396606,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 3.970578803170013,
+     "speedup_if_weights_free": 0.9047063931766648
+    },
+    {
+     "B": 1,
+     "C": 2048,
+     "gpu_graph_ms": 1.5259999632835388,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 1.9043707386138913,
+     "speedup_if_weights_free": 0.8013145404629815
+    },
+    {
+     "B": 2,
+     "C": 2048,
+     "gpu_graph_ms": 3.7731679677963257,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 4.151538743126678,
+     "speedup_if_weights_free": 0.908860112179662
+    },
+    {
+     "B": 1,
+     "C": 4096,
+     "gpu_graph_ms": 1.7411359548568726,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 2.119506730187225,
+     "speedup_if_weights_free": 0.8214816825342521
+    },
+    {
+     "B": 2,
+     "C": 4096,
+     "gpu_graph_ms": 4.360111951828003,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 4.738482727158355,
+     "speedup_if_weights_free": 0.9201493817500398
+    },
+    {
+     "B": 1,
+     "C": 8192,
+     "gpu_graph_ms": 2.1051840782165527,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 2.483554853546905,
+     "speedup_if_weights_free": 0.8476495194821329
+    },
+    {
+     "B": 2,
+     "C": 8192,
+     "gpu_graph_ms": 4.469264030456543,
+     "weight_term_ms": -0.37837077533035246,
+     "remaining_ms": 4.847634805786895,
+     "speedup_if_weights_free": 0.9219473432943691
+    }
+   ],
+   "weight_term_source": "int8 weight time, estimated from step times",
+   "note": "Upper bound on the step-time gain from removing ONLY the weight-streaming term from the best-case (CUDA-graph, static-cache) GPU step; KV still comes from DRAM and SRAM read time is taken as zero. Vaibhav's model replaces this."
+  },
+  "attention_per_token": [
+   {
+    "impl": "int8_compiled",
+    "B": 1,
+    "C": 128,
+    "attention_ms": 0.2223932000000027,
+    "us_per_cached_token": 1.7374468750000212,
+    "read_gbps": 113.15914335510121
+   },
+   {
+    "impl": "int8_graph",
+    "B": 1,
+    "C": 128,
+    "attention_ms": 0.2162090000000009,
+    "us_per_cached_token": 1.6891328125000071,
+    "read_gbps": 116.39582071051574
+   },
+   {
+    "impl": "int8_compiled",
+    "B": 16,
+    "C": 512,
+    "attention_ms": 0.9462852000000017,
+    "us_per_cached_token": 0.11551333007812521,
+    "read_gbps": 1702.0373308173866
+   },
+   {
+    "impl": "int8_graph",
+    "B": 16,
+    "C": 512,
+    "attention_ms": 0.9743323999999972,
+    "us_per_cached_token": 0.11893706054687465,
+    "read_gbps": 1653.0423662396986
+   },
+   {
+    "impl": "int8_compiled",
+    "B": 16,
+    "C": 2048,
+    "attention_ms": 2.8233892000000007,
+    "us_per_cached_token": 0.08616300048828127,
+    "read_gbps": 2281.8146871143367
+   },
+   {
+    "impl": "int8_graph",
+    "B": 16,
+    "C": 2048,
+    "attention_ms": 2.7917729999999996,
+    "us_per_cached_token": 0.08519815063476562,
+    "read_gbps": 2307.6557241580895
+   },
+   {
+    "impl": "int8_compiled",
+    "B": 16,
+    "C": 8192,
+    "attention_ms": 9.9431514,
+    "us_per_cached_token": 0.07586022491455077,
+    "read_gbps": 2591.713908328903
+   },
+   {
+    "impl": "int8_graph",
+    "B": 16,
+    "C": 8192,
+    "attention_ms": 9.894506200000004,
+    "us_per_cached_token": 0.07548909149169925,
+    "read_gbps": 2604.4557712238325
+   },
+   {
+    "impl": "compiled_graph",
+    "B": 1,
+    "C": 128,
+    "attention_ms": 0.20741580000000304,
+    "us_per_cached_token": 1.6204359375000237,
+    "read_gbps": 121.3303133126774
+   }
+  ],
+  "calibration_inputs": {
+   "gpu": "NVIDIA H100 80GB HBM3",
+   "spec_gbps": 3350,
+   "copy_gbps": 3021.22069768495,
+   "read_gbps": 2876.0119676557165,
+   "weight_ms": -0.37837077533035246,
+   "weight_gbps": -3262.828575811957,
+   "weight_pct_read": -113.44975655548267,
+   "weight_ms_source": "int8 estimate: t_int8 - (t_bf16 - w_bf16), B=1, C=128",
+   "delta_ms": -0.6815222842345716,
+   "delta_se": 0.11380841877784798,
+   "gamma_ms": 2.0445633982990046,
+   "gamma_se": 0.07455931681168869,
+   "alpha_prime_us": 0.0786530612465756,
+   "alpha_prime_se_us": 0.008373672490286956,
+   "kv_gbps": 2499.6865587168727,
+   "kv_pct_read": 86.91502632217512,
+   "attention_us_per_token": {
+    "1x128": 1.6891328125000071,
+    "16x512": 0.11893706054687465,
+    "16x2048": 0.08519815063476562,
+    "16x8192": 0.07548909149169925
+   },
+   "small_kernels_ms": 0.9156027999999987,
+   "gap_ms": 0.18974003480911272,
+   "x1_crossover_tokens": -4810.629991173115,
+   "lm_head_graph_ms_b1": 0.09411200135946274,
+   "lm_head_bytes": 201326592
+  }
+ }
+}

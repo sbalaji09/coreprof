@@ -156,6 +156,21 @@ best GPU step, which is this fused step at nearly every point. Its measured valu
 Fusion removes fixed overhead, not memory traffic; γ rises because the compiled batched GEMMs
 are slower. Numerically valid: the compiled bf16 step is closer to fp32 than eager bf16.
 
+## int8 weight-only GPU baseline, 2026-11-18
+
+Details in `results/WEEK5_INT8.md`. Best of two int8 paths per point (cast + coordinate-descent tuning
+at B=1, the Triton kernel `int8_kernel.py` at B ≥ 2), vs the best bf16 step:
+
+| | L40S | H100 |
+|---|---:|---:|
+| int8 step, B=1, C=128 | 2.15 ms (bf16 4.18; bf16 + coord-descent 3.67) | 1.33 ms (bf16 2.14; + coord-descent 1.71) |
+| int8 vs best bf16, median over the grid | 1.54× (1.07–2.09) | 1.08× (0.99–1.66) |
+| int8 vs bf16 at B=2–16, C=128 | 1.67–1.84× | 0.99–1.14× (**kernel-limited: lower bound**) |
+
+Not yet a calibration target. Two gaps before it is: a bf16 + coordinate-descent grid (it speeds up
+bf16 by ≈ 12–20 % at B=1, so the bf16 envelope above is not yet the best bf16), and a better H100
+int8 kernel at B=2–16.
+
 ## Decisions (confirmed 2026-11-15)
 
 1. **Target workload:** interactive decode, batch 1–16, context up to ~8k as the primary regime;
@@ -182,5 +197,7 @@ are slower. Numerically valid: the compiled bf16 step is closer to fp32 than eag
   4.23 ms at B=1, C=128, so removing them gives at most ≈ 1.5× (vs ≈ 2.9× on L40S); small kernels
   and gaps (≈ 2.6 ms) dominate the H100 step.
 - Is ~1 GB of on-chip SRAM across several chips realistic?
-- How fast is the GPU with int8 weight-only GEMMs? With the fused step, weights are ≈ 70–90 % of
-  a small-batch step, so this is now the largest open term in the LoopCore comparison.
+- int8 GPU baseline (measured 2026-11-18, see above): L40S done (≈ 1.5× over bf16); H100 at B=2–16
+  is limited by our kernel. Is a production int8 GEMV kernel worth adding there?
+- Does int8 change early-exit depth? The exit-gate output moved by up to 0.16 (L40S) / 0.44 (H100)
+  in the quick check; Week 6 should measure exit depth along with GSM8K accuracy.

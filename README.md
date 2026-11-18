@@ -187,7 +187,7 @@ CDB needs 19% fewer block calls at q = 0.5 and 30% fewer at q = 0.3.
 
 ## Results
 
-Latest: Week 5 write-up in [`results/WEEK5.md`](results/WEEK5.md) and its fused-baseline addendum [`results/WEEK5_COMPILE.md`](results/WEEK5_COMPILE.md); model-vs-GPU calibration and design decisions in [`CALIBRATION.md`](CALIBRATION.md).
+Latest: Week 5 write-up in [`results/WEEK5.md`](results/WEEK5.md) and its addenda on the fused baseline [`results/WEEK5_COMPILE.md`](results/WEEK5_COMPILE.md) and int8 weights [`results/WEEK5_INT8.md`](results/WEEK5_INT8.md); model-vs-GPU calibration and design decisions in [`CALIBRATION.md`](CALIBRATION.md).
 
 ### `results/20261023-064159` — NVIDIA RTX A6000 (48 GB), not the A10
 
