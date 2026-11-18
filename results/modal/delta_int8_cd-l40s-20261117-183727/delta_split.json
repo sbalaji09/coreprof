@@ -1,0 +1,368 @@
+{
+ "tool": "delta_split v1 (grid)",
+ "gpu": "NVIDIA L40S",
+ "args": {
+  "configs": [
+   [
+    1,
+    128
+   ],
+   [
+    1,
+    2048
+   ],
+   [
+    8,
+    512
+   ],
+   [
+    16,
+    2048
+   ],
+   [
+    32,
+    1024
+   ],
+   [
+    4,
+    8192
+   ]
+  ],
+  "layers": [
+   3,
+   6,
+   12,
+   18,
+   24
+  ],
+  "reps": 50,
+  "warmup": 10,
+  "dtype": "bf16",
+  "seed": 0,
+  "quick": false,
+  "grid": true,
+  "grid_batch": [
+   1,
+   2,
+   4,
+   8,
+   16,
+   32,
+   64
+  ],
+  "grid_ctx": [
+   128,
+   256,
+   512,
+   1024,
+   2048,
+   4096,
+   8192
+  ],
+  "grid_mem_gb": null,
+  "compile": true,
+  "compile_mode": "default",
+  "int8": true,
+  "int8_impl": "cast",
+  "coord_descent": true,
+  "int8_probe": false,
+  "compile_check": false,
+  "out_dir": "/vol/results/delta_int8_cd-l40s-20261117-183727"
+ },
+ "torch": "2.5.1+cu124",
+ "weight_bytes_looped_block": 1234558978,
+ "kv_bytes_per_token_per_loop": 196608,
+ "spec_peak_gbps": 864,
+ "measured_peak_gbps": 657.8268381819018,
+ "measured_read_gbps": 688.7269473112214,
+ "errors": {},
+ "int8_vs_bf16_check": {
+  "B": 16,
+  "C": 64,
+  "linears_quantized": 168,
+  "bf16_weight_bytes": 2466652162,
+  "rel_err_hidden": 0.06312856823205948,
+  "max_abs_err_gate": 0.15625,
+  "top1_agreement": 0.9375,
+  "note": "int8 vs bf16, eager. For scale: eager bf16 vs fp32 is ~2.4 % on the hidden state."
+ },
+ "int8_impl": "cast",
+ "inductor_config": {
+  "use_mixed_mm": true,
+  "mixed_mm_choice": "heuristic",
+  "force_mixed_mm": null,
+  "coordinate_descent_tuning": true
+ },
+ "meta": {
+  "nvidia_smi": "NVIDIA L40S, 610.57.04, 2520 MHz, 350.00 W",
+  "torch": "2.5.1+cu124",
+  "cuda": "12.4",
+  "transformers": "4.57.1",
+  "model_revision": "574fa66cb8bf5abdc979642d01cf2b79b16bfab1",
+  "attn_implementation": "sdpa"
+ },
+ "predicted_weight_fetch_ms": {
+  "spec": 1.4288877060185186,
+  "measured_peak": 1.8767233356000907,
+  "read_peak": 1.7925231222906233
+ },
+ "static_vs_hf_check": {
+  "B": 2,
+  "C": 64,
+  "rel_err_hidden": 0.0,
+  "max_abs_err_gate": 0.0,
+  "ok": true
+ },
+ "grid_impl": "int8_graph",
+ "compile_mode": "default",
+ "grid_kv_limit_gb": 31.0023487488,
+ "compiled_vs_eager_check": {
+  "B": 2,
+  "C": 64,
+  "mode": "default",
+  "rel_err_hidden": 0.0330030620098114,
+  "max_abs_err_gate": 0.09375,
+  "ok": false,
+  "compile_s": 32.6,
+  "graph_breaks": 0
+ },
+ "kernel_breakdown": {
+  "int8_compiled 1x128": {
+   "copy_ms": 0.5334778000000008,
+   "attention_ms": 0.18678620000000282,
+   "other_ms": 1.372802599999996,
+   "gemm_ms": 0.005555199999999059,
+   "copy_kernels": 74.0,
+   "attention_kernels": 72.0,
+   "other_kernels": 72.0,
+   "gemm_kernels": 2.0,
+   "busy_ms": 2.0986217999999983,
+   "kernels": 220.0,
+   "top_kernels_ms": {
+    "triton_red_fused_mm_5": 0.7523095999999996,
+    "triton_red_fused_mm_6": 0.4470767999999987,
+    "triton_red_fused_copy_mm_1": 0.43987680000000373,
+    "triton_red_fused_bmm_3": 0.17341619999999766,
+    "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.11352440000000015,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_7": 0.08715619999999709,
+    "void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, 4, 1, true>(pytorch_flash::Flash_fwd_params)": 0.04577999999999638,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.027481800000006294,
+    "void cublasLt::splitKreduce_kernel<32, 16, int, float, __nv_bfloat16, float, __nv_bfloat16, true, false, false>(cublasLt::cublasSplitKParams<float>, float const*, __nv_bfloat16 const*, __nv_bfloat16*, float const*, float const*, __nv_bfloat16 const*, float const*, __nv_bfloat16*, void*, long, float*, int*)": 0.003750399999999172,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.0022080000000007207,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_4": 0.0019007999999996173,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, float, float, float, false, true, false, false, 6, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<float const>, cublasGemvTensorStridedBatched<float>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<float const>, cublasGemvTensorStridedBatched<float>, float>)": 0.0018047999999998864
+   }
+  },
+  "int8_graph 1x128": {
+   "other_ms": 1.359708000000002,
+   "copy_ms": 0.5283233999999988,
+   "attention_ms": 0.173786399999996,
+   "gemm_ms": 0.005632000000000607,
+   "other_kernels": 74.0,
+   "copy_kernels": 74.0,
+   "attention_kernels": 72.0,
+   "gemm_kernels": 2.0,
+   "busy_ms": 2.0674497999999977,
+   "kernels": 222.0,
+   "top_kernels_ms": {
+    "triton_red_fused_mm_5": 0.7510318000000001,
+    "triton_red_fused_copy_mm_1": 0.43799979999999916,
+    "triton_red_fused_mm_6": 0.4353180000000022,
+    "triton_red_fused_bmm_3": 0.1716557999999988,
+    "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.10920379999999973,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_7": 0.08382119999999978,
+    "void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, 4, 1, true>(pytorch_flash::Flash_fwd_params)": 0.03940499999999711,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.025177599999999165,
+    "void cublasLt::splitKreduce_kernel<32, 16, int, float, __nv_bfloat16, float, __nv_bfloat16, true, false, false>(cublasLt::cublasSplitKParams<float>, float const*, __nv_bfloat16 const*, __nv_bfloat16*, float const*, float const*, __nv_bfloat16 const*, float const*, __nv_bfloat16*, void*, long, float*, int*)": 0.003692800000000443,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.0021696000000003554,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, float, float, float, false, true, false, false, 6, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<float const>, cublasGemvTensorStridedBatched<float>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<float const>, cublasGemvTensorStridedBatched<float>, float>)": 0.0019392000000001644,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_4": 0.0018240000000000235
+   }
+  },
+  "int8_compiled 16x512": {
+   "copy_ms": 2.4114481999999966,
+   "gemm_ms": 1.8768093999999924,
+   "attention_ms": 2.5761410000000042,
+   "other_ms": 0.5548515999999881,
+   "copy_kernels": 218.0,
+   "gemm_kernels": 145.0,
+   "attention_kernels": 48.0,
+   "other_kernels": 48.0,
+   "busy_ms": 7.419250199999982,
+   "kernels": 459.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 2.542400000000003,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)": 1.8743197999999914,
+    "triton_poi_fused__to_copy_6": 1.72428439999999,
+    "triton_poi_fused__to_copy_1": 0.5399507999999986,
+    "triton_red_fused_bmm_4": 0.5216163999999964,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.05616639999999679,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.05290900000000429,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.033741000000000895,
+    "triton_poi_fused_mul_silu_7": 0.03323519999999171,
+    "triton_poi_fused_copy_3": 0.029984000000003654,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 0.002489600000001155,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_5": 0.0024128000000005157
+   }
+  },
+  "int8_graph 16x512": {
+   "other_ms": 0.5521480000000026,
+   "copy_ms": 2.345789599999979,
+   "gemm_ms": 1.8232555999999873,
+   "attention_ms": 2.5712473999999985,
+   "other_kernels": 50.0,
+   "copy_kernels": 218.0,
+   "gemm_kernels": 145.0,
+   "attention_kernels": 48.0,
+   "busy_ms": 7.292440599999967,
+   "kernels": 461.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 2.5390096,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)": 1.820817199999988,
+    "triton_poi_fused__to_copy_6": 1.6972059999999898,
+    "triton_red_fused_bmm_4": 0.5184644000000028,
+    "triton_poi_fused__to_copy_1": 0.5077245999999972,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.05388880000000636,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.050982999999991174,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.03223779999999851,
+    "triton_poi_fused_mul_silu_7": 0.03128979999999992,
+    "triton_poi_fused_copy_3": 0.028179199999997035,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 0.002438399999999092,
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detail::Array<char*, 1> >(int, at::native::FillFunctor<long>, at::detail::Array<char*, 1>)": 0.0023937999999998735
+   }
+  },
+  "int8_compiled 16x2048": {
+   "copy_ms": 1.9654719999999926,
+   "gemm_ms": 1.881460999999986,
+   "attention_ms": 9.92050839999999,
+   "other_ms": 0.5206763999999986,
+   "copy_kernels": 218.0,
+   "gemm_kernels": 145.0,
+   "attention_kernels": 48.0,
+   "other_kernels": 48.0,
+   "busy_ms": 14.288117799999968,
+   "kernels": 459.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 9.88514799999999,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)": 1.8789583999999886,
+    "triton_poi_fused__to_copy_6": 1.2722863999999923,
+    "triton_poi_fused__to_copy_1": 0.5401483999999998,
+    "triton_red_fused_bmm_4": 0.4875305999999949,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.061440200000001555,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.053043199999992796,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.03536039999999921,
+    "triton_poi_fused_mul_silu_7": 0.03314580000000369,
+    "triton_poi_fused_copy_3": 0.030086600000008547,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_5": 0.0027391999999981636,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 0.0025025999999976193
+   }
+  },
+  "int8_graph 16x2048": {
+   "other_ms": 0.5057300000000003,
+   "copy_ms": 1.8981895999999652,
+   "gemm_ms": 1.799829200000007,
+   "attention_ms": 9.916306399999998,
+   "other_kernels": 50.0,
+   "copy_kernels": 218.0,
+   "gemm_kernels": 145.0,
+   "attention_kernels": 48.0,
+   "busy_ms": 14.12005519999997,
+   "kernels": 461.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 9.882367199999997,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)": 1.7973844000000057,
+    "triton_poi_fused__to_copy_6": 1.250776199999988,
+    "triton_poi_fused__to_copy_1": 0.5071505999999868,
+    "triton_red_fused_bmm_4": 0.47210440000000414,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.05318439999999928,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.05086079999999792,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.03393920000000198,
+    "triton_poi_fused_mul_silu_7": 0.031244799999995486,
+    "triton_poi_fused_copy_3": 0.02832639999999856,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 0.002444800000001487,
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detail::Array<char*, 1> >(int, at::native::FillFunctor<long>, at::detail::Array<char*, 1>)": 0.0023808000000006355
+   }
+  },
+  "int8_compiled 16x8192": {
+   "copy_ms": 1.9662498000000552,
+   "gemm_ms": 1.8835677999999487,
+   "attention_ms": 35.55235479999999,
+   "other_ms": 0.5238231999999696,
+   "copy_kernels": 218.0,
+   "gemm_kernels": 145.0,
+   "attention_kernels": 48.0,
+   "other_kernels": 48.0,
+   "busy_ms": 39.92599559999996,
+   "kernels": 459.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 35.51710339999999,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)": 1.8810397999999517,
+    "triton_poi_fused__to_copy_6": 1.2734526000000583,
+    "triton_poi_fused__to_copy_1": 0.540277800000012,
+    "triton_red_fused_bmm_4": 0.4904983999999975,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.061517399999983166,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.05279379999999928,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.03525139999999128,
+    "triton_poi_fused_mul_silu_7": 0.03332479999997213,
+    "triton_poi_fused_copy_3": 0.02978579999999847,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_5": 0.0026687999999961904,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 0.002527999999996973
+   }
+  },
+  "int8_graph 16x8192": {
+   "other_ms": 0.5099991999999658,
+   "copy_ms": 1.9017072000000095,
+   "gemm_ms": 1.8081894000000889,
+   "attention_ms": 35.550268,
+   "other_kernels": 50.0,
+   "copy_kernels": 218.0,
+   "gemm_kernels": 145.0,
+   "attention_kernels": 48.0,
+   "busy_ms": 39.77016380000007,
+   "kernels": 461.0,
+   "top_kernels_ms": {
+    "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 32, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 32, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 35.516335000000005,
+    "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)": 1.8057830000000918,
+    "triton_poi_fused__to_copy_6": 1.2517001999999997,
+    "triton_poi_fused__to_copy_1": 0.5100444000000204,
+    "triton_red_fused_bmm_4": 0.47639279999998996,
+    "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.05301779999999326,
+    "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_8": 0.050925199999994404,
+    "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.03393300000000009,
+    "triton_poi_fused_mul_silu_7": 0.031180799999971347,
+    "triton_poi_fused_copy_3": 0.028108999999989646,
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detail::Array<char*, 1> >(int, at::native::FillFunctor<long>, at::detail::Array<char*, 1>)": 0.0024256000000044877,
+    "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)": 0.002406399999996938
+   }
+  }
+ },
+ "lm_head": {
+  "params": 100663296,
+  "bytes": 201326592,
+  "vocab_size": 49152,
+  "hidden_size": 2048,
+  "tie_word_embeddings": false,
+  "shares_embedding_tensor": false,
+  "embedding_params": 100663296,
+  "rows": [
+   {
+    "B": 1,
+    "eager_ms": 0.330704003572464,
+    "graph_ms": 0.29657599329948425,
+    "graph_gbps": 678.8364417503583
+   },
+   {
+    "B": 16,
+    "eager_ms": 0.3038879930973053,
+    "graph_ms": 0.30563199520111084,
+    "graph_gbps": 658.7222383818939
+   },
+   {
+    "B": 64,
+    "eager_ms": 0.3420480042695999,
+    "graph_ms": 0.3437280058860779,
+    "graph_gbps": 585.714834265573
+   }
+  ]
+ }
+}

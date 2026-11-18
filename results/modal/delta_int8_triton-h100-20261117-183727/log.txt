@@ -1,0 +1,151 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=delta_int8_triton-h100-20261117-183727
+git=c8e89ee
+Wed Nov 18 02:37:31 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA H100 80GB HBM3, GPU-596a9fa2-b88c-6ca2-c956-0ec4e79475cf, 81559 MiB, 610.57.04
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python delta_split.py --grid --compile --int8 --int8-impl triton --out-dir $OUT
+int8 vs bf16 (eager): {'B': 16, 'C': 64, 'linears_quantized': 168, 'bf16_weight_bytes': 2466652162, 'rel_err_hidden': 0.062199126929044724, 'max_abs_err_gate': 0.3125, 'top1_agreement': 0.875, 'note': 'int8 vs bf16, eager. For scale: eager bf16 vs fp32 is ~2.4 % on the hidden state.'}
+GPU name: 'NVIDIA H100 80GB HBM3' -> spec 3350 GB/s
+GPU NVIDIA H100 80GB HBM3: spec 3350 GB/s, measured copy peak 3006 GB/s, read peak 2841 GB/s; looped-block weights 1.235 GB -> predicted weight fetch 0.37 ms (spec), 0.41 ms (copy peak), 0.43 ms (read peak)
+Traceback (most recent call last):
+  File "/root/loopcore/delta_split.py", line 670, in main
+    out["static_vs_hf_check"] = check_static_matches_hf(model, args.dtype, args.seed)
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/loopcore/delta_split.py", line 578, in check_static_matches_hf
+    state = harness.prefill(model, B, C, seed)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/loopcore/harness.py", line 120, in prefill
+    out = model.model(input_ids=ids[:, :C], use_cache=True)  # base model: skips full-sequence lm_head
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/utils/generic.py", line 1064, in wrapper
+    outputs = func(self, *args, **kwargs)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/vol/hf/modules/transformers_modules/ByteDance/Ouro_hyphen_1_dot_4B/574fa66cb8bf5abdc979642d01cf2b79b16bfab1/modeling_ouro.py", line 594, in forward
+    hidden_states = decoder_layer(
+                    ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/modeling_layers.py", line 94, in __call__
+    return super().__call__(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/vol/hf/modules/transformers_modules/ByteDance/Ouro_hyphen_1_dot_4B/574fa66cb8bf5abdc979642d01cf2b79b16bfab1/modeling_ouro.py", line 404, in forward
+    hidden_states, _ = self.self_attn(
+                       ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/vol/hf/modules/transformers_modules/ByteDance/Ouro_hyphen_1_dot_4B/574fa66cb8bf5abdc979642d01cf2b79b16bfab1/modeling_ouro.py", line 305, in forward
+    query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/loopcore/delta_split.py", line 376, in forward
+    y = torch.ops.loopcore.int8_wo_linear(x, self.weight, self.scales)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/_ops.py", line 1116, in __call__
+    return self._op(*args, **(kwargs or {}))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/_library/custom_ops.py", line 324, in backend_impl
+    result = self._backend_fns[device_type](*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/_compile.py", line 32, in inner
+    return disable_fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/_dynamo/eval_frame.py", line 632, in _fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/_library/custom_ops.py", line 367, in wrapped_fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/root/loopcore/int8_kernel.py", line 46, in int8_wo_linear
+    assert M <= 64, "decode kernel: one BLOCK_M covers M <= 64"
+           ^^^^^^^
+AssertionError: decode kernel: one BLOCK_M covers M <= 64
+
+grid: static KV limit 55.3 GB (GPU memory 85.0 GB)
+compiled vs eager static step: {'B': 2, 'C': 64, 'mode': 'default', 'rel_err_hidden': 0.0319901667535305, 'max_abs_err_gate': 0.015625, 'ok': False, 'compile_s': 25.5, 'graph_breaks': 0}
+kernel breakdown 1x128: {"other_ms": 1.9203579999999996, "copy_ms": 0.14469079999999895, "attention_ms": 0.2166429999999994, "gemm_ms": 0.004567399999999907, "other_kernels": 194.0, "copy_kernels": 74.0, "attention_kernels": 72.0, "gemm_kernels": 2.0, "busy_ms": 2.2862591999999977, "kernels": 342.0, "top_kernels_ms": {"_int8_wo_kernel": 1.8902804000000004, "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytor
+kernel breakdown 16x512: {"other_ms": 1.9092486000000062, "copy_ms": 0.15199400000000501, "attention_ms": 0.8383423999999995, "gemm_ms": 0.003103600000000006, "other_kernels": 194.0, "copy_kernels": 74.0, "attention_kernels": 48.0, "gemm_kernels": 1.0, "busy_ms": 2.902688600000011, "kernels": 317.0, "top_kernels_ms": {"_int8_wo_kernel": 1.875598200000005, "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash:
+kernel breakdown 16x2048: {"other_ms": 1.9244408000000044, "copy_ms": 0.15140219999999963, "attention_ms": 2.6925139999999996, "gemm_ms": 0.003181199999999808, "other_kernels": 194.0, "copy_kernels": 74.0, "attention_kernels": 48.0, "gemm_kernels": 1.0, "busy_ms": 4.771538200000004, "kernels": 317.0, "top_kernels_ms": {"void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 2.6562426, "_int8
+kernel breakdown 16x8192: {"other_ms": 1.91030019999998, "copy_ms": 0.1514548000000034, "attention_ms": 9.873757200000007, "gemm_ms": 0.003251000000000204, "other_kernels": 194.0, "copy_kernels": 74.0, "attention_kernels": 48.0, "gemm_kernels": 1.0, "busy_ms": 11.938763199999991, "kernels": 317.0, "top_kernels_ms": {"void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 9.837648000000005, "
+lm_head: {"params": 100663296, "bytes": 201326592, "vocab_size": 49152, "hidden_size": 2048, "tie_word_embeddings": false, "shares_embedding_tensor": false, "embedding_params": 100663296, "rows": [{"B": 1, "eager_ms": 0.13273600488901138, "graph_ms": 0.09908800199627876, "graph_gbps": 2031.7958576615642}, {"B": 16, "eager_ms": 0.13103999942541122, "graph_ms": 0.09855999797582626, "graph_gbps": 2042.6805614320247}, {"B": 64, "eager_ms": 0.13886400312185287, "graph_ms": 0.1061599999666214, "graph_gbps": 1896.4449139346334}]}
+B=1   C=128   graph   2.498 ms    504 GB/s (18% of read peak)
+B=2   C=128   graph   2.504 ms    513 GB/s (18% of read peak)
+B=4   C=128   graph   2.518 ms    531 GB/s (19% of read peak)
+B=8   C=128   graph   2.559 ms    562 GB/s (20% of read peak)
+B=16  C=128   graph   2.639 ms    622 GB/s (22% of read peak)
+B=32  C=128   graph   3.041 ms    673 GB/s (24% of read peak)
+B=64  C=128   graph   4.878 ms    586 GB/s (21% of read peak)
+B=1   C=256   graph   2.500 ms    514 GB/s (18% of read peak)
+B=2   C=256   graph   2.517 ms    531 GB/s (19% of read peak)
+B=4   C=256   graph   2.578 ms    557 GB/s (20% of read peak)
+B=8   C=256   graph   2.643 ms    620 GB/s (22% of read peak)
+B=16  C=256   graph   2.802 ms    729 GB/s (26% of read peak)
+B=32  C=256   graph   3.371 ms    846 GB/s (30% of read peak)
+B=64  C=256   graph   5.545 ms    806 GB/s (28% of read peak)
+B=1   C=512   graph   2.524 ms    529 GB/s (19% of read peak)
+B=2   C=512   graph   2.578 ms    557 GB/s (20% of read peak)
+B=4   C=512   graph   2.650 ms    618 GB/s (22% of read peak)
+B=8   C=512   graph   2.789 ms    732 GB/s (26% of read peak)
+B=16  C=512   graph   3.086 ms    923 GB/s (32% of read peak)
+B=32  C=512   graph   4.003 ms   1115 GB/s (39% of read peak)
+B=64  C=512   graph   6.787 ms   1133 GB/s (40% of read peak)
+B=1   C=1024  graph   2.585 ms    556 GB/s (20% of read peak)
+B=2   C=1024  graph   2.654 ms    617 GB/s (22% of read peak)
+B=4   C=1024  graph   2.776 ms    735 GB/s (26% of read peak)
+B=8   C=1024  graph   3.049 ms    934 GB/s (33% of read peak)
+B=16  C=1024  graph   3.708 ms   1203 GB/s (42% of read peak)
+B=32  C=1024  graph   5.213 ms   1474 GB/s (52% of read peak)
+B=64  C=1024  graph   9.175 ms   1540 GB/s (54% of read peak)
+B=1   C=2048  graph   2.668 ms    614 GB/s (22% of read peak)
+B=2   C=2048  graph   2.781 ms    734 GB/s (26% of read peak)
+B=4   C=2048  graph   3.039 ms    936 GB/s (33% of read peak)
+B=8   C=2048  graph   3.575 ms   1247 GB/s (44% of read peak)
+B=16  C=2048  graph   4.959 ms   1549 GB/s (55% of read peak)
+B=32  C=2048  graph   7.611 ms   1856 GB/s (65% of read peak)
+B=64  C=2048  graph  14.079 ms   1919 GB/s (68% of read peak)
+B=1   C=4096  graph   2.942 ms    693 GB/s (24% of read peak)
+B=2   C=4096  graph   3.435 ms    828 GB/s (29% of read peak)
+B=4   C=4096  graph   3.592 ms   1241 GB/s (44% of read peak)
+B=8   C=4096  graph   4.608 ms   1666 GB/s (59% of read peak)
+B=16  C=4096  graph   7.413 ms   1905 GB/s (67% of read peak)
+B=32  C=4096  graph  12.593 ms   2145 GB/s (75% of read peak)
+B=64  C=4096  graph  24.666 ms   2140 GB/s (75% of read peak)
+B=1   C=8192  graph   3.238 ms    879 GB/s (31% of read peak)
+B=2   C=8192  graph   3.589 ms   1242 GB/s (44% of read peak)

@@ -87,9 +87,13 @@ TASKS = {
     "int8_probe": CHECK + ["python int8_kernel.py | tee $OUT/int8_kernel_check.txt",
                            "python delta_split.py --int8-probe --out-dir $OUT"],
     # Full int8 grid with the Triton int8 kernel (int8_kernel.py) instead of the unfused cast (~1 h).
-    "delta_int8_triton": CHECK + ["python delta_split.py --grid --compile --int8 --int8-impl triton --out-dir $OUT"],
+    "delta_int8_triton": CHECK + ["python int8_kernel.py | tee $OUT/int8_kernel_check.txt",
+                                  "python delta_split.py --grid --compile --int8 --int8-impl triton --out-dir $OUT"],
     # Full int8 grid, cast path + coordinate_descent_tuning (best at B=1 in int8_probe) (~1 h).
     "delta_int8_cd": CHECK + ["python delta_split.py --grid --compile --int8 --coord-descent --out-dir $OUT"],
+    # Same, batch 1-2 only (the cast + coordinate-descent path only wins at B=1) + same-container bf16 refs.
+    "delta_int8_cd_small": CHECK + ["python delta_split.py --grid --compile --int8 --coord-descent "
+                                    "--grid-batch 1 2 --out-dir $OUT"],
     # Is the compiled step's bf16 difference rounding or a bug? eager vs compiled, both against fp32 (~3 min).
     "compile_check": CHECK + ["python delta_split.py --compile-check --out-dir $OUT"],
     "bench_q03": CHECK + [
@@ -137,8 +141,10 @@ def run(task: str, run_id: str, git: str = "") -> int:
 
 
 @app.local_entrypoint()
-def main(task: str = "check", gpu: str = "L40S", run_id: str = "", pull: bool = False):
-    """--pull with --run-id only downloads that run's results (e.g. after a --detach run)."""
+def main(task: str = "check", gpu: str = "L40S", run_id: str = "", pull: bool = False, spawn: bool = False):
+    """--pull with --run-id only downloads that run's results (e.g. after a --detach run).
+    --spawn (with `modal run --detach`): hand the run to Modal and exit at once, so nothing on this machine
+    (sleep, network change) can cancel it. Results stay on the volume: watch_runs.py, then --pull."""
     if task not in TASKS:
         raise SystemExit(f"unknown task {task!r}; choose from {sorted(TASKS)}")
     rid = run_id or f"{task}-{gpu.lower()}-{time.strftime('%Y%m%d-%H%M%S')}"
@@ -156,6 +162,12 @@ def main(task: str = "check", gpu: str = "L40S", run_id: str = "", pull: bool = 
             git = head + ("-dirty" if dirty else "")
         except OSError:
             git = ""
+        if spawn:
+            call = run.with_options(gpu=gpu).spawn(task, rid, git)
+            print(f"spawned {call.object_id}; runs on Modal independently of this machine.\n"
+                  f"progress: .venv/bin/python watch_runs.py {rid}   (delta tasks)\n"
+                  f"download: ./run_modal.sh --task {task} --run-id {rid} --pull")
+            return
         rc = run.with_options(gpu=gpu).remote(task, rid, git)
 
     # Pull everything this run wrote back into the repo.

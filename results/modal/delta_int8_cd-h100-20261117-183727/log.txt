@@ -1,0 +1,75 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=delta_int8_cd-h100-20261117-183727
+git=c8e89ee
+Wed Nov 18 02:37:32 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA H100 80GB HBM3, GPU-ce3212e1-3a0d-d49c-90cb-a8f0a87fa327, 81559 MiB, 610.57.04
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python delta_split.py --grid --compile --int8 --coord-descent --out-dir $OUT
+int8 vs bf16 (eager): {'B': 16, 'C': 64, 'linears_quantized': 168, 'bf16_weight_bytes': 2466652162, 'rel_err_hidden': 0.06379365921020508, 'max_abs_err_gate': 0.4375, 'top1_agreement': 0.9375, 'note': 'int8 vs bf16, eager. For scale: eager bf16 vs fp32 is ~2.4 % on the hidden state.'}
+GPU name: 'NVIDIA H100 80GB HBM3' -> spec 3350 GB/s
+GPU NVIDIA H100 80GB HBM3: spec 3350 GB/s, measured copy peak 3013 GB/s, read peak 2870 GB/s; looped-block weights 1.235 GB -> predicted weight fetch 0.37 ms (spec), 0.41 ms (copy peak), 0.43 ms (read peak)
+static vs HF step: {'B': 2, 'C': 64, 'rel_err_hidden': 0.0, 'max_abs_err_gate': 0.0, 'ok': True}
+grid: static KV limit 55.3 GB (GPU memory 85.0 GB)
+compiled vs eager static step: {'B': 2, 'C': 64, 'mode': 'default', 'rel_err_hidden': 0.03424333035945892, 'max_abs_err_gate': 0.09375, 'ok': False, 'compile_s': 34.8, 'graph_breaks': 0}
+kernel breakdown 1x128: {"other_ms": 0.635572199999999, "copy_ms": 0.2869809999999976, "attention_ms": 0.21424540000000167, "gemm_ms": 0.004377599999999802, "other_kernels": 74.0, "copy_kernels": 74.0, "attention_kernels": 72.0, "gemm_kernels": 2.0, "busy_ms": 1.141176199999998, "kernels": 222.0, "top_kernels_ms": {"triton_red_fused_mm_5": 0.2910881999999997, "triton_red_fused_mm_6": 0.2377780000000001, "triton_red_fused_copy_mm_1": 0.18184839999999947, "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_t
+kernel breakdown 16x512: {"other_ms": 0.5053043999999991, "copy_ms": 1.2183311999999922, "gemm_ms": 1.2870436000000063, "attention_ms": 0.9486298000000017, "other_kernels": 50.0, "copy_kernels": 218.0, "gemm_kernels": 241.0, "attention_kernels": 48.0, "busy_ms": 3.9593089999999997, "kernels": 557.0, "top_kernels_ms": {"void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 0.908667999999999
+kernel breakdown 16x2048: {"other_ms": 0.5159715999999976, "copy_ms": 1.2125078000000005, "gemm_ms": 1.2806051999999986, "attention_ms": 2.786051, "other_kernels": 50.0, "copy_kernels": 218.0, "gemm_kernels": 241.0, "attention_kernels": 48.0, "busy_ms": 5.795135599999996, "kernels": 557.0, "top_kernels_ms": {"void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 2.7464997999999987, "triton_
+kernel breakdown 16x8192: {"other_ms": 0.5054601999999986, "copy_ms": 1.2114163999999972, "gemm_ms": 1.2864151999999858, "attention_ms": 9.990228199999986, "other_kernels": 50.0, "copy_kernels": 218.0, "gemm_kernels": 241.0, "attention_kernels": 48.0, "busy_ms": 12.99351999999997, "kernels": 557.0, "top_kernels_ms": {"void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 9.950644199999996, 
+lm_head: {"params": 100663296, "bytes": 201326592, "vocab_size": 49152, "hidden_size": 2048, "tie_word_embeddings": false, "shares_embedding_tensor": false, "embedding_params": 100663296, "rows": [{"B": 1, "eager_ms": 0.11761600151658058, "graph_ms": 0.09601600095629692, "graph_gbps": 2096.8025120275183}, {"B": 16, "eager_ms": 0.10433599725365639, "graph_ms": 0.09339199960231781, "graph_gbps": 2155.7156165120105}, {"B": 64, "eager_ms": 0.11135999858379364, "graph_ms": 0.10071999952197075, "graph_gbps": 1998.874036492457}]}
+B=1   C=128   graph   1.252 ms   1006 GB/s (35% of read peak)
+B=2   C=128   graph   3.168 ms    406 GB/s (14% of read peak)
+B=4   C=128   graph   3.216 ms    415 GB/s (14% of read peak)
+B=8   C=128   graph   3.348 ms    429 GB/s (15% of read peak)
+B=16  C=128   graph   3.640 ms    451 GB/s (16% of read peak)
+B=32  C=128   graph   4.372 ms    468 GB/s (16% of read peak)
+B=64  C=128   graph   5.747 ms    497 GB/s (17% of read peak)
+B=1   C=256   graph   1.267 ms   1014 GB/s (35% of read peak)
+B=2   C=256   graph   3.183 ms    420 GB/s (15% of read peak)
+B=4   C=256   graph   3.268 ms    440 GB/s (15% of read peak)
+B=8   C=256   graph   3.444 ms    476 GB/s (17% of read peak)
+B=16  C=256   graph   3.839 ms    532 GB/s (19% of read peak)
+B=32  C=256   graph   4.740 ms    602 GB/s (21% of read peak)
+B=64  C=256   graph   6.378 ms    701 GB/s (24% of read peak)
+B=1   C=512   graph   1.281 ms   1042 GB/s (36% of read peak)
+B=2   C=512   graph   3.242 ms    443 GB/s (15% of read peak)
+B=4   C=512   graph   3.360 ms    488 GB/s (17% of read peak)
+B=8   C=512   graph   3.611 ms    565 GB/s (20% of read peak)
+B=16  C=512   graph   4.189 ms    680 GB/s (24% of read peak)
+B=32  C=512   graph   5.402 ms    826 GB/s (29% of read peak)
+B=64  C=512   graph   7.681 ms   1001 GB/s (35% of read peak)
+B=1   C=1024  graph   1.343 ms   1069 GB/s (37% of read peak)
+B=2   C=1024  graph   3.336 ms    491 GB/s (17% of read peak)
+B=4   C=1024  graph   3.528 ms    578 GB/s (20% of read peak)
+B=8   C=1024  graph   3.912 ms    728 GB/s (25% of read peak)
+B=16  C=1024  graph   4.835 ms    922 GB/s (32% of read peak)
+B=32  C=1024  graph   6.630 ms   1159 GB/s (40% of read peak)
+B=64  C=1024  graph  10.062 ms   1404 GB/s (49% of read peak)
+B=1   C=2048  graph   1.423 ms   1151 GB/s (40% of read peak)
+B=2   C=2048  graph   3.503 ms    582 GB/s (20% of read peak)
+B=4   C=2048  graph   3.825 ms    744 GB/s (26% of read peak)
+B=8   C=2048  graph   4.458 ms   1000 GB/s (35% of read peak)
+B=16  C=2048  graph   6.069 ms   1266 GB/s (44% of read peak)
+B=32  C=2048  graph   9.039 ms   1563 GB/s (54% of read peak)
+B=64  C=2048  graph  14.890 ms   1814 GB/s (63% of read peak)
+B=1   C=4096  graph   1.695 ms   1203 GB/s (42% of read peak)
+B=2   C=4096  graph   4.102 ms    694 GB/s (24% of read peak)
+B=4   C=4096  graph   4.392 ms   1015 GB/s (35% of read peak)
+B=8   C=4096  graph   5.528 ms   1389 GB/s (48% of read peak)
