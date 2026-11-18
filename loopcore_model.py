@@ -241,7 +241,8 @@ KERNEL_BENCH = {"l40s": "results/modal/delta_kernel_bench-l40s-20261118-120529",
 # (gemm_compiled: compiled lone F.linear per shape and B), for the compiled step's slower batched GEMMs; (b) small
 # kernels measured in context, alternating with a 2048x2048 GEMV (small_after_gemv), for launch gaps that hide
 # behind long kernels. Attention, KV and counts as v1.1. Recorded whatever it scores.
-KERNEL_BENCH_V12 = {"l40s": None, "h100": None}   # filled with the v1.2 run directories
+KERNEL_BENCH_V12 = {"l40s": "results/modal/delta_kernel_bench-l40s-20261118-123411",
+                    "h100": "results/modal/delta_kernel_bench-h100-20261118-123424"}
 KERNEL_COUNTS = dict(gemm={"2048x2048": 96, "5632x2048": 48, "2048x5632": 24}, small=126, attention_calls=24)
 
 
@@ -268,18 +269,19 @@ def kernel_sum(gpu, B, C, field="slot_us", version="v1.1"):
     return w, small, KERNEL_COUNTS["attention_calls"] * (a128 + kv * B * (C - 128))
 
 
-def kernel_sum_predictions(gpu):
+def kernel_sum_predictions(gpu, version="v1.2"):
     """calibrate.py predictions from the kernel-sum model."""
     env, _ = cal.envelope(gpu)
-    grid = {f"{B}x{C}": sum(kernel_sum(gpu, B, C)) / 1e3 for (B, C) in env}
+    grid = {f"{B}x{C}": sum(kernel_sum(gpu, B, C, version=version)) / 1e3 for (B, C) in env}
     delta, _, _, _ = cal.fit_m2([{"B": B, "C": C, "t": grid[f"{B}x{C}"]} for (B, C) in env])
-    kb = json.load(open(ROOT / KERNEL_BENCH[gpu] / "kernel_bench.json"))
-    w_busy = kernel_sum(gpu, 1, 128, "busy_us")[0] / 1e3
+    run = KERNEL_BENCH_V12[gpu] if version == "v1.2" else KERNEL_BENCH[gpu]
+    kb = json.load(open(ROOT / run / "kernel_bench.json"))
+    w_busy = kernel_sum(gpu, 1, 128, "busy_us", version=version)[0] / 1e3
     att = kb["attention"]
     kv = KERNEL_COUNTS["attention_calls"] * (att["16x2048"]["slot_us"] - att["16x128"]["slot_us"]) / (16 * 1920)
     return {"date": __import__("time").strftime("%Y-%m-%d"),
-            "source": f"loopcore_model.py v1.1 kernel-sum: {KERNEL_BENCH[gpu]}/kernel_bench.json",
-            "inputs": {"kernel_counts": KERNEL_COUNTS, "microbenchmarks": KERNEL_BENCH[gpu],
+            "source": f"loopcore_model.py {version} kernel-sum: {run}/kernel_bench.json",
+            "inputs": {"kernel_counts": KERNEL_COUNTS, "microbenchmarks": run,
                        "measured_copy_peak_GBps": kb["measured_peak_gbps"], "measured_read_peak_GBps": kb["measured_read_gbps"]},
             "predictions": {"weight_ms": w_busy, "kv_us_per_token": kv, "crossover_tokens": w_busy * 1e3 / kv,
                             "step_ms_b1_c128": grid["1x128"], "delta_ms": delta, "overhead_ms": grid["1x128"] - w_busy},
@@ -382,27 +384,30 @@ def validate(m=OURO_1_4B, write=False):
     print("sequence over-predicts the B=1 step's non-weight time (calibrate.py: +56 % L40S, +20 % H100), the B=1 -> B=2")
     print("GEMV -> GEMM jump v0 noted. Anchoring the overhead at the measured B=1 step fixes L40S but worsens the H100")
     print("prediction (median 12.6 %), so it is not used; more variants tuned against H100 would overfit it.")
-    have_bench = all((ROOT / KERNEL_BENCH[g] / "kernel_bench.json").exists() for g in KERNEL_BENCH)
-    if have_bench:
-        print("\nv1.1 kernel-sum model (microbenchmarks only; both GPUs are predictions):")
+    have_bench = all((ROOT / KERNEL_BENCH_V12[g] / "kernel_bench.json").exists() for g in KERNEL_BENCH_V12)
+    for version in ("v1.1", "v1.2"):
+        print(f"\n{version} kernel-sum model (microbenchmarks only; both GPUs are predictions):")
         for gpu in ("l40s", "h100"):
             env, _ = cal.envelope(gpu)
-            e = {bc: 100 * (sum(kernel_sum(gpu, *bc)) / 1e3 - t) / t for bc, (t, _) in env.items()}
+            e = {bc: 100 * (sum(kernel_sum(gpu, *bc, version=version)) / 1e3 - t) / t for bc, (t, _) in env.items()}
             (wB, wC), we = max(e.items(), key=lambda kv: abs(kv[1]))
-            w, sm, at = kernel_sum(gpu, 1, 128)
+            w, sm, at = kernel_sum(gpu, 1, 128, version=version)
             print(f"  {gpu.upper():5s} grid: median |error| {statistics.median(map(abs, e.values())):.1f} %, max {we:+.1f} % "
                   f"at B={wB}, C={wC}; 1x128: weights {w / 1e3:.3f} + small {sm / 1e3:.3f} + attention {at / 1e3:.3f} ms")
-        print("  Known misses (2026-11-18): isolated small kernels cost ~2.1 µs per slot on L40S vs ~1.65 in the step")
-        print("  (launch gaps hide behind long GEMVs in the real step), so the L40S B=1 non-weight time is +39 %; and the")
-        print("  compiled step's batched GEMMs are slower than isolated cuBLAS at B >= 32 (grid max -26 % L40S, -43 % H100).")
+    print("\nKnown misses (2026-11-18): (1) inter-kernel gaps depend on the neighbouring kernels; isolated benchmarks give")
+    print("0.2-1.2 µs per kernel vs ~0.25 µs (L40S) / ~0.67 µs (H100) inside the real step, so the B=1 non-weight time is")
+    print("+33 % (L40S, v1.2) / -14 % (H100, v1.2). (2) The compiled step's batched GEMMs at B >= 32 are slower than")
+    print("isolated cuBLAS, and a lone compiled linear does not reproduce that (same kernels, same times), so the grid max")
+    print("misses (-26 % L40S, -46 % H100). (3) The B=1 non-weight target itself varies ~±10-12 % between containers")
+    print("(L40S 0.32-0.41 ms, H100 0.52-0.63 ms): H100 v1.1 and v1.2 are inside that spread; L40S is a real miss.")
     if write:
         for gpu, hw in (("l40s", l40s), ("h100", h100)):
             p = ROOT / cal.RUNS[gpu][1]
-            # pre-registered: the kernel-sum model's predictions are the ones recorded, whatever they score
-            pred = kernel_sum_predictions(gpu) if have_bench else \
+            # pre-registered: the latest kernel-sum model's (v1.2) predictions are recorded, whatever they score
+            pred = kernel_sum_predictions(gpu, "v1.2") if have_bench else \
                 {**predictions(m, hw, gpu), "date": __import__("time").strftime("%Y-%m-%d")}
             p.write_text(json.dumps(pred, indent=2) + "\n")
-            print(f"wrote {p.name} ({'kernel-sum' if have_bench else 'v1 transfer'} model)")
+            print(f"wrote {p.name} ({'v1.2 kernel-sum' if have_bench else 'v1 transfer'} model)")
     return l40s, h100
 
 
