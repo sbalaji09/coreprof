@@ -1,7 +1,7 @@
 """Live progress + results of the torch.compile / int8 baseline runs (reads the Modal volume; no GPU needed).
 
 Usage:
-  .venv/bin/python watch_runs.py                  # the two delta_compile runs, once
+  .venv/bin/python watch_runs.py                  # the current int8 runs, once
   .venv/bin/python watch_runs.py -w 60            # refresh every 60 s (Ctrl-C to stop)
   .venv/bin/python watch_runs.py <run_id> ...     # other delta_compile runs
 
@@ -19,13 +19,14 @@ from pathlib import Path
 import modal
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_RUNS = ["delta_compile-h100-20261116-214809", "delta_compile-l40s-20261116-214809"]
+DEFAULT_RUNS = ["delta_int8_triton-h100-20261117-233820", "delta_int8_triton-l40s-20261117-233833",
+                "delta_int8_cd_small-h100-20261117-233847", "delta_int8_cd_small-l40s-20261117-233859"]
 # (task, gpu) -> the run each task is compared against: compile vs uncompiled, int8 vs bf16 compiled
 BASELINE = {("delta_compile", "h100"): "delta_grid-h100-20261116-184347",
             ("delta_compile", "l40s"): "delta_grid-l40s-20261116-184352",
             ("delta_int8", "h100"): "delta_compile-h100-20261116-214809",
             ("delta_int8", "l40s"): "delta_compile-l40s-20261116-214809"}
-for _t in ("delta_int8_triton", "delta_int8_cd"):
+for _t in ("delta_int8_triton", "delta_int8_cd", "delta_int8_cd_small"):
     for _g in ("h100", "l40s"):
         BASELINE[(_t, _g)] = BASELINE[("delta_int8", _g)]
 
