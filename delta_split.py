@@ -86,6 +86,9 @@ def parse_args():
     p.add_argument("--coord-descent", action="store_true",
                    help="with --compile: inductor coordinate_descent_tuning (gpt-fast's setting; fuses the int8 cast "
                         "into a reduction at B=1). Applies to every compile in the run, incl. the bf16 reference")
+    p.add_argument("--noise-check", action="store_true",
+                   help="only: fused (torch.compile + CUDA graph) step at B=1, C=128: step time, weight-kernel time and "
+                        "their difference, for measuring container-to-container noise; writes noise.json")
     p.add_argument("--kernel-bench", action="store_true",
                    help="only: per-kernel microbenchmarks in CUDA graphs (weight GEMV/GEMM per Ouro shape and batch, "
                         "small fused kernels, decode attention) for loopcore_model's GPU term; writes kernel_bench.json")
@@ -219,7 +222,8 @@ def count_kernels(fn, steps=5):
 
 KERNEL_CATS = [   # order matters: flash-attention kernel names contain "cutlass", so match attention first
     ("attention", ("flash", "fmha", "attention", "sdpa")),
-    ("gemm", ("gemm", "gemv", "cutlass", "xmma", "cublas", "sm80_", "sm89_", "sm90_", "ampere_", "ada_")),
+    ("gemm", ("gemm", "gemv", "cutlass", "xmma", "cublas", "sm80_", "sm89_", "sm90_", "ampere_", "ada_",
+              "_mm_")),   # "_mm_": inductor's fused matmul reductions (coordinate_descent_tuning), e.g. triton_red_fused_mm_5
     ("copy", ("copy", "memcpy", "memset", "cat", "index")),
 ]
 
@@ -386,6 +390,25 @@ def set_int8_impl(impl):
     if impl == "triton":
         import int8_kernel  # noqa: F401  (registers torch.ops.loopcore.int8_wo_linear)
     Int8WeightOnlyLinear.impl = impl
+
+
+def noise_check(args):
+    """One sample of the B=1, C=128 fused step and its weight/non-weight split (one container = one sample)."""
+    import torch._inductor.config as ind
+    ind.triton.unique_kernel_names = True
+    with torch.inference_mode():
+        model = harness.load_model(args.dtype)
+        L = model.model.config.num_hidden_layers
+        step, cache, info = make_step(model, 1, 128, L, args, "default")
+        g, _ = capture_graph(step)
+        t = stats(gpu_times(g.replay, args.warmup, args.reps))
+        bd = safe_breakdown(g.replay) or {}
+    res = dict(gpu=torch.cuda.get_device_name(), torch=torch.__version__, step=t, gemm_ms=bd.get("gemm_ms"),
+               busy_ms=bd.get("busy_ms"), kernels=bd.get("kernels"),
+               non_weight_ms=t["median_ms"] - bd["gemm_ms"] if bd.get("gemm_ms") else None, **info)
+    with open(os.path.join(args.out_dir, "noise.json"), "w") as f:
+        json.dump(res, f, indent=1)
+    print(json.dumps(res, default=str))
 
 
 def kernel_bench(args, copies=24, batches=(1, 2, 4, 8, 16, 32, 64)):
@@ -735,6 +758,9 @@ def main():
     torch.manual_seed(args.seed)
     if args.compile_check:
         compile_numerics(args)
+        return
+    if args.noise_check:
+        noise_check(args)
         return
     if args.kernel_bench:
         kernel_bench(args)

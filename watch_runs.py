@@ -26,6 +26,8 @@ BASELINE = {("delta_compile", "h100"): "delta_grid-h100-20261116-184347",
             ("delta_compile", "l40s"): "delta_grid-l40s-20261116-184352",
             ("delta_int8", "h100"): "delta_compile-h100-20261116-214809",
             ("delta_int8", "l40s"): "delta_compile-l40s-20261116-214809"}
+BASELINE[("delta_bf16_cd", "h100")] = BASELINE[("delta_int8", "h100")]   # bf16 + coord-descent vs bf16 fused
+BASELINE[("delta_bf16_cd", "l40s")] = BASELINE[("delta_int8", "l40s")]
 for _t in ("delta_int8_triton", "delta_int8_cd", "delta_int8_cd_small"):
     for _g in ("h100", "l40s"):
         BASELINE[(_t, _g)] = BASELINE[("delta_int8", _g)]
@@ -81,7 +83,8 @@ def show(vol, rid):
     if not comp:
         return
 
-    old, new = ("bf16 ms", "int8 ms") if task.startswith("delta_int8") else ("uncompiled ms", "compiled ms")
+    old, new = (("bf16 ms", "int8 ms") if task.startswith("delta_int8") else
+                ("bf16 ms", "bf16+cd ms") if task == "delta_bf16_cd" else ("uncompiled ms", "compiled ms"))
     print(f"\n{'B':>4} {'C':>5}  {old:>13} {new:>11} {'saved ms':>8}  speedup")
     sp = []
     for (B, C), t in sorted(comp.items(), key=lambda kv: (kv[0][1], kv[0][0])):

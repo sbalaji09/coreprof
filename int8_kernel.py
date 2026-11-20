@@ -68,6 +68,41 @@ def _int8_wo_splitk_kernel(x_ptr, w_ptr, s_ptr, y_ptr, M, N, K,
                   mask=(rm[:, None] < M) & (rn[None, :] < N))
 
 
+@triton.autotune(
+    configs=[triton.Config({"BLOCK_N": bn, "BLOCK_K": bk}, num_warps=w, num_stages=st)
+             for bn in (4, 8, 16) for bk in (64, 128, 256) for w in (2, 4) for st in (2, 3)],
+    key=["M", "N", "K"],
+)
+@triton.jit
+def _int8_wo_gemv_kernel(x_ptr, w_ptr, s_ptr, y_ptr, M, N, K,
+                         BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr):
+    """Small-M path (M <= 16): no tl.dot, so BLOCK_N can be 4-16 and N=2048 gives 128-512 programs (the
+    tl.dot kernels need BLOCK_N >= 16: too few programs for an H100 at B=2-16). Each program reads its
+    weight rows once and reduces over K for all M rows with a broadcasted multiply."""
+    pid_n = tl.program_id(0)
+    rm = tl.arange(0, BLOCK_M)
+    rn = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
+    rk = tl.arange(0, BLOCK_K)
+    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
+    for k0 in range(0, K, BLOCK_K):
+        kk = k0 + rk
+        x = tl.load(x_ptr + rm[:, None] * K + kk[None, :], mask=(rm[:, None] < M) & (kk[None, :] < K),
+                    other=0.0).to(tl.float32)
+        w = tl.load(w_ptr + rn[:, None] * K + kk[None, :], mask=(rn[:, None] < N) & (kk[None, :] < K),
+                    other=0).to(tl.float32)
+        acc += tl.sum(x[:, None, :] * w[None, :, :], axis=2)
+    s = tl.load(s_ptr + rn, mask=rn < N, other=0.0).to(tl.float32)
+    acc = acc * s[None, :]
+    tl.store(y_ptr + rm[:, None] * N + rn[None, :], acc.to(tl.bfloat16), mask=(rm[:, None] < M) & (rn[None, :] < N))
+
+
+def _gemv(x2, w, s, M, N, K, bm):
+    y = torch.empty(M, N, device=x2.device, dtype=x2.dtype)
+    _int8_wo_gemv_kernel[lambda meta: (triton.cdiv(N, meta["BLOCK_N"]),)](
+        x2, w, s, y, M, N, K, BLOCK_M=triton.next_power_of_2(M))
+    return y
+
+
 def _plain(x2, w, s, M, N, K, bm):
     y = torch.empty(M, N, device=x2.device, dtype=x2.dtype)
     _int8_wo_kernel[lambda meta: (triton.cdiv(N, meta["BLOCK_N"]), triton.cdiv(M, bm))](x2, w, s, y, M, N, K, BLOCK_M=bm)
@@ -81,15 +116,24 @@ def _splitk(x2, w, s, M, N, K, bm):
     return acc.to(x2.dtype)
 
 
-PATHS = {"plain": _plain, "splitk": _splitk}
-CHOICE = {}          # (M, N, K) -> "plain" | "splitk", decided on first call
+PATHS = {"plain": _plain, "splitk": _splitk, "gemv": _gemv}
+GEMV_MAX_M = 16
+
+
+def _paths(M):
+    return {k: v for k, v in PATHS.items() if k != "gemv" or M <= GEMV_MAX_M}
+CHOICE = {}          # (M, N, K) -> "plain" | "splitk" | "gemv", decided on first call
+FAILED = {}          # (M, N, K, path) -> error, for paths skipped by _choose
 
 
 def _choose(x2, w, s, M, N, K, bm):
     times = {}
-    for name, fn in PATHS.items():
-        fn(x2, w, s, M, N, K, bm)                            # autotune this path first
-        times[name] = triton.testing.do_bench(lambda: fn(x2, w, s, M, N, K, bm), warmup=10, rep=50)
+    for name, fn in _paths(M).items():
+        try:
+            fn(x2, w, s, M, N, K, bm)                        # autotune this path first
+            times[name] = triton.testing.do_bench(lambda: fn(x2, w, s, M, N, K, bm), warmup=10, rep=50)
+        except Exception as e:                               # a path that cannot compile/run is skipped, not fatal
+            FAILED[(M, N, K, name)] = f"{type(e).__name__}: {e}"[:200]
     return min(times, key=times.get)
 
 
@@ -113,7 +157,7 @@ def _(x, w, s):
     return x.new_empty(*x.shape[:-1], w.shape[0])
 
 
-def check(shapes=((2048, 2048), (5632, 2048), (2048, 5632)), ms=(1, 16, 64), seed=0):
+def check(shapes=((2048, 2048), (5632, 2048), (2048, 5632)), ms=(1, 4, 16, 64), seed=0):
     """Max relative error vs the bf16 reference F.linear(x, w.bf16) * s, over Ouro's linear shapes, for both
     paths and the op; also reports which path the op chose per (M, N, K)."""
     g = torch.Generator(device="cuda").manual_seed(seed)
@@ -126,13 +170,18 @@ def check(shapes=((2048, 2048), (5632, 2048), (2048, 5632)), ms=(1, 16, 64), see
             ref = (torch.nn.functional.linear(x.float(), w.float()) * s.float()).float()
             x2 = x.reshape(M, K)
             bm = min(64, max(16, triton.next_power_of_2(M)))
-            for fn in PATHS.values():
-                fn(x2, w, s, M, N, K, bm)    # first call autotunes: split-K's output from it is not valid
-                out = fn(x2, w, s, M, N, K, bm).float()
+            for name, fn in _paths(M).items():
+                try:
+                    fn(x2, w, s, M, N, K, bm)    # first call autotunes: split-K's output from it is not valid
+                    out = fn(x2, w, s, M, N, K, bm).float()
+                except Exception as e:
+                    FAILED[(M, N, K, name)] = f"{type(e).__name__}: {e}"[:200]
+                    continue
                 worst = max(worst, float((out - ref).norm() / ref.norm()))
             out = int8_wo_linear(x, w, s).float().reshape(M, N)
             worst = max(worst, float((out - ref).norm() / ref.norm()))
-    return dict(max_rel_err=worst, ok=worst < 1e-2, choice={f"{m}x{n}x{k}": c for (m, n, k), c in CHOICE.items()})
+    return dict(max_rel_err=worst, ok=worst < 1e-2, choice={f"{m}x{n}x{k}": c for (m, n, k), c in CHOICE.items()},
+                failed={f"{m}x{n}x{k} {p}": e for (m, n, k, p), e in FAILED.items()})
 
 
 if __name__ == "__main__":

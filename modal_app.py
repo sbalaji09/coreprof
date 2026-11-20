@@ -83,6 +83,10 @@ TASKS = {
     "delta_compile": CHECK + ["python delta_split.py --grid --compile --out-dir $OUT"],
     # int8 weight-only looped block (fused cast under torch.compile) vs the bf16 compiled step, same grid (~1 h).
     "delta_int8": CHECK + ["python delta_split.py --grid --compile --int8 --out-dir $OUT"],
+    # bf16 fused grid with coordinate_descent_tuning (it speeds bf16 up 12-20 % at B=1): completes the bf16 envelope.
+    "delta_bf16_cd": CHECK + ["python delta_split.py --grid --compile --coord-descent --out-dir $OUT"],
+    # One sample of the B=1 fused step's weight / non-weight split (run in several fresh containers) (~4 min).
+    "delta_noise": CHECK + ["python delta_split.py --noise-check --out-dir $OUT"],
     # Per-kernel microbenchmarks (weight GEMV/GEMM per shape and batch, small fused kernels, decode attention)
     # for loopcore_model's kernel-sum GPU model (~10 min). No model weights or step timings involved.
     "delta_kernel_bench": CHECK + ["python delta_split.py --kernel-bench --out-dir $OUT"],
