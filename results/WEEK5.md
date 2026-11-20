@@ -9,7 +9,7 @@ How much of δ is moving the looped block's weights from DRAM, and how much is s
 overhead? Does the simple prediction *weight bytes ÷ memory bandwidth* get the weight part
 right? And what is a first, bounded estimate of what LoopCore (weights on-chip) could save?
 
-**Answer in one line.** On the GPU itself, δ ≈ 5.8 ms = **≈ 3.8 ms of weight streaming** (which
+**Answer in one line.** On the GPU itself, a step at B=1, C=128 takes ≈ 5.8 ms (fitted δ = 6.13 ms) = **≈ 3.8 ms of weight streaming** (which
 matches weight bytes ÷ measured bandwidth to within ~3 %) **+ ≈ 2.0 ms of non-weight
 overhead** (≈ 1,160 small unfused kernels plus gaps). Week 4's larger δ also included host
 (CPU/Python/launch) time, and its KV slope was inflated ≈ 3× by the HF cache. With
@@ -29,7 +29,8 @@ weights free, a step gets **≈ 2.9× faster at small batch × context but only 
     per-kernel launches. This is the best-case GPU time for this code.
 - Correctness: with the same cache contents, the static step reproduces the HF step exactly
   (relative error 0, gate error 0, B = 2, C = 64). `selfcheck.py` passed on both runs.
-- Timing: CUDA events, 10 warmup + 50 reps, median reported (IQR ≤ 0.07 ms for graph runs).
+- Timing: CUDA events, 10 warmup + 50 reps, median reported (graph runs: IQR ≤ 0.03 ms in the first run,
+  ≤ 0.18 ms in the grid run).
   Kernel breakdown: `torch.profiler` kernel durations (GPU time only, no host gaps).
 - Bandwidth references: L40S spec 864 GB/s; measured device-to-device copy 635–659 GB/s
   (varies per container).
@@ -45,10 +46,11 @@ weights free, a step gets **≈ 2.9× faster at small batch × context but only 
 |---|---:|---|
 | LoopProf step (eager_hf) | 11.7 | this run; Week 4 fit δ = 8.0 [7.5–8.5] on a different container |
 | best-case GPU step (graph_static) | **5.82** | grid run (5.95 in the first run) |
-| … weight streaming (GEMV kernels) | **3.77** | profiled: cuBLAS `gemvx`, 218 kernels |
+| … weight streaming (GEMV kernels) | **3.77** | profiled: cuBLAS `gemvx`, 170 kernels |
+| … attention kernels | 0.16 | 48 flash-attention kernels (2 per layer) |
 | … other GPU kernels | **1.64** | 1,163 kernels: norms, SiLU/mul, rotary, residual adds, cache writes, copies |
 | … gaps between kernels | 0.25 | graph time − kernel-busy time (5.82 − 5.57) |
-| host overhead (eager − graph) | **≈ 6–9** | 1,379 kernels × ≈ 11 µs of Python + launch each; host-dependent |
+| host overhead (eager − graph) | **≈ 6–9** | ≈ 6.6 µs of Python + launch per kernel (9.1 ms ÷ 1,379; ≈ 11 µs per kernel including GPU time); host-dependent |
 
 - **Kernels per step: 1,379** (≈ 57 per layer). Launch microbenchmark: 4.8 µs of CPU per eager
   launch, 0.84 µs per op inside a graph.
@@ -122,7 +124,13 @@ Weight term = 3.8 ms (profiled), removed from the best-case GPU step; everything
 
 ## Caveats
 
-- **One GPU (L40S), one run of each experiment.** The graph numbers are tight (IQR ≤ 0.07 ms)
+- **Corrections (2026-11-20):** the decomposition table now lists attention (0.16 ms, 48 kernels) separately and
+  gives 170 weight kernels (the grid run's breakdown predates commit fc7ed97 and counted flash attention as GEMM;
+  checked against the clean re-run `results/modal/delta_grid-l40s-20261116-184352/`); the one-line answer
+  distinguishes the measured B=1 step (5.82 ms) from the fitted δ (6.13 ms); the IQR bound and the per-kernel host
+  cost are corrected. No conclusion changes.
+
+- **One GPU (L40S), one run of each experiment.** The graph numbers are tight (IQR ≤ 0.18 ms)
   and two containers agreed at B = 1 (5.95 vs 5.82 ms), but eager numbers depend on the host
   CPU and vary between containers.
 - **The layer-count sweep does not isolate weights.** Removing layers removes their norm,
