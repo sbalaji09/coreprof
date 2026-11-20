@@ -1,7 +1,7 @@
 """Check the analytical model's predictions against the best measured GPU step (stdlib only, runs on a laptop).
 
-Target = the GPU "envelope": at each (B, C) the faster of the fused (torch.compile + CUDA graph) and the
-uncompiled CUDA-graph step, measured on the same day (see CALIBRATION.md, decision 4).
+Target = the GPU "envelope": at each (B, C) the fastest bf16 step measured: fused (torch.compile + CUDA graph),
+fused + coordinate_descent_tuning, or uncompiled CUDA graph (see CALIBRATION.md, decision 4).
 
 Usage:
   python calibrate.py [--gpu l40s|h100]            # measured targets, predictions pending
@@ -28,9 +28,11 @@ ROOT = Path(__file__).resolve().parent
 # gpu -> device name, template path, and the runs whose per-point minimum is the target
 RUNS = {
     "l40s": ("NVIDIA L40S", "calibration_predictions.json",
-             ["results/modal/delta_compile-l40s-20261116-214809", "results/modal/delta_grid-l40s-20261116-184352"]),
+             ["results/modal/delta_compile-l40s-20261116-214809", "results/modal/delta_grid-l40s-20261116-184352",
+              "results/modal/delta_bf16_cd-l40s-20261120-010859"]),
     "h100": ("NVIDIA H100 80GB HBM3", "calibration_predictions_h100.json",
-             ["results/modal/delta_compile-h100-20261116-214809", "results/modal/delta_grid-h100-20261116-184347"]),
+             ["results/modal/delta_compile-h100-20261116-214809", "results/modal/delta_grid-h100-20261116-184347",
+              "results/modal/delta_bf16_cd-h100-20261120-010911"]),
 }
 markers = lambda gpu: (f"<!-- calibration:{gpu}:begin -->", f"<!-- calibration:{gpu}:end -->")
 
@@ -80,7 +82,8 @@ def load_run(run):
     impl = js.get("grid_impl", "graph_static")
     kb = js["kernel_breakdown"]
     w = {bc: weight_kernel_ms(kb[f"{impl} {bc}"]) for bc in ("1x128", "16x2048")}
-    return {(int(r["B"]), int(r["C"])): float(r["median_ms"]) for r in rows}, impl, w
+    label = impl + ("+cd" if (js.get("args") or {}).get("coord_descent") else "")   # same impl name, different runs
+    return {(int(r["B"]), int(r["C"])): float(r["median_ms"]) for r in rows}, label, w
 
 
 def envelope(gpu):
@@ -156,7 +159,9 @@ def report(meas, env, pred, tol, gpu="l40s"):
     n = sum((pred.get("predictions") or {}).get(k) is not None for k in ROWS)
 
     ge = grid_errors(env, pred)
-    n_comp = sum(impl != "graph_static" for _, impl in env.values())
+    wins = {}
+    for _, impl in env.values():
+        wins[impl] = wins.get(impl, 0) + 1
     if len(ge) < len(env):
         ok = False
         grid_line = f"pending ({len(ge)}/{len(env)} grid points predicted)"
@@ -174,8 +179,9 @@ def report(meas, env, pred, tol, gpu="l40s"):
     inputs = pred.get("inputs") or {}
     inp = "\n".join(f"- {k}: {'pending' if v is None else v}" for k, v in inputs.items()) or "- pending"
     body = (f"**Status:** {status}\n\n"
-            f"Measured: the faster of `{runs[0]}/` (fused) and `{runs[1]}/` (uncompiled) at each point "
-            f"(fused wins {n_comp}/{len(env)}). Predictions: `{pred.get('_path', tmpl)}`"
+            f"Measured: the fastest of {', '.join(f'`{r}/`' for r in runs)} at each point "
+            f"(wins: {', '.join(f'{k} {v}' for k, v in sorted(wins.items()))} of {len(env)}). "
+            f"Predictions: `{pred.get('_path', tmpl)}`"
             f"{', from ' + pred['source'] if pred.get('source') else ''}. "
             f"Error % is 0 inside a measured range, else the distance to its nearest end.\n\n"
             + "\n".join(lines) + f"\n\n**Step time over the whole grid ({len(env)} points):** {grid_line}\n\n"
@@ -216,7 +222,7 @@ def selftest():
         # the M2 formula fitted to the envelope is itself a (data-fitted) model: how would it score?
         _, d, g, a = (None, *fit_m2([{"B": B, "C": C, "t": t} for (B, C), (t, _) in env.items()])[:3])
         m2 = {**exact, "grid": {f"{B}x{C}": d + g * B + a * B * C for (B, C) in env}}
-        print(f"{gpu}: envelope {len(env)} points, fused wins {sum(i != 'graph_static' for _, i in env.values())}; "
+        print(f"{gpu}: envelope {len(env)} points, wins {sorted({i: sum(j == i for _, j in env.values()) for _, i in env.values()}.items())}; "
               f"weight {meas['weight_ms'][0]:.2f}-{meas['weight_ms'][1]:.2f} ms, step {meas['step_ms_b1_c128'][0]:.2f} ms, "
               f"δ {meas['delta_ms'][0]:.2f} ms, α′ {meas['kv_us_per_token'][0]:.4f} µs, overhead {meas['overhead_ms'][0]:.2f} ms; "
               f"M2-fit-as-model grid: {report(meas, env, m2, 10, gpu)[0].split(' points):** ')[1].splitlines()[0]}")

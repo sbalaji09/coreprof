@@ -1,0 +1,27 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=delta_noise-h100-20261120-011032
+git=8752274
+Fri Nov 20 10:07:05 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA H100 80GB HBM3, GPU-77ab3749-c5eb-2831-9dd0-000655c0312d, 81559 MiB, 610.57.04
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python delta_split.py --noise-check --out-dir $OUT
+{"gpu": "NVIDIA H100 80GB HBM3", "torch": "2.5.1+cu124", "step": {"median_ms": 2.016095995903015, "p10_ms": 2.0130335330963134, "p90_ms": 2.020479917526245, "iqr_ms": 0.004312098026275635, "n": 50}, "gemm_ms": 1.4623413999999981, "busy_ms": 1.8428940000000007, "kernels": 342.0, "non_weight_ms": 0.553754595903017, "compile_s": 16.6, "graph_breaks": 0}
+[exit 0]

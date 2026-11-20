@@ -1,0 +1,266 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=delta_int8_triton-h100-20261120-010924
+git=8752274
+Fri Nov 20 09:45:53 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA H100 80GB HBM3, GPU-2654d94a-0981-8ae5-8c04-79d559af340b, 81559 MiB, 610.57.04
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python int8_kernel.py | tee $OUT/int8_kernel_check.txt
+{'max_rel_err': 11.231258392333984, 'ok': False, 'choice': {'1x2048x2048': 'plain', '4x2048x2048': 'plain', '16x2048x2048': 'plain', '64x2048x2048': 'plain', '1x5632x2048': 'plain', '4x5632x2048': 'plain', '16x5632x2048': 'plain', '64x5632x2048': 'plain', '1x2048x5632': 'plain', '4x2048x5632': 'plain', '16x2048x5632': 'plain', '64x2048x5632': 'splitk'}, 'failed': {}}
+[exit 0]
+
+$ python delta_split.py --grid --compile --int8 --int8-impl triton --out-dir $OUT
+int8 vs bf16 (eager): {'B': 16, 'C': 64, 'linears_quantized': 168, 'bf16_weight_bytes': 2466652162, 'rel_err_hidden': 0.062199126929044724, 'max_abs_err_gate': 0.3125, 'top1_agreement': 0.875, 'note': 'int8 vs bf16, eager. For scale: eager bf16 vs fp32 is ~2.4 % on the hidden state.'}
+GPU name: 'NVIDIA H100 80GB HBM3' -> spec 3350 GB/s
+GPU NVIDIA H100 80GB HBM3: spec 3350 GB/s, measured copy peak 3014 GB/s, read peak 2871 GB/s; looped-block weights 1.235 GB -> predicted weight fetch 0.37 ms (spec), 0.41 ms (copy peak), 0.43 ms (read peak)
+static vs HF step: {'B': 2, 'C': 64, 'rel_err_hidden': 0.0, 'max_abs_err_gate': 0.0, 'ok': True}
+grid: static KV limit 55.3 GB (GPU memory 85.0 GB)
+compiled vs eager static step: {'B': 2, 'C': 64, 'mode': 'default', 'rel_err_hidden': 0.03152849152684212, 'max_abs_err_gate': 0.0625, 'ok': False, 'compile_s': 16.6, 'graph_breaks': 0}
+kernel breakdown 1x128: {"other_ms": 1.8991058000000072, "copy_ms": 0.14350559999999873, "attention_ms": 0.21334279999999792, "gemm_ms": 0.004531400000000394, "other_kernels": 194.0, "copy_kernels": 74.0, "attention_kernels": 72.0, "gemm_kernels": 2.0, "busy_ms": 2.2604856000000035, "kernels": 342.0, "top_kernels_ms": {"_int8_wo_kernel": 1.869313200000007, "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytor
+kernel breakdown 16x512: {"other_ms": 1.908240800000005, "copy_ms": 0.1509751999999956, "attention_ms": 0.8373017999999983, "gemm_ms": 0.0030528000000002065, "other_kernels": 194.0, "copy_kernels": 74.0, "attention_kernels": 48.0, "gemm_kernels": 1.0, "busy_ms": 2.8995705999999997, "kernels": 317.0, "top_kernels_ms": {"_int8_wo_kernel": 1.8743728000000046, "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash
+kernel breakdown 16x2048: {"other_ms": 1.9008350000000083, "copy_ms": 0.15157219999999666, "attention_ms": 2.6632399999999974, "gemm_ms": 0.0030754000000002635, "other_kernels": 194.0, "copy_kernels": 74.0, "attention_kernels": 48.0, "gemm_kernels": 1.0, "busy_ms": 4.718722600000003, "kernels": 317.0, "top_kernels_ms": {"void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 2.62654699999999
+kernel breakdown 16x8192: {"other_ms": 1.8673989999999805, "copy_ms": 0.14972300000001126, "attention_ms": 9.655148400000002, "gemm_ms": 0.0030185999999997873, "other_kernels": 194.0, "copy_kernels": 74.0, "attention_kernels": 48.0, "gemm_kernels": 1.0, "busy_ms": 11.675288999999994, "kernels": 317.0, "top_kernels_ms": {"void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 9.61887939999999
+lm_head: {"params": 100663296, "bytes": 201326592, "vocab_size": 49152, "hidden_size": 2048, "tie_word_embeddings": false, "shares_embedding_tensor": false, "embedding_params": 100663296, "rows": [{"B": 1, "eager_ms": 0.11798400059342384, "graph_ms": 0.09636799991130829, "graph_gbps": 2089.143618060868}, {"B": 16, "eager_ms": 0.09812800213694572, "graph_ms": 0.09204800054430962, "graph_gbps": 2187.191365477693}, {"B": 64, "eager_ms": 0.11116799712181091, "graph_ms": 0.09985600039362907, "graph_gbps": 2016.169195705588}]}
+B=1   C=128   graph   2.424 ms    520 GB/s (18% of read peak)
+B=2   C=128   graph   2.407 ms    534 GB/s (19% of read peak)
+B=4   C=128   graph   2.440 ms    548 GB/s (19% of read peak)
+B=8   C=128   graph   2.484 ms    579 GB/s (20% of read peak)
+B=16  C=128   graph   2.584 ms    635 GB/s (22% of read peak)
+B=32  C=128   graph   2.996 ms    683 GB/s (24% of read peak)
+B=64  C=128   graph   4.650 ms    615 GB/s (21% of read peak)
+B=1   C=256   graph   2.432 ms    528 GB/s (18% of read peak)
+B=2   C=256   graph   2.410 ms    554 GB/s (19% of read peak)
+B=4   C=256   graph   2.493 ms    576 GB/s (20% of read peak)
+B=8   C=256   graph   2.577 ms    636 GB/s (22% of read peak)
+B=16  C=256   graph   2.720 ms    751 GB/s (26% of read peak)
+B=32  C=256   graph   3.303 ms    863 GB/s (30% of read peak)
+B=64  C=256   graph   5.234 ms    854 GB/s (30% of read peak)
+B=1   C=512   graph   2.474 ms    540 GB/s (19% of read peak)
+B=2   C=512   graph   2.484 ms    578 GB/s (20% of read peak)
+B=4   C=512   graph   2.586 ms    633 GB/s (22% of read peak)
+B=8   C=512   graph   2.694 ms    758 GB/s (26% of read peak)
+B=16  C=512   graph   3.062 ms    930 GB/s (32% of read peak)
+B=32  C=512   graph   3.884 ms   1149 GB/s (40% of read peak)
+B=64  C=512   graph   6.497 ms   1184 GB/s (41% of read peak)
+B=1   C=1024  graph   2.541 ms    565 GB/s (20% of read peak)
+B=2   C=1024  graph   2.551 ms    642 GB/s (22% of read peak)
+B=4   C=1024  graph   2.704 ms    755 GB/s (26% of read peak)
+B=8   C=1024  graph   2.951 ms    965 GB/s (34% of read peak)
+B=16  C=1024  graph   3.603 ms   1237 GB/s (43% of read peak)
+B=32  C=1024  graph   5.186 ms   1481 GB/s (52% of read peak)
+B=64  C=1024  graph   8.873 ms   1593 GB/s (55% of read peak)
+B=1   C=2048  graph   2.597 ms    631 GB/s (22% of read peak)
+B=2   C=2048  graph   2.674 ms    763 GB/s (27% of read peak)
+B=4   C=2048  graph   2.990 ms    952 GB/s (33% of read peak)
+B=8   C=2048  graph   3.517 ms   1267 GB/s (44% of read peak)
+B=16  C=2048  graph   4.895 ms   1569 GB/s (55% of read peak)
+B=32  C=2048  graph   7.506 ms   1882 GB/s (66% of read peak)
+B=64  C=2048  graph  13.664 ms   1977 GB/s (69% of read peak)
+B=1   C=4096  graph   2.898 ms    704 GB/s (25% of read peak)
+B=2   C=4096  graph   3.306 ms    861 GB/s (30% of read peak)
+B=4   C=4096  graph   3.527 ms   1264 GB/s (44% of read peak)
+B=8   C=4096  graph   4.562 ms   1683 GB/s (59% of read peak)
+B=16  C=4096  graph   7.309 ms   1932 GB/s (67% of read peak)
+B=32  C=4096  graph  12.317 ms   2193 GB/s (76% of read peak)
+B=64  C=4096  graph  23.932 ms   2206 GB/s (77% of read peak)
+B=1   C=8192  graph   3.167 ms    898 GB/s (31% of read peak)
+B=2   C=8192  graph   3.505 ms   1272 GB/s (44% of read peak)
+B=4   C=8192  graph   4.581 ms   1676 GB/s (58% of read peak)
+B=8   C=8192  graph   6.624 ms   2132 GB/s (74% of read peak)
+B=16  C=8192  graph  12.176 ms   2218 GB/s (77% of read peak)
+B=32  C=8192  graph  22.579 ms   2338 GB/s (81% of read peak)
+B=64 C=8192 skipped (static KV 103.1 GB)
+int8 reference: {'B': 1, 'C': 128, 'bf16_ms': 2.0730719566345215, 'int8_ms': 2.4241920709609985, 'speedup': 0.8551599444068448, 'saved_ms': -0.35112011432647705}
+int8 reference: {'B': 16, 'C': 2048, 'bf16_ms': 5.115568161010742, 'int8_ms': 4.894767999649048, 'speedup': 1.0451094232408003, 'saved_ms': 0.22080016136169434}
+int8 reference: {'B': 16, 'C': 8192, 'bf16_ms': 12.403167724609375, 'int8_ms': 12.176208019256592, 'speedup': 1.018639604792711, 'saved_ms': 0.2269597053527832}
+AUTOTUNE addmm(1x1, 1x2048, 2048x1)
+  triton_mm_9 0.0224 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=1
+  triton_mm_10 0.0253 ms 88.5% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=1
+  triton_mm_8 0.0258 ms 86.8% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=1
+  triton_mm_7 0.0323 ms 69.3% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=1
+  triton_mm_5 0.0334 ms 67.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=1
+  triton_mm_6 0.0338 ms 66.3% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=1
+  triton_mm_1 0.0342 ms 65.4% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=1
+  addmm 0.0348 ms 64.2% 
+  triton_mm_2 0.0412 ms 54.4% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=1
+  triton_mm_0 0.0414 ms 54.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=16, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=1, num_warps=1
+SingleProcess AUTOTUNE benchmarking takes 1.6937 seconds and 0.0015 seconds precompiling
+variant: {'mode': 'max-autotune-no-cudagraphs', 'B': 1, 'C': 128, 'graph_ms': 2.4330239295959473, 'compile_s': 17.9, 'graph_breaks': 0}
+AUTOTUNE addmm(16x1, 16x2048, 2048x1)
+  triton_mm_14 0.0228 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=1
+  triton_mm_18 0.0257 ms 88.8% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=1
+  triton_mm_21 0.0270 ms 84.4% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=1
+  triton_mm_20 0.0276 ms 82.6% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=1
+  triton_mm_17 0.0290 ms 78.6% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=64, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=3, num_warps=1
+  triton_mm_12 0.0291 ms 78.2% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=128, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=1
+  triton_mm_19 0.0306 ms 74.6% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=4, num_warps=1
+  triton_mm_13 0.0309 ms 73.7% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=5, num_warps=1
+  addmm 0.0321 ms 71.0% 
+  triton_mm_16 0.0369 ms 61.8% ACC_TYPE='tl.float32', ALLOW_TF32=False, BLOCK_K=32, BLOCK_M=16, BLOCK_N=16, B_PROLOGUE_CAST_TYPE=None, EVEN_K=True, GROUP_M=8, num_stages=2, num_warps=1
+SingleProcess AUTOTUNE benchmarking takes 1.6661 seconds and 0.0015 seconds precompiling
+variant: {'mode': 'max-autotune-no-cudagraphs', 'B': 16, 'C': 2048, 'graph_ms': 4.91596794128418, 'compile_s': 19.3, 'graph_breaks': 0}
+# Week 5 v1: int8 weight-only + torch.compile (default) + CUDA-graph static-cache step over B x C on NVIDIA H100 80GB HBM3
+
+Predicted weight fetch 0.37 ms (spec), 0.41 ms (measured copy peak 3014 GB/s), 0.43 ms (measured read peak 2871 GB/s).
+
+## int8 weight-only vs bf16, both torch.compile + CUDA graph (same container)
+
+Looped-block weights: 2.467 GB bf16 → 1.235 GB int8 + scales (168 linears). Embedding, LM head, norms, exit gate stay bf16.
+
+Accuracy, int8 vs bf16 step (eager, B=16, C=64): hidden state 6.2 %, exit gate 0.312, top-1 next token agrees 88 %. (int8 vs bf16, eager. For scale: eager bf16 vs fp32 is ~2.4 % on the hidden state. GSM8K accuracy is the Week 6 test.)
+
+| B | C | bf16 compiled ms | int8 compiled ms | saved ms | speedup |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 128 | 2.07 | 2.42 | -0.35 | 0.86× |
+| 16 | 2048 | 5.12 | 4.89 | 0.22 | 1.05× |
+| 16 | 8192 | 12.40 | 12.18 | 0.23 | 1.02× |
+
+Weight time at B=1, C=128: bf16 1.562 ms (1579 GB/s) → int8 ≈ 1.913 ms (645 GB/s), i.e. 1.22× the bf16 time for 0.50× the bytes (estimate: t_int8 − (t_bf16 − w_bf16)).
+
+- int8, max-autotune-no-cudagraphs at B=1, C=128: 2.43 ms (compile 17.9 s)
+- int8, max-autotune-no-cudagraphs at B=16, C=2048: 4.92 ms (compile 19.3 s)
+
+## Calibration inputs
+
+| quantity | value |
+|---|---|
+| GPU | NVIDIA H100 80GB HBM3 |
+| spec bandwidth | 3,350 GB/s |
+| copy bandwidth (read + write) | 3,014 GB/s |
+| read bandwidth (torch.sum, 2 GiB) | 2,871 GB/s |
+| weight time (int8 estimate: t_int8 - (t_bf16 - w_bf16), B=1, C=128) | 1.913 ms |
+| effective weight bandwidth | 645 GB/s (22% of read peak) |
+| δ (M2) | 2.208 ± 0.048 ms |
+| γ (M2) | 0.0255 ± 0.0021 ms per sequence |
+| α′ (M2) | 0.0744 ± 0.0007 µs per cached token |
+| α′-implied KV bandwidth | 2,643 GB/s (92% of read peak) |
+| attention kernels, µs per cached token (graph, BxC) | 1x128: 1.667, 16x512: 0.102, 16x2048: 0.081, 16x8192: 0.074 |
+| small kernels (copy + other), graph, B=1, C=128 | 2.043 ms |
+| gaps (graph step − kernel busy), B=1, C=128 | 0.164 ms |
+| X1 crossover (weight time ÷ α′) | 25,713 cached tokens |
+| LM head, graph, B=1 (once per token, not per loop) | 0.096 ms, 201.3 MB |
+
+## Once per token (not per loop): LM head
+
+lm_head: 100,663,296 params, 201.3 MB; vocab 49,152; tie_word_embeddings=False (shares the embedding tensor: False); embedding: 100,663,296 params.
+
+| B | eager ms | graph ms | graph GB/s |
+|---:|---:|---:|---:|
+| 1 | 0.118 | 0.096 | 2089 |
+| 16 | 0.098 | 0.092 | 2187 |
+| 64 | 0.111 | 0.100 | 2016 |
+
+## GPU kernel time per step, by kind (kernel durations only; no host gaps)
+
+| step | kernels | gemm ms | attention ms | copy ms | other ms | busy ms |
+|---|---:|---:|---:|---:|---:|---:|
+| int8_compiled 1x128 | 340 | 0.00 | 0.22 | 0.15 | 1.92 | 2.30 |
+| int8_graph 1x128 | 342 | 0.00 | 0.21 | 0.14 | 1.90 | 2.26 |
+| int8_compiled 16x512 | 315 | 0.00 | 0.85 | 0.16 | 1.95 | 2.96 |
+| int8_graph 16x512 | 317 | 0.00 | 0.84 | 0.15 | 1.91 | 2.90 |
+| int8_compiled 16x2048 | 315 | 0.00 | 2.74 | 0.16 | 1.95 | 4.85 |
+| int8_graph 16x2048 | 317 | 0.00 | 2.66 | 0.15 | 1.90 | 4.72 |
+| int8_compiled 16x8192 | 315 | 0.00 | 9.95 | 0.16 | 1.92 | 12.03 |
+| int8_graph 16x8192 | 317 | 0.00 | 9.66 | 0.15 | 1.87 | 11.68 |
+| compiled_graph 1x128 | 342 | 1.56 | 0.22 | 0.16 | 0.03 | 1.97 |
+
+Top kernels (first row): `_int8_wo_kernel` 1.89 ms; `void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::` 0.13 ms; `triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_3` 0.06 ms; `void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch` 0.05 ms; `triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_6` 0.05 ms; `triton_poi_fused__scaled_dot_product_flash_attention_add_cat` 0.03 ms
+
+## Attention kernels across context (should match α′)
+
+| step | attention ms | µs per cached token | KV read GB/s | % of read peak |
+|---|---:|---:|---:|---:|
+| int8_compiled 1x128 | 0.221 | 1.7285 | 114 | 4% |
+| int8_graph 1x128 | 0.213 | 1.6667 | 118 | 4% |
+| int8_compiled 16x512 | 0.849 | 0.1036 | 1898 | 66% |
+| int8_graph 16x512 | 0.837 | 0.1022 | 1924 | 67% |
+| int8_compiled 16x2048 | 2.742 | 0.0837 | 2350 | 82% |
+| int8_graph 16x2048 | 2.663 | 0.0813 | 2419 | 84% |
+| int8_compiled 16x8192 | 9.949 | 0.0759 | 2590 | 90% |
+| int8_graph 16x8192 | 9.655 | 0.0737 | 2669 | 93% |
+| compiled_graph 1x128 | 0.223 | 1.7403 | 113 | 4% |
+
+## Fits
+
+| model | δ ms | γ ms/seq | α ms/token | α' µs per cached token | R² | AIC | max resid ms |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| M1 | 0.492 ± 0.697 | 0.1454 ± 0.0214 | 0.000928 ± 0.000167 |  | 0.6085 | 108.3 | 10.33 |
+| M2 | 2.208 ± 0.048 | 0.0255 ± 0.0021 |  | 0.0744 ± 0.0007 | 0.9972 | -129.2 | 0.66 |
+| M3 | 2.248 ± 0.063 | 0.0243 ± 0.0024 | -0.000018 ± 0.000018 | 0.0750 ± 0.0009 | 0.9973 | -128.3 | 0.59 |
+
+M2 KV slope → effective KV bandwidth 2643 GB/s (92% of measured read peak).
+
+## Upper bound if weights were free (weight term = int8 weight time, estimated from step times)
+
+| B | C | GPU (graph) ms | weight term ms | remaining ms | speedup bound |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 128 | 2.42 | 1.91 | 0.51 | 4.74× |
+| 2 | 128 | 2.41 | 1.91 | 0.49 | 4.87× |
+| 4 | 128 | 2.44 | 1.91 | 0.53 | 4.63× |
+| 8 | 128 | 2.48 | 1.91 | 0.57 | 4.35× |
+| 16 | 128 | 2.58 | 1.91 | 0.67 | 3.85× |
+| 32 | 128 | 3.00 | 1.91 | 1.08 | 2.77× |
+| 64 | 128 | 4.65 | 1.91 | 2.74 | 1.70× |
+| 1 | 256 | 2.43 | 1.91 | 0.52 | 4.69× |
+| 2 | 256 | 2.41 | 1.91 | 0.50 | 4.85× |
+| 4 | 256 | 2.49 | 1.91 | 0.58 | 4.30× |
+| 8 | 256 | 2.58 | 1.91 | 0.66 | 3.88× |
+| 16 | 256 | 2.72 | 1.91 | 0.81 | 3.37× |
+| 32 | 256 | 3.30 | 1.91 | 1.39 | 2.38× |
+| 64 | 256 | 5.23 | 1.91 | 3.32 | 1.58× |
+| 1 | 512 | 2.47 | 1.91 | 0.56 | 4.41× |
+| 2 | 512 | 2.48 | 1.91 | 0.57 | 4.35× |
+| 4 | 512 | 2.59 | 1.91 | 0.67 | 3.84× |
+| 8 | 512 | 2.69 | 1.91 | 0.78 | 3.45× |
+| 16 | 512 | 3.06 | 1.91 | 1.15 | 2.67× |
+| 32 | 512 | 3.88 | 1.91 | 1.97 | 1.97× |
+| 64 | 512 | 6.50 | 1.91 | 4.58 | 1.42× |
+| 1 | 1024 | 2.54 | 1.91 | 0.63 | 4.05× |
+| 2 | 1024 | 2.55 | 1.91 | 0.64 | 4.00× |
+| 4 | 1024 | 2.70 | 1.91 | 0.79 | 3.42× |
+| 8 | 1024 | 2.95 | 1.91 | 1.04 | 2.84× |
+| 16 | 1024 | 3.60 | 1.91 | 1.69 | 2.13× |
+| 32 | 1024 | 5.19 | 1.91 | 3.27 | 1.58× |
+| 64 | 1024 | 8.87 | 1.91 | 6.96 | 1.27× |
+| 1 | 2048 | 2.60 | 1.91 | 0.68 | 3.80× |
+| 2 | 2048 | 2.67 | 1.91 | 0.76 | 3.51× |
+| 4 | 2048 | 2.99 | 1.91 | 1.08 | 2.78× |
+| 8 | 2048 | 3.52 | 1.91 | 1.60 | 2.19× |
+| 16 | 2048 | 4.89 | 1.91 | 2.98 | 1.64× |
+| 32 | 2048 | 7.51 | 1.91 | 5.59 | 1.34× |
+| 64 | 2048 | 13.66 | 1.91 | 11.75 | 1.16× |
+| 1 | 4096 | 2.90 | 1.91 | 0.98 | 2.94× |
+| 2 | 4096 | 3.31 | 1.91 | 1.39 | 2.37× |
+| 4 | 4096 | 3.53 | 1.91 | 1.61 | 2.18× |
+| 8 | 4096 | 4.56 | 1.91 | 2.65 | 1.72× |
+| 16 | 4096 | 7.31 | 1.91 | 5.40 | 1.35× |
+| 32 | 4096 | 12.32 | 1.91 | 10.40 | 1.18× |
+| 64 | 4096 | 23.93 | 1.91 | 22.02 | 1.09× |
+| 1 | 8192 | 3.17 | 1.91 | 1.25 | 2.53× |
+| 2 | 8192 | 3.50 | 1.91 | 1.59 | 2.20× |
+| 4 | 8192 | 4.58 | 1.91 | 2.67 | 1.72× |
+| 8 | 8192 | 6.62 | 1.91 | 4.71 | 1.41× |
+| 16 | 8192 | 12.18 | 1.91 | 10.26 | 1.19× |
+| 32 | 8192 | 22.58 | 1.91 | 20.67 | 1.09× |
+
+Upper bound on the step-time gain from removing ONLY the weight-streaming term from the best-case (CUDA-graph, static-cache) GPU step; KV still comes from DRAM and SRAM read time is taken as zero. Vaibhav's model replaces this.
+
+
+[exit 0]

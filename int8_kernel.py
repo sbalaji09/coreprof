@@ -167,7 +167,9 @@ def check(shapes=((2048, 2048), (5632, 2048), (2048, 5632)), ms=(1, 4, 16, 64), 
         s = (torch.rand(N, device="cuda", generator=g) * 1e-2).to(torch.bfloat16)
         for M in ms:
             x = torch.randn(M, 1, K, device="cuda", generator=g).to(torch.bfloat16)
-            ref = (torch.nn.functional.linear(x.float(), w.float()) * s.float()).float()
+            # [M, N]: comparing a [M, N] output with a [M, 1, N] reference broadcasts to [M, M, N] (rows against
+            # other rows), which is what made earlier checks report max_rel_err ~ sqrt(2M) = 11.3 at M = 64
+            ref = (torch.nn.functional.linear(x.float(), w.float()) * s.float()).float().reshape(M, N)
             x2 = x.reshape(M, K)
             bm = min(64, max(16, triton.next_power_of_2(M)))
             for name, fn in _paths(M).items():

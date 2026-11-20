@@ -293,7 +293,8 @@ def kernel_sum_predictions(gpu, version="v1.2"):
 INT8_RUNS = {"l40s": ["results/modal/delta_int8_triton-l40s-20261117-233833",
                       "results/modal/delta_int8_cd_small-l40s-20261117-233859"],
              "h100": ["results/modal/delta_int8_triton-h100-20261117-233820",
-                      "results/modal/delta_int8_cd_small-h100-20261117-233847"]}
+                      "results/modal/delta_int8_cd_small-h100-20261117-233847",
+                      "results/modal/delta_int8_triton-h100-20261120-010924"]}   # small-M kernel added (never chosen)
 
 
 def measured_steps(gpu, precision):

@@ -65,6 +65,14 @@ So the best bf16 GPU is ≈ 12 % (L40S) / ≈ 20 % (H100) faster at B=1 than the
 and a few % at B=16. Against that bf16, int8 at B=1 is 1.71× (L40S) and 1.29× (H100). The bf16 envelope
 (and the calibration targets) need a bf16 + coord-descent grid to be complete.
 
+## Update 2026-11-20: against the best bf16 including coordinate-descent
+
+The bf16 + coordinate-descent grids (`results/modal/delta_bf16_cd-*-20261120-*`) are now in the bf16 envelope.
+int8 vs that best bf16: **L40S median 1.48×** (1.06–1.76; 1.74× at 1x128, 1.66× at 64x128, 1.06× at 16x8192),
+**H100 median 1.05×** (0.97–1.41; 1.26× at 1x128, 1.00× at 2x128, 1.03× at 16x8192). A third int8 kernel path
+for M ≤ 16 without tl.dot (BLOCK_N 4–16, up to 512 programs) was added for the H100 but was never faster than the
+plain kernel for any shape (`delta_int8_triton-h100-20261120-010924`), so H100 int8 at B=2–16 remains a lower bound.
+
 ## Accuracy (quick check, not GSM8K)
 
 int8 vs bf16 step, eager, B=16, C=64, same cache: hidden state **6.2–6.4 %** (bf16 vs fp32 is ≈ 2.4 %),
@@ -78,9 +86,11 @@ decides loop depth, so the Week 6 test should check exit depth as well as GSM8K 
   (L40S 0.58×, H100 1.23× of bf16 weight time at B=1); in the coord-descent runs the bf16 GEMMs also
   become Triton reductions, so the name-based breakdown cannot isolate weight time (its estimate there
   is meaningless).
-- `int8_kernel.check()` in these runs (commit `61742e6`) reported a large error because it measured
-  split-K's autotuning call; fixed in `77342d0`. The model path was correct (hidden-state error 6.2 %,
-  same as the cast path).
+- `int8_kernel.check()` reported max_rel_err ≈ 11.2 in every run. **Correction (2026-11-20):** the cause was the
+  check itself, not the kernels: it compared the [M, N] output with a [M, 1, N] reference, which broadcasts to an
+  [M, M, N] comparison of different rows (≈ √(2M) = 11.3 at M = 64). The earlier explanation (split-K's
+  autotuning call) was wrong; the warm-up change in `77342d0` was harmless but not the fix. The kernels were
+  never shown wrong: the model-path accuracy was 6.2 % in every run, same as the cast path.
 - The kernel refused prefill (M > 64) in the static-vs-HF check of the kernel runs; it now falls back
   to the cast for M > 64. Decode timing was unaffected.
 
