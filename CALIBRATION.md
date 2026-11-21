@@ -257,7 +257,7 @@ or the group's last loop after copy-forward. The prompt loads each group's last 
 prefilled with all 4 caches, as before. This is one sharing rule, not the only one (the Ouro paper and
 the Looped Latent Attention paper differ), so a failure here does not rule out sharing.
 
-**Pre-registered rule (PROPOSED 2026-11-21, pending Sid's approval; fixed before any data):**
+**Pre-registered rule (approved by Sid 2026-11-21, before any data):**
 1. A variant keeps accuracy if the lower end of the 95 % interval on its paired accuracy change vs `bf16`
    is above −2 percentage points. Exact McNemar p and the question-by-question counts are reported too.
 2. Exit depth: if a variant's mean exit depth differs from `bf16` by more than 0.10 loops, LoopCore
