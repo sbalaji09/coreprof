@@ -1,0 +1,38 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=week6_smoke-l40s-20261121-152242
+git=3d7c07c
+Sat Nov 21 23:22:46 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-6d5f95c0-3ce7-73ef-12b6-1142c56533a7, 46068 MiB, 610.57.04
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python -m pytest -q tests/test_kv_store.py 2>&1 | tee $OUT/pytest_kv.txt
+..................                                                       [100%]
+18 passed in 1.76s
+[exit 0]
+
+$ python quality_check.py --n 8 --max-new-tokens 64 --q 0.5 --variants bf16 fp8kv int4kv kv2 kv1 int8w chip int4w --out-dir $OUT
+bf16 q=0.5: accuracy 50.0% (4/8, 95% CI 21.5-78.5), mean exit depth 3.27, exit loops 1/2/3/4 = 0.0 / 0.2 / 72.8 / 27.0 %, no '####': 4, fp8 clipped: 0, 5 s
+fp8kv q=0.5: accuracy 50.0% (4/8, 95% CI 21.5-78.5), mean exit depth 3.27, exit loops 1/2/3/4 = 0.0 / 0.2 / 72.2 / 27.6 %, no '####': 4, fp8 clipped: 0, 5 s
+  vs bf16: +0.0 pts (95% CI +0.0 to +0.0; only bf16 right 0, only fp8kv right 0, McNemar p=1.000), same answer 8/8, depth +0.006 ± 0.007
+int4kv q=0.5: accuracy 50.0% (4/8, 95% CI 21.5-78.5), mean exit depth 3.29, exit loops 1/2/3/4 = 0.0 / 0.6 / 69.4 / 30.0 %, no '####': 4, fp8 clipped: 0, 5 s
+  vs bf16: +0.0 pts (95% CI +0.0 to +0.0; only bf16 right 0, only int4kv right 0, McNemar p=1.000), same answer 7/8, depth +0.026 ± 0.008
+kv2 q=0.5: accuracy 25.0% (2/8, 95% CI 7.1-59.1), mean exit depth 3.47, exit loops 1/2/3/4 = 0.0 / 1.2 / 50.8 / 48.0 %, no '####': 6, fp8 clipped: 0, 4 s
+  vs bf16: -25.0 pts (95% CI -55.0 to +5.0; only bf16 right 2, only kv2 right 0, McNemar p=0.500), same answer 4/8, depth +0.200 ± 0.066
+kv1 q=0.5: accuracy 0.0% (0/8, 95% CI 0.0-32.4), mean exit depth 2.79, exit loops 1/2/3/4 = 0.0 / 25.6 / 69.8 / 4.6 %, no '####': 6, fp8 clipped: 0, 4 s
+  vs bf16: -50.0 pts (95% CI -84.6 to -15.4; only bf16 right 4, only kv1 right 0, McNemar p=0.125), same answer 1/8, depth -0.478 ± 0.093
+weights int8: 168 looped linears quantized
+int8w q=0.5: accuracy 50.0% (4/8, 95% CI 21.5-78.5), mean exit depth 3.25, exit loops 1/2/3/4 = 0.0 / 1.4 / 72.4 / 26.2 %, no '####': 4, fp8 clipped: 0, 5 s
+  vs bf16: +0.0 pts (95% CI +0.0 to +0.0; only bf16 right 0, only int8w right 0, McNemar p=1.000), same answer 8/8, depth -0.020 ± 0.006
+chip q=0.5: accuracy 0.0% (0/8, 95% CI 0.0-32.4), mean exit depth 2.67, exit loops 1/2/3/4 = 0.0 / 36.5 / 59.7 / 3.8 %, no '####': 6, fp8 clipped: 0, 5 s
+  vs bf16: -50.0 pts (95% CI -84.6 to -15.4; only bf16 right 4, only chip right 0, McNemar p=0.125), same answer 1/8, depth -0.595 ± 0.075
+weights int4: 168 looped linears quantized
+int4w q=0.5: accuracy 37.5% (3/8, 95% CI 13.7-69.4), mean exit depth 3.23, exit loops 1/2/3/4 = 0.0 / 7.1 / 62.5 / 30.4 %, no '####': 6, fp8 clipped: 0, 4 s
+  vs bf16: -12.5 pts (95% CI -35.4 to +10.4; only bf16 right 1, only int4w right 0, McNemar p=1.000), same answer 3/8, depth -0.036 ± 0.057
+wrote /vol/results/week6_smoke-l40s-20261121-152242/quality_20261121-232300.json
+[exit 0]

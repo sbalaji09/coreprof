@@ -109,6 +109,8 @@ TASKS = {
     "week6_smoke": ["python -m pytest -q tests/test_kv_store.py 2>&1 | tee $OUT/pytest_kv.txt",
                     "python quality_check.py --n 8 --max-new-tokens 64 --q 0.5 --variants "
                     "bf16 fp8kv int4kv kv2 kv1 int8w chip int4w --out-dir $OUT"],
+    # Shared-KV collapse in week6_smoke: independent HF-cache reference vs the engine at q=1.0 (~5 min).
+    "week6_share_check": ["python week6_share_check.py 2>&1 | tee $OUT/share_check.txt"],
     "week6": CHECK + ["python quality_check.py --n 1319 --q 0.5 --variants "
                       "bf16 fp8kv int4kv kv2 kv1 int8w chip int4w --out-dir $OUT"],
     "bench_q03": CHECK + [
