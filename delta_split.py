@@ -638,6 +638,25 @@ def quantize_int8(model):
     return n
 
 
+INT4_GROUP = 128
+
+
+def quantize_int4_fake(model):
+    """Week 6 accuracy only (no int4 kernel exists here): round every looped-layer linear's weight to symmetric
+    int4, one scale per 128 inputs per output channel, and store it back in bf16. Same layers as quantize_int8.
+    Returns the number of linears rounded."""
+    n = 0
+    for layer in model.model.layers:
+        for mod in layer.modules():
+            if isinstance(mod, torch.nn.Linear):
+                w = mod.weight.data.float()
+                g = w.reshape(w.shape[0], -1, INT4_GROUP)
+                scale = g.abs().amax(-1, keepdim=True).clamp(min=1e-8) / 7
+                mod.weight.data = ((g / scale).round().clamp(-8, 7) * scale).reshape(w.shape).to(mod.weight.dtype)
+                n += 1
+    return n
+
+
 def int8_quantize_and_check(model, args, B=16, C=64):
     """Quantize the model in place, and report how far the int8 step moves from the bf16 step (same cache and
     input; eager, so no compile effects): hidden state, exit gate, top-1 next token via the bf16 LM head."""

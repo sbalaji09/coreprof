@@ -11,11 +11,11 @@ from .engine import Engine
 
 
 def run(prompts, max_new_tokens, max_slots, exit_threshold, dtype, *, model=None, exit_rule=None,
-        record_logits=False, time_calls=False):
+        record_logits=False, time_calls=False, n_caches=None, kv_quant="none"):
     set_numerics()
     model = model or get_model(dtype)
     eng = Engine(model, prompts, max_new_tokens, max_slots, exit_threshold, dtype, "cdb",
-                 exit_rule, record_logits, time_calls)
+                 exit_rule, record_logits, time_calls, n_caches=n_caches, kv_quant=kv_quant)
     wall = Timer()
     with torch.inference_mode(), wall:
         while True:

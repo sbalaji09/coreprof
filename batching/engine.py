@@ -25,7 +25,7 @@ class Slot:
 
 class Engine:
     def __init__(self, model, prompts, max_new_tokens, max_slots, exit_threshold, dtype, batcher,
-                 exit_rule=None, record_logits=False, time_calls=False):
+                 exit_rule=None, record_logits=False, time_calls=False, n_caches=None, kv_quant="none"):
         dims = model_dims(model)
         self.model, self.prompts = model, [list(p) for p in prompts]
         self.max_new = per_request(max_new_tokens, len(prompts))
@@ -34,7 +34,7 @@ class Engine:
         self.record_logits, self.time_calls = record_logits, time_calls
         max_len = max(len(p) for p in self.prompts) + max(self.max_new)
         self.store = KVStore(dims["n_loops"], dims["n_layers"], max_slots, dims["kv_heads"],
-                             max_len, dims["head_dim"], model.dtype)
+                             max_len, dims["head_dim"], model.dtype, n_caches=n_caches, kv_quant=kv_quant)
         self.hidden = torch.zeros(max_slots, 1, model.config.hidden_size, dtype=model.dtype, device="cuda")
         self.survival = torch.ones(max_slots, device="cuda")
         self.slots: list[Optional[Slot]] = [None] * max_slots
@@ -159,6 +159,7 @@ class Engine:
     def result(self, wall: Timer) -> RunResult:
         st = self.stats
         st.wall_s, st.prefill_s = wall.total, self.prefill_timer.total
+        st.kv_clipped = int(self.store.clipped)
         st.tokens_generated = sum(len(o) for o in self.outputs)
         st.sequences_finished = sum(1 for r in range(len(self.outputs)) if self.outputs[r] and self.done(r))
         logits = [torch.stack(l) for l in self.logits] if self.record_logits else None

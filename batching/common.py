@@ -102,6 +102,7 @@ class RunStats:
     prefill_s: float = 0.0
     decode_hist: list = field(default_factory=lambda: [0, 0, 0, 0])   # exit loop 1..4, decode tokens
     prefill_hist: list = field(default_factory=lambda: [0, 0, 0, 0])  # first token of each request
+    kv_clipped: int = 0                 # fp8 KV values clipped at +-448 (Week 6 KV variants)
 
     @property
     def decode_s(self):

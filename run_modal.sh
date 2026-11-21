@@ -25,7 +25,7 @@ fi
 # at once; results stay on the Modal volume; fetch them later with --run-id <id> --pull.
 task=""; prev=""
 for a in "$@"; do [[ "$prev" == "--task" ]] && task="$a"; prev="$a"; done
-if [[ "$task" == bench_q03 || "$task" == loopprof || "$task" == delta_* || "$task" == int8_probe ]] && [[ " $* " != *" --pull "* ]]; then
+if [[ "$task" == bench_q03 || "$task" == loopprof || "$task" == delta_* || "$task" == int8_probe || "$task" == week6 ]] && [[ " $* " != *" --pull "* ]]; then
   exec "$MODAL" run --detach modal_app.py "$@" --spawn
 fi
 exec "$MODAL" run modal_app.py "$@"

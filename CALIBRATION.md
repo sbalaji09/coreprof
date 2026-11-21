@@ -223,3 +223,44 @@ the existing kernel for any shape, so H100 int8 at B=2–16 remains a lower boun
   is limited by our kernel. Is a production int8 GEMV kernel worth adding there?
 - Does int8 change early-exit depth? The exit-gate output moved by up to 0.16 (L40S) / 0.44 (H100)
   in the quick check; Week 6 should measure exit depth along with GSM8K accuracy.
+
+## Week 6 plan: accuracy and exit depth of LoopCore's formats (added 2026-11-21)
+
+**Why these variants.** `loopcore_model.py --kv-levers` (2026-11-21, vs measured H100 int8, q=0.5,
+5 µs/layer) shows:
+- With the KV cache in HBM, KV reads are 85–95 % of a token at large B·C. Fewer bytes per value is the
+  lever: fp8 → int4 KV takes 16×8192 from 3.0× to 5.8×. Sharing caches gives no speed there, because
+  each loop still reads C tokens.
+- With the KV cache on-chip, sharing and int4 set the chip count: at 16×8192, 106 chips with 4 caches,
+  55 with one per pair of loops, 29 with one shared, 16 with one shared in int4.
+- Once the KV cache is on-chip, per-layer latency is 84–88 % of a B=1 token, so the next lever is the
+  chip's per-layer latency, not the KV cache.
+- The GPU can use fp8/int4 KV too: only the on-chip gain is LoopCore's own.
+
+**What runs** (`quality_check.py --variants`, Modal tasks `week6_smoke` then `week6`): all 1319 GSM8K
+test questions, 4-shot, greedy, CDB with 32 slots, q = 0.5, one L40S container, bf16 baseline in the
+same container.
+
+| Variant | Weights | KV values | KV caches |
+|---|---|---|---|
+| `bf16` (reference) | bf16 | bf16 | 4 (one per loop) |
+| `int8w` | int8, per output channel (`Int8WeightOnlyLinear`, the timed path) | bf16 | 4 |
+| `int4w` (stretch) | int4, group 128, rounded in bf16 | bf16 | 4 |
+| `fp8kv` | bf16 | fp8 e4m3, no scale, clipped at ±448 (clips counted) | 4 |
+| `int4kv` | bf16 | int4, one scale per 32 values | 4 |
+| `kv2` | bf16 | bf16 | 2 (loops 1–2, loops 3–4) |
+| `kv1` | bf16 | bf16 | 1 shared |
+| `chip` | int8 | fp8 | 1 shared |
+
+Shared caches keep, at each position, the KV of the last loop that wrote it: the token's exit loop,
+or the group's last loop after copy-forward. The prompt loads each group's last loop. The prompt itself is
+prefilled with all 4 caches, as before. This is one sharing rule, not the only one (the Ouro paper and
+the Looped Latent Attention paper differ), so a failure here does not rule out sharing.
+
+**Pre-registered rule (PROPOSED 2026-11-21, pending Sid's approval; fixed before any data):**
+1. A variant keeps accuracy if the lower end of the 95 % interval on its paired accuracy change vs `bf16`
+   is above −2 percentage points. Exact McNemar p and the question-by-question counts are reported too.
+2. Exit depth: if a variant's mean exit depth differs from `bf16` by more than 0.10 loops, LoopCore
+   claims for that format use its measured depth instead of 3.22. That's an input to the model, not a pass/fail.
+3. All eight results are recorded whatever they score. A variant that fails is not re-tuned and re-run
+   without a new pre-registered entry here.

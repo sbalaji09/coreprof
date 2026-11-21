@@ -87,3 +87,77 @@ def test_load_prefill_matches_hf_layout(store):
             assert torch.equal(store.k[u, l, 3, :, :6], FakeHFCache.key_cache[u * L + l][0])
             assert torch.equal(store.v[u, l, 3, :, :6], FakeHFCache.value_cache[u * L + l][0])
     assert torch.equal(store.k[:, :, 3, :, 6:], rest)
+
+
+# ---------------------------------------------------------------- Week 6 variants (run on CPU too)
+
+from batching.kv_store import fake_quant  # noqa: E402
+
+
+def _cpu_store(n_caches, kv_quant="none"):
+    torch.manual_seed(0)
+    return KVStore(U, L, S, H, T, D, torch.float32, device="cpu", n_caches=n_caches, kv_quant=kv_quant)
+
+
+@pytest.mark.parametrize("n_caches, groups", [(4, [0, 1, 2, 3]), (2, [0, 0, 1, 1]), (1, [0, 0, 0, 0])])
+def test_loops_map_to_cache_groups(n_caches, groups):
+    st = _cpu_store(n_caches)
+    assert st.cache_of_loop == groups and st.k.shape[0] == n_caches
+
+
+def test_shared_cache_keeps_last_write_and_each_loop_sees_it():
+    st = _cpu_store(1)
+    one = lambda x: torch.tensor([x])
+    for u in range(U):                       # one token running loops 0..3 at position 2
+        k_new = torch.full((1, H, D), float(u))
+        st.write(0, one(u), one(1), one(2), k_new, k_new)
+        k, _ = st.read(0, one(u), one(1), 3)
+        assert torch.equal(k[0, :, 2], k_new[0])        # the loop in flight sees its own fresh KV
+    assert torch.equal(st.k[0, 0, 1, :, 2], torch.full((H, D), 3.0))   # last loop's KV stays
+
+
+def test_pairs_copy_forward_from_exit_group():
+    st = _cpu_store(2)
+    st.k.normal_()
+    before = st.k.clone()
+    st.fill_skipped([3], [4], [1])            # exit at loop 2 (group 0): group 1 gets group 0's KV
+    assert torch.equal(st.k[1, :, 3, :, 4], before[0, :, 3, :, 4])
+    st.fill_skipped([2], [5], [2])            # exit in the last group: nothing to fill
+    assert torch.equal(st.k[:, :, 2], before[:, :, 2])
+
+
+def test_prefill_loads_last_loop_of_each_group():
+    class FakeHFCache:
+        key_cache = [torch.full((1, H, 6, D), float(i)) for i in range(U * L)]
+        value_cache = key_cache
+    st = _cpu_store(2)
+    st.load_prefill(0, FakeHFCache, 6)
+    for c, u in ((0, 1), (1, 3)):
+        for l in range(L):
+            assert torch.equal(st.k[c, l, 0, :, :6], FakeHFCache.key_cache[u * L + l][0])
+
+
+def test_fp8_rounds_and_counts_clipping():
+    x = torch.tensor([0.1234, -3.3, 500.0, -1000.0])
+    y, n = fake_quant(x, "fp8")
+    assert int(n) == 2 and y[2] == 448 and y[3] == -448
+    assert (y[:2] - x[:2]).abs().max() <= 0.07 * x[:2].abs().max()        # e4m3: 3 mantissa bits
+    assert torch.equal(fake_quant(y, "fp8")[0], y)                       # idempotent
+
+
+def test_int4_groups_of_32_and_error_bound():
+    torch.manual_seed(0)
+    x = torch.randn(3, H, 2 * 32)
+    y, _ = fake_quant(x, "int4")
+    g, yg = x.reshape(3, H, 2, 32), y.reshape(3, H, 2, 32)
+    scale = g.abs().amax(-1, keepdim=True) / 7
+    assert ((yg - g).abs() <= scale / 2 + 1e-6).all()                    # round-to-nearest
+    assert len(torch.unique(yg[0, 0, 0])) <= 16
+
+
+def test_quantization_applies_to_writes():
+    st = KVStore(U, L, S, H, T, 64, torch.float32, device="cpu", kv_quant="int4")
+    one = lambda x: torch.tensor([x])
+    k_new = torch.randn(1, H, 64)
+    st.write(0, one(0), one(0), one(0), k_new, k_new)
+    assert torch.equal(st.k[0, 0, 0, :, 0], fake_quant(k_new, "int4")[0][0])
