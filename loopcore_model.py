@@ -36,10 +36,12 @@ Usage:
   python loopcore_model.py --validate --write-predictions  # also fill calibration_predictions*.json
   python loopcore_model.py                               # LoopCore configs vs measured best GPUs
   python loopcore_model.py --layer-latency-us 0.25 1 4   # sensitivity to the per-layer latency assumption
+  python loopcore_model.py --kv-levers                   # KV design options: fp8/int4 KV, shared caches, on-chip KV
 """
 import argparse
 import csv
 import json
+import math
 import statistics
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -93,7 +95,10 @@ class Hardware:
     ext_bw: float                 # B/s of external memory: KV cache, non-resident weights, streamed LM head
     compute: float                # FLOP/s at the operating precision (per chip)
     weight_bytes: float           # bytes per weight: 2 = bf16, 1 = 8-bit, 0.5 = 4-bit
-    kv_bytes: float = 2.0         # bytes per KV element
+    kv_bytes: float = 2.0         # bytes per KV element: 2 = bf16, 1 = fp8, 0.5 = int4
+    kv_caches: int = 0            # distinct KV caches across loops: 0 = one per loop (Ouro as shipped),
+                                  # 1 = one cache shared by all loops, 2 = one per pair of loops, ...
+    kv_on_chip: bool = False      # KV cache held in SRAM (read/written at weight_bw) instead of external memory
     sram_bytes_per_chip: float = float("inf")
     n_chips: int = 1
     link_bw: float = float("inf")  # chip-to-chip B/s
@@ -110,13 +115,35 @@ class Hardware:
     source: str = ""
 
 
-def fit_check(m, hw):
-    """(bytes needed in SRAM, SRAM capacity, fits?)"""
+def n_kv_caches(m, hw):
+    return hw.kv_caches or m.total_loops
+
+
+def kv_bw(hw):
+    return hw.weight_bw if hw.kv_on_chip else hw.ext_bw
+
+
+def kv_footprint(m, hw, B, C):
+    """KV cache bytes for B sequences of C tokens, all caches."""
+    return B * C * m.kv_elems_per_token_per_loop() * hw.kv_bytes * n_kv_caches(m, hw)
+
+
+def fit_check(m, hw, B=0, C=0):
+    """(bytes needed in SRAM, SRAM capacity, fits?). With kv_on_chip, the KV cache at (B, C) counts too."""
     need = hw.resident_fraction * m.core_params * hw.weight_bytes
     if hw.lmhead_on_chip:
         need += m.lmhead_params * hw.weight_bytes
+    if hw.kv_on_chip:
+        need += kv_footprint(m, hw, B, C)
     cap = hw.sram_bytes_per_chip * hw.n_chips
     return need, cap, need <= cap
+
+
+def sized(m, hw, B, C):
+    """hw with the fewest chips that hold everything it keeps in SRAM at (B, C) (all-resident configs only).
+    More chips also means more hops per loop step (step_terms)."""
+    need, _, _ = fit_check(m, replace(hw, n_chips=1), B, C)
+    return replace(hw, n_chips=max(1, math.ceil(need / hw.sram_bytes_per_chip)))
 
 
 def step_terms(m, hw, B, C):
@@ -134,13 +161,14 @@ def step_terms(m, hw, B, C):
         "weights_ext": (1 - f) * core / hw.ext_bw,
         "compute": (2 * m.core_params * B + m.attn_flops_per_cached_token() * B * C) / hw.compute
                    + hw.per_seq_overhead_s * B,
-        "kv": B * C * m.kv_elems_per_token_per_loop() * hw.kv_bytes / hw.ext_bw,
+        # each executed loop reads one cache of C tokens, whether caches are per loop or shared
+        "kv": B * C * m.kv_elems_per_token_per_loop() * hw.kv_bytes / kv_bw(hw),
         "link": hops * (hw.hop_latency_s + B * m.d_model * hw.act_bytes / hw.link_bw),
     }
     # resources: terms on the same one queue behind each other even when overlapped
     t["_by_resource"] = {
-        "weight_mem": t["weights_sram"],
-        "ext_mem": t["weights_ext"] + t["kv"],
+        "weight_mem": t["weights_sram"] + (t["kv"] if hw.kv_on_chip else 0),
+        "ext_mem": t["weights_ext"] + (0 if hw.kv_on_chip else t["kv"]),
         "compute": t["compute"],
         "link": t["link"],
     }
@@ -164,9 +192,9 @@ def per_token_extras(m, hw, B):
     """LM head (once per decode step) + KV writes for all loops (copy-forward, DESIGN_CDB.md §4)."""
     lm_bw = hw.weight_bw if hw.lmhead_on_chip else hw.ext_bw
     t_lmhead = m.lmhead_params * hw.weight_bytes / lm_bw + 2 * m.lmhead_params * B / hw.compute
-    # Every loop's cache needs an entry for every position: executed loops write their own KV,
-    # skipped loops get a copy-forward. So KV writes per token = total_loops, whatever the exit depth.
-    t_kv_write = B * m.total_loops * m.kv_elems_per_token_per_loop() * hw.kv_bytes / hw.ext_bw
+    # Every cache needs an entry for every position: executed loops write their own KV,
+    # skipped loops get a copy-forward. So KV writes per token = number of caches, whatever the exit depth.
+    t_kv_write = B * n_kv_caches(m, hw) * m.kv_elems_per_token_per_loop() * hw.kv_bytes / kv_bw(hw)
     return t_lmhead + t_kv_write
 
 
@@ -174,6 +202,13 @@ def token_time(m, hw, B, C, mean_depth):
     """Time for one decode step that finishes B tokens (assumes CDB keeps all B slots full)."""
     t_step, _ = step_time(m, hw, B, C)
     return mean_depth * t_step + per_token_extras(m, hw, B)
+
+
+def max_layer_latency(m, hw, B, C, mean_depth, target_s):
+    """Largest per-layer latency (s) at which token_time <= target_s; None if unreachable even at 0.
+    token_time is linear in overhead_s = n_layers * latency, entered once per executed loop step."""
+    slack = target_s - token_time(m, replace(hw, overhead_s=0.0), B, C, mean_depth)
+    return slack / (mean_depth * m.n_layers) if slack > 0 else None
 
 
 # ---------------------------------------------------------------- GPU: fit on one GPU, predict another
@@ -444,6 +479,37 @@ def compare(m, configs, combine, layer_latencies, q, Bs=(1, 8, 64), Cs=(128, 204
         print()
 
 
+KV_LEVERS = {   # cumulative, as in HANDOFF.md §7
+    "today (bf16 KV, 4 caches, HBM)": {},
+    "+ fp8 KV": dict(kv_bytes=1.0),
+    "+ 1 shared cache": dict(kv_bytes=1.0, kv_caches=1),
+    "+ KV on-chip": dict(kv_bytes=1.0, kv_caches=1, kv_on_chip=True),
+}
+
+
+def kv_levers(m, levers, q=0.5, layer_latency=5e-6, points=((1, 2048), (1, 8192), (16, 2048), (16, 8192)),
+              targets=(3, 10)):
+    """Config D (8-bit, all resident) with each KV option, sized to fit, vs MEASURED H100 int8 (decision 4)."""
+    depth = MEAN_DEPTH[q]
+    h100 = predict_gpu(fit_gpu("l40s", m), "h100")      # only for the GPU's LM-head / KV-write terms
+    gpu8 = measured_steps("h100", "int8")
+    base = replace(LOOPCORE_CONFIGS["D: 3 chips, 8-bit, all resident"], overhead_s=m.n_layers * layer_latency)
+    print(f"KV options on config D (8-bit, all resident), vs measured H100 int8; q={q} (depth {depth}), "
+          f"{layer_latency * 1e6:g} µs/layer.\nChips = fewest that hold weights + LM head (+ KV if on-chip). "
+          f"'need <x' = per-layer latency required for that speedup.\nCaveat: the GPU could use fp8 KV / fewer caches "
+          f"too; only the on-chip gain is LoopCore-only.\n")
+    print(f"{'option':32s} {'B':>3} {'C':>5}  speedup chips  KV MB   " + "  ".join(f"need <{n}x" for n in targets))
+    for label, kw in levers.items():
+        for B, C in points:
+            hw = sized(m, replace(base, **kw), B, C)
+            gpu_t = depth * gpu8[(B, C)] * 1e-3 + per_token_extras(m, h100, B)
+            lats = [max_layer_latency(m, hw, B, C, depth, gpu_t / n) for n in targets]
+            print(f"{label:32s} {B:>3} {C:>5}  {gpu_t / token_time(m, hw, B, C, depth):6.1f}x {hw.n_chips:>5} "
+                  f"{kv_footprint(m, hw, B, C) / 1e6:6.0f}   " +
+                  "  ".join(f"{l * 1e6:6.1f} µs" if l else "     n/a" for l in lats))
+        print()
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--validate", action="store_true", help="L40S fit (in-sample) and H100 prediction")
@@ -451,8 +517,12 @@ def main():
     ap.add_argument("--combine", choices=["sum", "max"], default="sum")
     ap.add_argument("--layer-latency-us", type=float, nargs="+", default=[LAYER_LATENCY * 1e6])
     ap.add_argument("--q", type=float, choices=sorted(MEAN_DEPTH), default=0.5)
+    ap.add_argument("--kv-levers", action="store_true", help="KV design options on config D vs measured H100 int8")
     args = ap.parse_args()
-    if args.validate:
+    if args.kv_levers:
+        for lat in args.layer_latency_us if args.layer_latency_us != [LAYER_LATENCY * 1e6] else [5.0]:
+            kv_levers(OURO_1_4B, KV_LEVERS, args.q, lat * 1e-6)
+    elif args.validate:
         validate(write=args.write_predictions)
     else:
         compare(OURO_1_4B, LOOPCORE_CONFIGS, args.combine, [x * 1e-6 for x in args.layer_latency_us], args.q)

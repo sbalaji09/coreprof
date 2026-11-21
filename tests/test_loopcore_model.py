@@ -127,3 +127,67 @@ def test_kernel_sum_known_misses_documented():
     env, _ = cal.envelope("h100")
     t, _ = env[(64, 128)]
     assert sum(lm.kernel_sum("h100", 64, 128)) / 1e3 < 0.8 * t
+
+
+# ---------------------------------------------------------------- KV design options (HANDOFF.md §4 item 1)
+
+D = lm.LOOPCORE_CONFIGS["D: 3 chips, 8-bit, all resident"]
+
+
+def test_kv_defaults_unchanged():
+    # kv_caches=0 means one cache per loop: footprint and writes as Ouro ships
+    assert lm.n_kv_caches(M, D) == 4
+    assert lm.kv_footprint(M, D, 1, 1) == M.kv_elems_per_token_per_loop() * 2 * 4
+
+
+def test_shared_cache_cuts_footprint_and_writes_not_reads():
+    one = replace(D, kv_caches=1)
+    assert lm.kv_footprint(M, one, 16, 2048) == lm.kv_footprint(M, D, 16, 2048) / 4
+    assert lm.step_terms(M, one, 16, 2048)["kv"] == lm.step_terms(M, D, 16, 2048)["kv"]   # each loop still reads C tokens
+    kv_write = lambda hw: lm.per_token_extras(M, hw, 16) - lm.per_token_extras(M, replace(hw, kv_bytes=0), 16)
+    assert kv_write(one) == pytest.approx(kv_write(D) / 4)
+
+
+def test_fp8_kv_halves_kv_time():
+    fp8 = replace(D, kv_bytes=1.0)
+    assert lm.step_terms(M, fp8, 8, 4096)["kv"] == pytest.approx(lm.step_terms(M, D, 8, 4096)["kv"] / 2)
+
+
+def test_kv_on_chip_uses_sram_bandwidth_and_resource():
+    on = replace(D, kv_on_chip=True)
+    t = lm.step_terms(M, on, 8, 4096)
+    assert t["kv"] == pytest.approx(8 * 4096 * M.kv_elems_per_token_per_loop() * 2 / lm.SRAM_BW)
+    assert t["_by_resource"]["ext_mem"] == 0
+    assert t["_by_resource"]["weight_mem"] == pytest.approx(t["weights_sram"] + t["kv"])
+
+
+def test_sizing_counts_kv_only_when_on_chip():
+    # weights + LM head at 8-bit = 1.33 GB -> 3 chips; KV in HBM never adds chips
+    assert lm.sized(M, D, 16, 8192).n_chips == 3
+    # fp8, shared, on-chip at 16x8192: 1.33 GB + 12.9 GB -> 29 chips (HANDOFF.md §7)
+    on = replace(D, kv_bytes=1.0, kv_caches=1, kv_on_chip=True)
+    assert lm.sized(M, on, 16, 8192).n_chips == 29
+    assert lm.fit_check(M, lm.sized(M, on, 16, 8192), 16, 8192)[2]
+    assert not lm.fit_check(M, replace(on, n_chips=28), 16, 8192)[2]
+
+
+def test_max_layer_latency_hits_target():
+    hw = replace(D, kv_bytes=1.0, kv_caches=1, kv_on_chip=True)
+    target = 0.5 * lm.token_time(M, replace(hw, overhead_s=M.n_layers * 5e-6), 1, 2048, 3.22)
+    lat = lm.max_layer_latency(M, hw, 1, 2048, 3.22, target)
+    assert lm.token_time(M, replace(hw, overhead_s=M.n_layers * lat), 1, 2048, 3.22) == pytest.approx(target)
+    assert lm.max_layer_latency(M, hw, 1, 2048, 3.22, 1e-9) is None
+
+
+def test_kv_levers_reproduce_handoff_exploration():
+    # HANDOFF.md §7 (2026-11-20), vs measured H100 int8, q=0.5, 5 µs/layer
+    depth = lm.MEAN_DEPTH[0.5]
+    h100 = lm.predict_gpu(lm.fit_gpu("l40s"), "h100")
+    gpu8 = lm.measured_steps("h100", "int8")
+    base = replace(D, overhead_s=M.n_layers * 5e-6)
+    expect = {(1, 2048): [6.1, 8.0, 8.0, 11.4], (16, 8192): [1.5, 3.0, 3.0, 40.8]}
+    for (B, C), want in expect.items():
+        gpu_t = depth * gpu8[(B, C)] * 1e-3 + lm.per_token_extras(M, h100, B)
+        got = [gpu_t / lm.token_time(M, lm.sized(M, replace(base, **kw), B, C), B, C, depth)
+               for kw in lm.KV_LEVERS.values()]
+        assert got == pytest.approx(want, abs=0.05)
