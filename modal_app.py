@@ -55,6 +55,7 @@ image = (
 # Each task is a list of shell commands run in order from the repo root.
 # $OUT is the run's output dir on the volume, $RID the run id.
 CHECK = ["python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt"]
+W6B_VARIANTS = ["perloop", "sharefirst", "sharefirst_w64", "pairs", "mqa3", "noloop"]   # = train_looped.VARIANTS
 TASKS = {
     "check": CHECK + ["python smoke_test.py 2>&1 | tee $OUT/smoke_test.txt"],
     "harness": CHECK + [
@@ -113,6 +114,13 @@ TASKS = {
     "week6_share_check": ["python week6_share_check.py 2>&1 | tee $OUT/share_check.txt"],
     "week6": CHECK + ["python quality_check.py --n 1319 --q 0.5 --variants "
                       "bf16 fp8kv int4kv kv2 kv1 int8w chip int4w --out-dir $OUT"],
+    # Week 6b: small looped LMs trained from scratch (train_looped.py). Data once (~20-40 min, CPU-bound);
+    # smoke = 10 steps of every variant (compile, memory, throughput); then one task per variant (~2 h on an H100).
+    "w6b_prep": ["python prep_data.py 2>&1 | tee $OUT/prep.txt"],
+    "w6b_smoke": [f"python train_looped.py --variant {v} --tokens 5.3e6 --eval-every 5 --eval-batches 2 "
+                  f"--final-eval-batches 2 --out-dir $OUT" for v in W6B_VARIANTS],
+    **{f"w6b_{v}": [f"python train_looped.py --variant {v} --out-dir /vol/w6b"] for v in W6B_VARIANTS},
+    "w6b_perloop_s1": ["python train_looped.py --variant perloop --seed 1 --out-dir /vol/w6b"],
     "bench_q03": CHECK + [
         "python bench_cdb.py --q 0.3 --slots 2 4 8 16 32 64 --repeats 3 --run-id $RID --out-dir $OUT",
         "python bench_cdb.py --q 1.0 --slots 4 16 64 --repeats 2 --run-id $RID --out-dir $OUT",

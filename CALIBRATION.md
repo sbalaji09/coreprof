@@ -264,3 +264,30 @@ the Looped Latent Attention paper differ), so a failure here does not rule out s
    claims for that format use its measured depth instead of 3.22. That's an input to the model, not a pass/fail.
 3. All eight results are recorded whatever they score. A variant that fails is not re-tuned and re-run
    without a new pre-registered entry here.
+
+## Week 6b plan: is KV sharing across loops free when trained in? (added 2026-11-21)
+
+**Why.** Ouro collapses when its loops share one KV cache after training (week6_share_check: the independent HF
+reference degenerates the same way). The literature check (2026-11-21) agrees: Ouro (arXiv 2510.25741, §5.4.2) says
+sharing during prefill costs > 10 GSM8K points, and last-step reuse works only during decode. Looped Latent Attention (arXiv
+2607.15456) reports GSM8K 0.000 for final-loop reuse on Ouro-1.4B. Trained-in **first-loop** sharing
+costs ~0.006-0.016 nats in Mixture-of-Recursions (arXiv 2507.10524, 118-167M), and Monea et al. (arXiv 2610.02383,
+152M, 20B tokens) report first-loop sharing + a 64-token own-loop window *beating* per-loop caches (ppl 14.91 vs
+16.00) at ~1/5 of the KV memory. Last-loop sharing cannot be trained in one parallel pass, so it is not a candidate.
+
+**What runs** (`train_looped.py`, Modal H100, one task per variant): ~81M params (6 layers x 4 loops, d=768,
+12 heads, tied embedding), FineWeb-Edu sample-10BT (`prep_data.py`, GPT-2 tokens, dataset commit pinned in
+meta.json), 2B tokens, 1024 context, 524k tokens/step, AdamW lr 1e-3 cosine, the same data order for every
+variant, loss on the last loop only, gradients flow through shared K/V.
+Variants: `perloop` (reference), `sharefirst`, `sharefirst_w64`, `pairs`, `mqa3` (per-loop with 3 KV heads, the
+same KV bytes as `sharefirst`), `noloop`; plus `perloop` seed 1 for seed noise.
+
+**Pre-registered rule (PROPOSED 2026-11-21, pending Sid's approval; fixed before any data).** Metric: final
+held-out loss on 13M tokens. Margin m = max(0.01 nats, 2 x |perloop seed 0 - seed 1|).
+1. A sharing rule matches per-loop caches if its loss <= `perloop` + m.
+2. It beats the standard KV reduction if its loss < `mqa3` - m.
+3. If `noloop` is not worse than `perloop` by more than m, looping is not shown to help at this scale, and
+   conclusions 1-2 are flagged as not transferable.
+4. All runs are recorded whatever they score. Zero-shot downstream evals (LAMBADA, ARC-E, PIQA, SciQ, HellaSwag)
+   are a later, separately pre-registered step. 2B tokens is about 1/10 of the papers' budgets: a null result
+   here does not rule out sharing at scale.
