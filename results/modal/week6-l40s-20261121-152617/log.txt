@@ -1,0 +1,44 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=week6-l40s-20261121-152617
+git=933d1e9-dirty
+Sat Nov 21 23:26:20 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-61f26544-a5c8-b071-8d8d-e02ee5889005, 46068 MiB, 620.70.06
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python quality_check.py --n 1319 --q 0.5 --variants bf16 fp8kv int4kv kv2 kv1 int8w chip int4w --out-dir $OUT
+bf16 q=0.5: accuracy 77.8% (1026/1319, 95% CI 75.5-79.9), mean exit depth 3.23, exit loops 1/2/3/4 = 0.0 / 1.6 / 74.3 / 24.1 %, no '####': 15, fp8 clipped: 0, 1243 s
+fp8kv q=0.5: accuracy 77.9% (1027/1319, 95% CI 75.5-80.0), mean exit depth 3.23, exit loops 1/2/3/4 = 0.0 / 1.6 / 73.8 / 24.6 %, no '####': 11, fp8 clipped: 0, 1341 s
+  vs bf16: +0.1 pts (95% CI -1.2 to +1.3; only bf16 right 34, only fp8kv right 35, McNemar p=1.000), same answer 1179/1319, depth +0.004 ± 0.002
+int4kv q=0.5: accuracy 75.5% (996/1319, 95% CI 73.1-77.8), mean exit depth 3.26, exit loops 1/2/3/4 = 0.0 / 1.3 / 71.5 / 27.2 %, no '####': 12, fp8 clipped: 0, 1430 s
+  vs bf16: -2.3 pts (95% CI -4.2 to -0.4; only bf16 right 96, only int4kv right 66, McNemar p=0.022), same answer 1055/1319, depth +0.034 ± 0.003
+kv2 q=0.5: accuracy 39.3% (518/1319, 95% CI 36.7-41.9), mean exit depth 3.23, exit loops 1/2/3/4 = 0.0 / 0.2 / 76.7 / 23.1 %, no '####': 325, fp8 clipped: 0, 1232 s
+  vs bf16: -38.5 pts (95% CI -41.4 to -35.6; only bf16 right 545, only kv2 right 37, McNemar p=0.000), same answer 514/1319, depth +0.009 ± 0.005
+kv1 q=0.5: accuracy 3.9% (52/1319, 95% CI 3.0-5.1), mean exit depth 2.59, exit loops 1/2/3/4 = 0.1 / 41.9 / 56.4 / 1.6 %, no '####': 1022, fp8 clipped: 0, 1022 s
+  vs bf16: -73.8 pts (95% CI -76.3 to -71.4; only bf16 right 979, only kv1 right 5, McNemar p=0.000), same answer 55/1319, depth -0.627 ± 0.005
+weights int8: 168 looped linears quantized
+int8w q=0.5: accuracy 77.6% (1024/1319, 95% CI 75.3-79.8), mean exit depth 3.20, exit loops 1/2/3/4 = 0.0 / 4.6 / 71.2 / 24.2 %, no '####': 14, fp8 clipped: 0, 1367 s
+  vs bf16: -0.2 pts (95% CI -1.4 to +1.1; only bf16 right 36, only int8w right 34, McNemar p=0.905), same answer 1183/1319, depth -0.029 ± 0.003
+chip q=0.5: accuracy 5.1% (67/1319, 95% CI 4.0-6.4), mean exit depth 2.60, exit loops 1/2/3/4 = 0.1 / 41.5 / 56.6 / 1.8 %, no '####': 958, fp8 clipped: 0, 1207 s
+  vs bf16: -72.7 pts (95% CI -75.2 to -70.2; only bf16 right 966, only chip right 7, McNemar p=0.000), same answer 65/1319, depth -0.619 ± 0.006
+weights int4: 168 looped linears quantized
+int4w q=0.5: accuracy 64.6% (852/1319, 95% CI 62.0-67.1), mean exit depth 3.10, exit loops 1/2/3/4 = 0.0 / 16.4 / 57.5 / 26.2 %, no '####': 35, fp8 clipped: 0, 1216 s
+  vs bf16: -13.2 pts (95% CI -15.8 to -10.6; only bf16 right 251, only int4w right 77, McNemar p=0.000), same answer 830/1319, depth -0.128 ± 0.007
+wrote /vol/results/week6-l40s-20261121-152617/quality_20261121-232641.json
+[exit 0]

@@ -265,6 +265,32 @@ the Looped Latent Attention paper differ), so a failure here does not rule out s
 3. All eight results are recorded whatever they score. A variant that fails is not re-tuned and re-run
    without a new pre-registered entry here.
 
+### Week 6 results (run `week6-l40s-20261121-152617`, 2026-11-21, L40S, git 3d7c07c; recorded as pre-registered)
+
+All 1319 GSM8K test questions, q = 0.5, same container. bf16: **77.8 %** (1026/1319, 95 % CI 75.5–79.9),
+mean exit depth 3.23. GPU sanity check ALL OK; no fp8 values clipped in any run.
+
+| Variant | Accuracy | Change vs bf16 (95 % CI) | McNemar p | Exit depth (change) | Rule |
+|---|---:|---:|---:|---:|---|
+| `fp8kv` | 77.9 % | +0.1 (−1.2 to +1.3) | 1.000 | 3.23 (+0.004) | **pass** |
+| `int8w` | 77.6 % | −0.2 (−1.4 to +1.1) | 0.905 | 3.20 (−0.029) | **pass** |
+| `int4kv` | 75.5 % | −2.3 (−4.2 to −0.4) | 0.022 | 3.26 (+0.034) | fail |
+| `int4w` | 64.6 % | −13.2 (−15.8 to −10.6) | < 0.001 | 3.10 (−0.128) | fail; depth changed |
+| `kv2` | 39.3 % | −38.5 (−41.4 to −35.6) | < 0.001 | 3.23 (+0.009) | fail |
+| `kv1` | 3.9 % | −73.8 (−76.3 to −71.4) | < 0.001 | 2.59 (−0.627) | fail; depth changed |
+| `chip` (int8 + fp8 + 1 cache) | 5.1 % | −72.7 (−75.2 to −70.2) | < 0.001 | 2.60 (−0.619) | fail; depth changed |
+
+- **What Ouro-1.4B keeps after training:** int8 weights and fp8 KV, each with one cache per loop. Exit depth is
+  unchanged for both (|change| ≤ 0.03), so 3.22 stays the model input for those formats.
+- **What it loses:** sharing KV across loops (pairs or all; prompt included, last-writer rule) breaks it, so
+  the `chip` design point fails. That is consistent with week6_share_check and the literature (Week 6b plan).
+  int4 KV narrowly fails the rule; int4 weights (rounded, group 128, no quantization-aware training) fail
+  clearly.
+- **For LoopCore claims on Ouro as trained:** use int8 weights, fp8 KV and 4 caches. In `--kv-levers` terms that
+  is the "+ fp8 KV" row with the KV cache in HBM (8.0× at 1×2048 down to 3.0× at 16×8192, 3 chips, 5 µs/layer).
+  The GPU can use fp8 KV too. Keeping 4 caches on-chip needs 106 chips at 16×8192. Shared on-chip KV needs a
+  model trained for it (Week 6b).
+
 ## Week 6b plan: is KV sharing across loops free when trained in? (added 2026-11-21)
 
 **Why.** Ouro collapses when its loops share one KV cache after training (week6_share_check: the independent HF

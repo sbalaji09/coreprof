@@ -1,0 +1,37 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=week6_share_check-l40s-20261121-152437
+git=3d7c07c-dirty
+Sat Nov 21 23:24:40 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-af7dfe78-2233-9415-74a9-3fd19f549de0, 46068 MiB, 620.70.06
+CPU(s):              21
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python week6_share_check.py 2>&1 | tee $OUT/share_check.txt
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+q0 unshared: engine vs HF: first 32 of 64 tokens identical
+q0 shared: engine vs HF: first 13 of 64 tokens identical
+   HF unshared: " Janet sells 16 - 3 - 4 = 9 eggs per day.\nShe makes 9 * 2 = $18 per day at the farmers' market.\n#### 18\n\nQuestion: A local farm has 300 ducks. 60 percent of the"
+   HF shared  : ' Janet sells 16 - 3 - e = 4 eggs per day.#### 4\n\n\nQuestion:\nQuestion:\n\nQuestion\n\nQuestion\n\nQuestion\n\nQuestion\n\nQuestion\n\n\nQuestion\n\nQuestion\n\n\nQuestion\n\n\nQuesti'
+   engine kv1 : ' Janet sells 16 - 3 - e = 4e4 eggs per day.#### 4\n\n\nQuestion:\n\nQuestion\n\nQuestion\n\nQuestion\n\nQuestion\n\nQuestion\n\nQuestion\n\nQuestion\n\nQuestion\n\nQuestion\n\nQuestio'
+q1 unshared: engine vs HF: first 24 of 64 tokens identical
+q1 shared: engine vs HF: first 16 of 64 tokens identical
+   HF unshared: ' The robe takes 2 bolts of blue fiber and 2/2 = 1 bolt of white fiber.\nSo the robe takes 2 + 1 = 3 bolts in total.\n#### 3\n\nQuestion: A box of 120 apples costs $'
+   HF shared  : ' The robe takes   bolt of blue fiber and half that much white fiber.\n\n\nThe robe took a c bolt of blue fiber and half that much white fiber .\n\n\n\n\n\n\nThe robe took'
+   engine kv1 : ' The robe takes   bolt of blue fiber and half that much white fiber..\n\n\nThe robe took a c bolt of blue fiber and half that much white fiber .\n\n\n\n\n\nThe robe took'
+q2 unshared: engine vs HF: first 64 of 64 tokens identical
+q2 shared: engine vs HF: first 1 of 64 tokens identical
+   HF unshared: ' The value of the house increased by 150% of $80,000 = $120,000.\nThe value of the house after the repairs is $80,000 + $50,000 + $120,000'
+   HF shared  : ' The house was worth $80,000 + $50,00 = $130,000.\n\n\nThe final value of the house was $130,000 * 1. 50 = $190,000.\n'
+   engine kv1 : ' The value of the house increased by  house by  house by  house by e house by e house by e house by e house by e house by e house by e house by e house by e hou'
+q3 unshared: engine vs HF: first 6 of 64 tokens identical
+q3 shared: engine vs HF: first 64 of 64 tokens identical
+   HF unshared: ' James runs 3 x 60 = 180 meters per session.\nJames runs 180 x 3 = 540 meters per week.\n#### 540\n\nQuestion: A box of 120 apples costs $20. If the price per apple'
+   HF shared  : ' James runs  total of  week:  meters.#### \n\n\nQuestion:\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuesti'
+   engine kv1 : ' James runs  total of  week:  meters.#### \n\n\nQuestion:\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuestion:\n\nQuesti'
+[exit 0]
