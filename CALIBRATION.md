@@ -41,12 +41,12 @@ Measured: the fastest of `results/modal/delta_compile-l40s-20261116-214809/`, `r
 
 | quantity | measured (NVIDIA L40S, best GPU) | source | model prediction | error % |
 |---|---|---|---|---|
-| weight streaming time per loop step | 3.12–3.62 ms | fastest weight GEMV/GEMM kernels of either implementation, 1x128 and 16x2048 | 3.78 ms | +4.3 |
+| weight streaming time per loop step | 3.41–3.98 ms | fastest weight GEMV/GEMM kernels of either implementation, 1x128 and 16x2048 | 3.78 ms | +0.0 |
 | KV cost per cached token | 0.262 µs | M2 fit over the envelope | 0.263 µs | +0.2 |
-| weight/KV crossover | 11,902–13,820 cached tokens | weight_ms / kv_us_per_token | 14,386 cached tokens | +4.1 |
+| weight/KV crossover | 13,023–15,173 cached tokens | weight_ms / kv_us_per_token | 14,386 cached tokens | +0.0 |
 | best GPU step time, B=1, C=128 | 3.75 ms | envelope | 4.32 ms | +15.3 ✗ |
 | fixed cost δ (M2 fit) | 4.07 ms | M2 fit over the envelope | 4.44 ms | +9.2 |
-| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.627 ms | step − weight kernels of the fastest implementation | 0.541 ms | -13.8 ✗ |
+| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.333 ms | step − weight kernels of the fastest implementation | 0.541 ms | +62.4 ✗ |
 
 **Step time over the whole grid (46 points):** median |error| 3.1 %, max -23.0 % at B=64, C=128 (**fail**: needs median ≤ 10 %, max ≤ 20 %)
 
@@ -67,12 +67,12 @@ Measured: the fastest of `results/modal/delta_compile-h100-20261116-214809/`, `r
 
 | quantity | measured (NVIDIA H100 80GB HBM3, best GPU) | source | model prediction | error % |
 |---|---|---|---|---|
-| weight streaming time per loop step | 1.12–1.54 ms | fastest weight GEMV/GEMM kernels of either implementation, 1x128 and 16x2048 | 1.47 ms | +0.0 |
+| weight streaming time per loop step | 1.26–1.77 ms | fastest weight GEMV/GEMM kernels of either implementation, 1x128 and 16x2048 | 1.47 ms | +0.0 |
 | KV cost per cached token | 0.0785 µs | M2 fit over the envelope | 0.0775 µs | -1.2 |
-| weight/KV crossover | 14,300–19,558 cached tokens | weight_ms / kv_us_per_token | 18,953 cached tokens | +0.0 |
+| weight/KV crossover | 16,106–22,497 cached tokens | weight_ms / kv_us_per_token | 18,953 cached tokens | +0.0 |
 | best GPU step time, B=1, C=128 | 1.67 ms | envelope | 2.01 ms | +20.2 ✗ |
 | fixed cost δ (M2 fit) | 2.04 ms | M2 fit over the envelope | 2.18 ms | +7.0 |
-| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.548 ms | step − weight kernels of the fastest implementation | 0.538 ms | -1.9 |
+| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.406 ms | step − weight kernels of the fastest implementation | 0.538 ms | +32.4 ✗ |
 
 **Step time over the whole grid (48 points):** median |error| 7.6 %, max -33.1 % at B=64, C=128 (**fail**: needs median ≤ 10 %, max ≤ 20 %)
 

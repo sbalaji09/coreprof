@@ -108,3 +108,20 @@ modelling method (bytes/bandwidth + compute + per-step overhead, serial sum), no
 | A4 | Physics floor + software excess decomposition (bytes/peak, FLOPs/peak) reported per term on both GPUs | free | high (for the paper) | not started |
 | A5 | Little's-law per-kernel cost (H1d), transferred by published latency, not fitted on H100 | free | low-med | not started |
 | A6 | Confirm on a third GPU (A100) | ~$1–2 | — | ask Sid first |
+
+# Experiments
+
+## E1 - fix the o_proj classification, recompute targets (approach A1; approved by Sid 2026-11-22)
+Change: `delta_split.KERNEL_CATS` counts `fused_bmm_` as gemm; `calibrate.weight_kernel_ms` re-sorts older
+breakdowns from `top_kernels_ms`. Raw run files untouched. Pre-registered in f7e3b2a before running.
+Prediction: weight low end L40S ~3.41 / H100 ~1.27 ms; non-weight ~0.33 / ~0.40 ms; v1.2 non-weight misses
+~+60 % / ~+33 %; step, δ, KV, grid unchanged.
+Result (`calibrate.py --write`, both GPUs): weight 3.41–3.98 ms (L40S), 1.26–1.77 ms (H100), model inside both.
+Crossover 13,023–15,173 / 16,106–22,497 tokens, model inside both. Non-weight 0.333 ms (L40S, model +62.4 % ✗),
+0.406 ms (H100, model +32.4 % ✗; was a pass at −1.9 %). Step, δ, KV, grid unchanged. Overall: FAIL on both, as before.
+Guardrails: `calibrate.py --selftest`, `check_delta_split_report.py`, `pytest tests/test_loopcore_model.py` pass.
+Verdict: supported (all predicted values matched).
+Learned: the model's non-weight row was "passing" by accident. Two errors offset: the target counted o_proj as
+non-weight, and the model counts ~0.19 ms of launch gaps around its matrix-vector kernels as non-weight.
+Note: the prose paragraphs under the blocks in CALIBRATION.md ("Model status 2026-11-20", "Target noise") still
+quote the old −13.8 % / −1.9 % and the H200-contaminated H100 noise. Not edited; asked Sid.
