@@ -1,0 +1,110 @@
+# Lab notebook: calibration of loopcore_model.py against measured GPUs
+
+Append-only. Corrections are new entries pointing back. Started 2026-11-21.
+
+# Frame
+
+- **Question.** Can the analytical model reproduce the best measured GPU decode step (L40S, H100) under the
+  CALIBRATION.md rule? If not, which part of each miss would also affect the LoopCore (chip) prediction?
+- **Metric.** `calibrate.py` scorecard: 6 summary quantities within ±10 %; grid median |err| ≤ 10 %, max ≤ 20 %.
+  Rule, results and write-up numbers are not changed without Sid's approval.
+- **Guardrails.** No tuning on H100 data (already used several times). GPU constants from raw run files only.
+  Every model change is pre-registered (commit message) before it is scored, and recorded whatever it scores.
+- **Success.** (a) Both GPUs pass with a pre-registered model fitted/designed on L40S only and applied to H100
+  once; or (b) each miss is attributed, with evidence, to GPU software vs. something the chip shares.
+- **Budget.** ~10 experiments. GPU only on Modal, after Sid approves task/duration/cost.
+
+# Baseline (reproduced 2026-11-21, git 151f833, recorded predictions = v1.2 kernel-sum)
+
+`python3 calibrate.py --gpu l40s --pred calibration_predictions.json` (and h100): identical to CALIBRATION.md.
+
+| | L40S | H100 |
+|---|---:|---:|
+| B=1 C=128 step | 3.75 meas / 4.32 pred, **+15.3 %** | 1.67 / 2.01, **+20.2 %** |
+| non-weight at B=1 | 0.627 / 0.541, **−13.8 %** | 0.548 / 0.538, −1.9 % |
+| grid | median 3.1 %, max **−23.0 %** (64x128) | median 7.6 %, max **−33.1 %** (64x128) |
+
+# Noise floor (from existing repeats)
+
+- Within a container: step IQR 0.002–0.010 ms at 1x128 (≤ 0.5 %). Negligible.
+- Between containers, fused (non-cd) step 1x128: L40S 4.085, 4.086, 4.084 ms (2026-11-20) and 4.177 (2026-11-16):
+  ≤ 2.3 %. H100 2.016, 1.913 (2026-11-20) and 2.143 (2026-11-16): range 11 %, ≈ ±6 %.
+- **Correction to CALIBRATION.md's H100 noise statement:** `delta_noise-h100-20261120-011018` ran on an
+  **NVIDIA H200** (noise.json `gpu`). The "0.41, 0.50, 0.55 ms" H100 non-weight spread includes it (0.50 is the H200).
+  Genuine H100s: 0.554 and 0.408. All calibration-target and kernel-bench runs are genuine H100s (checked every run).
+- No repeat exists of the coordinate-descent (cd) grid, which is the target at 45/46 (L40S) and 41/48 (H100) points.
+  Assume the fused step's between-container spread applies (L40S ~2 %, H100 ~6 %).
+- So: B=1 step misses (15 %, 20 %) and the B=64 misses (23 %, 33 %) are far outside noise.
+
+# Observations from existing data (no new runs)
+
+O1. **Kernel classification bug inflates the non-weight target.** In the cd step, o_proj is lowered as
+`triton_red_fused_bmm_3` (24 calls/step). `delta_split.KERNEL_CATS` matches `_mm_` but not `_bmm_`, so it is counted as
+"other", not weights. Evidence: if the four fused reductions read qkv/o/gate-up/down, they run at 694/685/746/730 GB/s
+on L40S (read peak 745) and 2064/1420/2388/1528 GB/s on H100: consistent. Corrected cd split at 1x128:
+weights L40S 3.120 + 0.296 = 3.416 ms, H100 1.123 + 0.144 = 1.267 ms; non-weight L40S 0.331 ms (matches the fused-step
+noise runs' 0.315–0.318), H100 0.404 ms. Affects targets `overhead_ms` and the low end of `weight_ms` on both GPUs.
+NOT applied: needs Sid's approval (changes a result).
+
+O2. **B=1 step miss = weight-kernel choice.** Model weights (lone compiled F.linear = cuBLAS gemv) 3.97 ms slot
+(L40S) vs in-step cd reductions 3.42 ms; H100 1.62 vs 1.27. Model small+attention 0.35 ms (L40S) vs measured
+non-weight 0.33. The weight difference accounts for ~all of the +0.57 ms (L40S) and +0.34 ms (H100) miss.
+
+O3. **L40S cd reductions reach ~the read peak** (bytes / 745 GB/s = 3.31 ms vs 3.42 measured, −3 %). H100 cd reductions
+do not: bytes / 2981 GB/s = 0.83 ms vs 1.27. Per-kernel excess over bytes/peak: H100 ≈ 3–4 µs for qkv, o, gate-up,
+≈ 7 µs for down; L40S 0–2.4 µs.
+
+O4. **Large-B miss is a per-sequence cost, not attention.** L40S residual (meas − pred) is flat in C at each B:
+B=32 +0.77…+0.87 ms, B=64 +2.07…+2.26 ms over C = 128…2048. H100 similar but noisier (implementation switches).
+
+O5. **o_proj stays a Triton reduction (no tensor cores) at B ≥ 2 in the cd step**, while the other projections switch
+to cutlass tensor-core GEMMs. Its time grows with B: L40S 0.294 → 0.717 ms (B 1 → 16), H100 0.142 → 0.434 ms.
+The model prices o_proj as a lone compiled linear (flat in B: 0.38 ms L40S, 0.22 H100 at B=16). Excess at B=16:
+L40S 0.34 ms vs residual 0.27; H100 0.21 vs 0.30. Linear extrapolation to B=64: L40S ~2.1 ms vs residual 2.07.
+A lone compiled F.linear never takes this path (it is lowered as mm, not bmm), which is why v1.2 could not reproduce it.
+
+O6. The chip prediction does not use any GPU-fitted constant except `per_token_extras` for the GPU baseline
+(H100 LM head comes from the clock-transfer model, though 0.094 ms is measured). GPU calibration therefore tests the
+modelling method (bytes/bandwidth + compute + per-step overhead, serial sum), not chip parameters.
+
+# Hypotheses and cheap tests (written before any new experiment)
+
+## Miss 1: B=1 step (+15 % L40S, +20 % H100)
+| # | hypothesis | cheap test | status |
+|---|---|---|---|
+| H1a | weight term uses the wrong kernels (cuBLAS gemv vs in-step cd reductions) | sum of in-step kernel times vs model terms (existing profiles) | **supported by O2** |
+| H1b | inter-kernel gaps mis-modelled | step − busy at 1x128: L40S 0.053 ms, H100 0.089 ms; model's gap budget similar | weak: < 0.1 ms of 0.57/0.34 |
+| H1c | target noise | between-container spread ≤ 2 % / ±6 % | **refuted** |
+| H1d | (different decomposition) per kernel = bytes/peak + c_kernel, c from memory latency × parallelism (Little's law), not microbenchmarks | fit c on L40S kernels, predict H100 c from latency/BW ratio: needs a published/measured DRAM latency per GPU | open; cheap (paper figures) |
+
+## Miss 2: L40S non-weight at B=1 (−13.8 %)
+| H2a | target mis-measured: o_proj counted as non-weight | O1 | **supported**; corrected target 0.331 ms |
+| H2b | model's split charges gemv slot gaps (0.19 ms) to non-weight | compare model small+attn (0.35) vs measured non-weight (0.33): +5 % | supported; the summary metric is not apples-to-apples on either side |
+| H2c | container noise | L40S tight (≤ 0.004 ms) | refuted |
+
+## Miss 3: large-B grid (−23 % L40S, −33 % H100 at 64x128)
+| H3a | o_proj lowered as non-tensor-core Triton reduction, cost ∝ B | O5 extrapolation; decisive test = profile cd step at B = 32, 64 | supported at B ≤ 16; untested at 32/64 |
+| H3b | attention slower in-step than microbenchmark at large B | residual flat in C (O4) | **refuted (L40S)**; H100 not decisive |
+| H3c | tensor-core GEMM tiles in-step differ from lone compiled linear at B ≥ 32 | needs profile at B = 32/64 (same run as H3a) | open |
+| H3d | small elementwise kernels scale with B | 126 × ~3 µs at B=64 ≈ 0.4 ms max | cannot explain 2 ms alone |
+| H3e | (new mechanism) power/clock throttling during sustained large-B steps, absent in short microbenchmarks | `nvidia-smi` clocks during the profile run (same run) | open, low prior (kernels are memory-bound) |
+
+# Chip relevance (per miss, current evidence)
+- Miss 1: GPU software (kernel choice). Chip-relevant residue: H100's ~3–7 µs per-kernel cost above bytes/peak is a
+  latency-bandwidth (ramp/drain) effect; the chip analogue is per-layer pipeline fill, i.e. the per-layer-latency term.
+- Miss 2: a measurement artifact. The corrected GPU non-weight time is 13.8 µs/layer (L40S) and 16.8 µs/layer (H100):
+  an empirical upper anchor for chip per-layer latency, dominated by launch gaps and kernel ramp, not by FLOPs.
+- Miss 3: GPU software (inductor lowers o_proj as bmm → reduction). It slows the GPU *baseline* at B ≥ 16
+  (≈ 0.45 ms of 5.37 ms at L40S 16x128): LoopCore speedups there are partly credited for a GPU software artifact.
+  Separately, at B ≥ 4 the chip's compute term (assumed 100 % of peak FLOPs) exceeds its weight-read term; no GPU data so
+  far measures small-M compute efficiency (all GPU GEMMs here are memory-bound), so that assumption is untested.
+
+# Approach queue (ranked by information per cost)
+| # | approach | cost | prior | status |
+|---|---|---|---|---|
+| A1 | Ask Sid: fix `_bmm_` classification and recompute targets (O1) | free | high | pending approval |
+| A2 | Pre-registered v1.3: weight term = per-shape in-step cd kernel times, o_proj with its B-dependence; L40S design, H100 applied once | free for B ≤ 16; profile run for B > 16 | med-high | not started |
+| A3 | Profile cd step at B ∈ {2, 4, 8, 32, 64} × C=128 (+ clocks), L40S only | ~15 min L40S ≈ $0.5 | decisive for H3a/c/e | needs approval |
+| A4 | Physics floor + software excess decomposition (bytes/peak, FLOPs/peak) reported per term on both GPUs | free | high (for the paper) | not started |
+| A5 | Little's-law per-kernel cost (H1d), transferred by published latency, not fitted on H100 | free | low-med | not started |
+| A6 | Confirm on a third GPU (A100) | ~$1–2 | — | ask Sid first |

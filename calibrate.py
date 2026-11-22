@@ -68,9 +68,13 @@ def fit_m2(rows):
 
 def weight_kernel_ms(bd):
     """Weight GEMV/GEMM time of one breakdown row. Runs after fc7ed97 have an attention category, so
-    gemm_ms is weights only; older runs counted flash attention as gemm, so use the top weight kernel."""
+    gemm_ms is weights only; older runs counted flash attention as gemm, so use the top weight kernel.
+    Breakdowns before kernel_cats_version 2 (2026-11-22) filed o_proj as "other" when inductor lowered it as bmm
+    (triton_red_fused_bmm_N, coordinate-descent runs): add those kernels back from top_kernels_ms."""
     if "attention_ms" in bd:
-        return bd["gemm_ms"]
+        if bd.get("kernel_cats_version", 1) >= 2:
+            return bd["gemm_ms"]
+        return bd["gemm_ms"] + sum(v for k, v in bd["top_kernels_ms"].items() if "fused_bmm_" in k.lower())
     return next(v for k, v in bd["top_kernels_ms"].items()
                 if ("gemvx" in k or "gemm" in k) and "flash" not in k)
 
@@ -226,6 +230,10 @@ def selftest():
               f"weight {meas['weight_ms'][0]:.2f}-{meas['weight_ms'][1]:.2f} ms, step {meas['step_ms_b1_c128'][0]:.2f} ms, "
               f"δ {meas['delta_ms'][0]:.2f} ms, α′ {meas['kv_us_per_token'][0]:.4f} µs, overhead {meas['overhead_ms'][0]:.2f} ms; "
               f"M2-fit-as-model grid: {report(meas, env, m2, 10, gpu)[0].split(' points):** ')[1].splitlines()[0]}")
+    bmm = {"gemm_ms": 3.0, "attention_ms": 0.2, "top_kernels_ms": {"triton_red_fused_bmm_3": 0.3,
+                                                                  "triton_red_fused__to_copy_add_bmm_mean_4": 0.05}}
+    assert abs(weight_kernel_ms(bmm) - 3.3) < 1e-9                                     # o_proj re-sorted, norm not
+    assert weight_kernel_ms({**bmm, "kernel_cats_version": 2}) == 3.0                   # already sorted at run time
     assert error_pct(3.9, 3.77, 3.98) == 0 and round(error_pct(2.85, 3.77, 3.98)) == -24  # datasheet case
     print("selftest OK")
 

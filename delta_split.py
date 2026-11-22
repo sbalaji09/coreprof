@@ -223,9 +223,12 @@ def count_kernels(fn, steps=5):
 KERNEL_CATS = [   # order matters: flash-attention kernel names contain "cutlass", so match attention first
     ("attention", ("flash", "fmha", "attention", "sdpa")),
     ("gemm", ("gemm", "gemv", "cutlass", "xmma", "cublas", "sm80_", "sm89_", "sm90_", "ampere_", "ada_",
-              "_mm_")),   # "_mm_": inductor's fused matmul reductions (coordinate_descent_tuning), e.g. triton_red_fused_mm_5
+              "_mm_", "fused_bmm_")),   # "_mm_": inductor's fused matmul reductions (coordinate_descent_tuning),
+    # e.g. triton_red_fused_mm_5; "fused_bmm_": o_proj lowered as bmm (triton_red_fused_bmm_3), added 2026-11-22.
+    # Not plain "_bmm_": RMSNorm kernels are named triton_red_fused__to_copy_add_bmm_mean_... (they stay "copy").
     ("copy", ("copy", "memcpy", "memset", "cat", "index")),
 ]
+KERNEL_CATS_VERSION = 2   # 1 = before "fused_bmm_"; calibrate.weight_kernel_ms re-sorts v1 breakdowns
 
 
 def kernel_breakdown(fn, steps=5):
@@ -253,6 +256,7 @@ def kernel_breakdown(fn, steps=5):
     res.update({f"{c}_kernels": n[c] / steps for c in n})
     res["busy_ms"] = sum(tot.values()) / steps / 1e3
     res["kernels"] = sum(n.values()) / steps
+    res["kernel_cats_version"] = KERNEL_CATS_VERSION
     res["top_kernels_ms"] = {k: v / steps / 1e3 for k, v in sorted(top.items(), key=lambda kv: -kv[1])[:12]}
     return res
 
