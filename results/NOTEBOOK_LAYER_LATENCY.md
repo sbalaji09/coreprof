@@ -71,3 +71,35 @@ rmsnorm_2048 busy at B=1). Kernel list from the in-step cd profile: 3 attention-
 Inputs: v1.2 kernel microbenchmarks (`delta_kernel_bench-*-20261118-1234*`), not the target runs.
 Compare with measured in-step busy: L40S 11.5 µs (first-graph repeat run c3), H100 13.2 µs (cd target run).
 Pass: within ±25 % on both GPUs. Expected: ~10 µs L40S, ~11 µs H100 (−10…−20 %).
+Result: L40S 6.23 + 1.01 + 2 × 1.32 = **9.89 µs vs 11.5 (−14.0 %)**; H100 7.13 + 1.04 + 2 × 1.36 = **10.88 µs vs 13.2 (−17.6 %)**.
+Verdict: **HB supported** on both GPUs (inside ±25 %, as predicted). Systematic −14…−18 %: the in-step kernels are fused
+with extra work (e.g. the norms carry casts/residual adds), so isolated stand-ins are a little cheaper.
+Learned: per-layer time = dependent stages × per-stage latency is the right form; on GPUs each stage costs ~1–6 µs
+(launch ramp, DRAM round trips), almost independent of the work done.
+
+## New anchor (opened 2026-11-22)
+Cerebras, Llama-3.1-405B, **969 output tok/s**, 16-bit, 128K context, Nov 18 2024; vendor-measured (the page cites
+Artificial Analysis only for a separate comparison); speculative decoding not mentioned; number of systems and batch not
+stated. https://www.cerebras.ai/press-release/cerebras-inference-llama-405b . With 126 layers (from memory, not checked)
+→ **8.2 µs per layer**, including everything per token, for a layer 8× wider than Ouro's (d = 16384 vs 2048, from memory).
+Same vendor's 8B figure (17.4 µs/layer, Aug 2024) is 2× worse per layer for a smaller layer, so serving configuration and
+software, not hardware per-layer latency, dominate the published numbers. Best demonstrated upper anchor: ~8 µs/layer.
+
+## L3 - bottom-up stage count for a fused dataflow chip — pre-registered before computing
+Model (`loopcore_model.layer_latency_bottom_up`): 11 dependent stages per layer at B=1: RMSNorm, QKV matmul, rotary + KV
+write, QKᵀ, softmax, AV, o_proj + residual, RMSNorm, gate/up matmul, SiLU·mul, down + residual. Cycles per stage:
+- elementwise: move + vec + beats(n); norm: move + 2·vec + beats(n) + red·⌈log2 n⌉
+- matmul (weight-stationary, K inputs → N outputs): move + mm + beats(K) + red·⌈log2⌈K/W⌉⌉ (summing K-tiles) + beats(N)
+- QKᵀ: move + vec + red·⌈log2 hd⌉; softmax: move + 2·vec + 2·red·⌈log2 C⌉; AV: move + vec + red·⌈log2 C⌉
+  (streaming the C cached keys/values is bandwidth, already in the model's KV term, so not counted here)
+- beats(n) = ⌈n / W⌉, W = 320 lanes (Groq TSP slides).
+Parameters (low / central / high): clock 1.5 / 1.0 / 0.9 GHz (0.9 = Groq TSP nominal, cited via search summary; others
+assumed); move (hand-off between units across the chip) 10 / 50 / 200 cycles; vec (vector unit pipeline) 5 / 10 / 30;
+mm (matrix unit, first output after input; broadcast-tree vs a 320-deep systolic fill) 20 / 100 / 400; red (cycles per
+reduction-tree level) 1 / 2 / 4. **All per-stage cycle values are assumptions: no opened source gives them.**
+Not included: chip-to-chip hops (separate model term), KV access latency if not prefetched, control/synchronisation.
+Expected: I sketched this formula roughly while designing it, which suggested ~1–5 µs, so my expectation is
+**central ~1–2 µs, range ~0.3–5 µs at C = 2048**. If so, the bottom-up count sits 4–8× below the best published system
+(~8 µs), and the honest use is: bottom-up = an optimistic floor, published = a demonstrated ceiling.
+Decision rule for the model input (proposed to Sid, not applied): sweep t_L between the bottom-up central value and the
+published ~8 µs, and report the speedup at both ends rather than a single number.
