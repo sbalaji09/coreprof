@@ -104,3 +104,21 @@ baseline); e.g. the as-trained 1x2048 band 5.8-14.6x would become roughly 3.7-9.
 similar to its gain at C≈500 (unmeasured). B ≥ 2 unchanged: LoopSpec runs at B=1 only.
 Caveats: one container per GPU (no repeat); C≈500 only; H100 without TinyGEMM; GSM8K only (the paper reports similar
 gains on code and BBH).
+
+# Task: LoopSpec at context ~2048 (pre-registered 2026-11-23; NOT launched — waiting for Sid's OK, est. ~$1-1.5)
+Run: `loopspec_long` (L40S) and `loopspec_long_notinygemm` (H100, TinyGEMM off as in bd9eada), same stack and settings,
+10-shot prompts (~1,900 prompt tokens; measured 3-shot prompts were 444 tokens at ~2.84 chars/token), 40 questions, greedy,
+≤ 256 new tokens. Modes in one container: normal decoding, LoopSpec "1:2", and a second normal-decoding server
+(`baseline_repeat`) to measure ordinary run-to-run text drift on the same GPU.
+Predictions (written before any run):
+- LoopSpec "1:2" over normal decoding drops from 2.5-2.6x (C≈500) to **1.8-2.3x** at ~2048: each extra lane re-reads its
+  longer context.
+- LoopSpec vs our int8 early-exit baseline at 1x2048 (H100 5.01 ms, L40S from the int8 grid): **1.0-1.3x** (was 1.57x /
+  1.32x at C≈500). If ≤ 1.1x, LoopSpec does not clearly beat the int8 baseline at long context, and the ÷1.6 estimate
+  was too pessimistic for LoopCore at 2048.
+- Normal-vs-normal repeat on the same GPU: identical text for **≥ 95 %** of prompts (same kernels, same batch shapes).
+  If so, LoopSpec's 57-68 % agreement is NOT ordinary same-GPU noise (it is kernel/batch-shape dependent, like the
+  L40S-vs-H100 difference). If the repeat is also ~60-70 %, the drift is ordinary nondeterminism.
+- What would change my mind on "÷1.6": a measured LoopSpec/int8 ratio at 2048 outside 1.3-1.9x.
+Output: ms/token at ~2048 per mode, LoopSpec/int8 ratio at 2048, replacement for the provisional GPU+LS (3.54 ms on
+H100) in the L4 table.

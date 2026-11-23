@@ -447,16 +447,28 @@ LAYER_CYCLE_PARAMS = {
     "central": dict(clock_hz=1.0e9, move=50, vec=10, mm=100, red=2),
     "high": dict(clock_hz=0.9e9, move=200, vec=30, mm=400, red=4),
 }
+# L5 (pre-registered 2026-11-23, results/NOTEBOOK_LAYER_LATENCY.md): matmul stages limited by installing weights into
+# 320x320 matrix arrays (results/LATENCY_SOURCES.md): installs = ceil(stage weights / capacity), capacity 409,600 int8
+# (source A) or 204,800 fp16 (assumption there), 20 (source C) .. 40 (source A) cycles per install, + (B - 1) cycles per
+# install for B rows (sources C, R); 900 MHz (A). Other stages keep the "central" per-stage costs. Variants, not defaults.
+_INSTALL_BASE = dict(LAYER_CYCLE_PARAMS["central"], clock_hz=0.9e9)
+for _fmt, _cap in (("int8", 409_600), ("fp16", 204_800)):
+    for _lvl, _cyc in (("low", 20), ("high", 40)):
+        LAYER_CYCLE_PARAMS[f"install_{_fmt}_{_lvl}"] = dict(_INSTALL_BASE, install_cap=_cap, install_cycles=_cyc)
 
 
-def layer_stages(m, C, p, W=VECTOR_WIDTH):
-    """{stage: cycles} for one layer at B=1 with C cached tokens. Streaming the C cached keys/values is bandwidth (the
-    model's KV term), so attention stages count only their reduction depth."""
+def layer_stages(m, C, p, W=VECTOR_WIDTH, B=1):
+    """{stage: cycles} for one layer with C cached tokens (B rows: only the install variants depend on B). Streaming the C
+    cached keys/values is bandwidth (the model's KV term), so attention stages count only their reduction depth."""
     beats = lambda n: math.ceil(n / W)
     red = lambda n: math.ceil(math.log2(n)) * p["red"]
     ew = lambda n: p["move"] + p["vec"] + beats(n)
     norm = lambda n: p["move"] + 2 * p["vec"] + beats(n) + red(n)
-    mm = lambda K, N: p["move"] + p["mm"] + beats(K) + math.ceil(math.log2(math.ceil(K / W))) * p["red"] + beats(N)
+    if "install_cap" in p:
+        mm = lambda K, N: (p["move"] + math.ceil(K * N / p["install_cap"]) * (p["install_cycles"] + B - 1)
+                           + beats(N))
+    else:
+        mm = lambda K, N: p["move"] + p["mm"] + beats(K) + math.ceil(math.log2(math.ceil(K / W))) * p["red"] + beats(N)
     d, kv = m.d_model, m.n_kv_heads * m.head_dim
     return {"rmsnorm 1": norm(d), "qkv matmul": mm(d, d + 2 * kv), "rotary + KV write": ew(d + kv),
             "QK^T": p["move"] + p["vec"] + red(m.head_dim), "softmax": p["move"] + 2 * p["vec"] + 2 * red(C),
@@ -464,10 +476,10 @@ def layer_stages(m, C, p, W=VECTOR_WIDTH):
             "gate/up matmul": mm(d, 2 * m.d_ff), "SiLU*mul": ew(m.d_ff), "down + residual": mm(m.d_ff, d)}
 
 
-def layer_latency_bottom_up(m, C, level="central"):
-    """Seconds per layer per loop step (B=1) at one parameter level."""
+def layer_latency_bottom_up(m, C, level="central", B=1):
+    """Seconds per layer per loop step at one parameter level (B matters only for the install variants)."""
     p = LAYER_CYCLE_PARAMS[level]
-    return sum(layer_stages(m, C, p).values()) / p["clock_hz"]
+    return sum(layer_stages(m, C, p, B=B).values()) / p["clock_hz"]
 
 _core_4bit = OURO_1_4B.core_params * 0.5
 _chip = dict(weight_bw=SRAM_BW, ext_bw=EXT_BW, compute=COMPUTE_FP8, sram_bytes_per_chip=SRAM_MB,
@@ -751,6 +763,70 @@ def chip_step_unified(m, hw, B, C, level="central"):
     return m.n_layers * t + step_terms(m, hw, B, C)["link"]
 
 
+# ---------------------------------------------------------------- LoopSpec on the chip (L4, pre-registered 2026-11-23)
+#
+# LoopSpec's measured counters (raw run files): passes of the shared block per committed token, first-proposal rejects,
+# second proposals. One pass covers every live lane, so the chip pays the per-layer latency and the weight read once per
+# pass and the KV read once per lane. Lanes per pass are not logged: bounded by 4 / passes (no waste) and
+# (4 + 6 x reject rate + 3 x second-proposal rate) / passes (a rejected draft discards at most 3+2+1 lane-passes).
+LOOPSPEC_RUNS = {"l40s": "results/modal/loopspec-l40s-20261123-112959",
+                 "h100": "results/modal/loopspec_notinygemm-h100-20261123-120532"}
+
+
+def loopspec_stats(gpu, mode="1:2"):
+    rows = json.load(open(ROOT / LOOPSPEC_RUNS[gpu] / "loopspec_bench.json"))["modes"][mode]["rows"]
+    tot = lambda k: sum(r[k] for r in rows)
+    t = tot("decode_tokens")
+    c = tot("pipeline_cycles") / t
+    r1, r2 = tot("first_reject") / t, (tot("second_accept") + tot("second_reject")) / t
+    return dict(passes=c, lanes=(4 / c, (4 + 6 * r1 + 3 * r2) / c), readouts=2 + r2,
+                ms_per_token=sum(r["decode_seconds"] for r in rows) / t * 1e3)
+
+
+def chip_token_time_loopspec(m, hw, C, stats, lanes, level):
+    """B=1 token time of the chip running LoopSpec at full depth (m.total_loops), lanes rows per pass."""
+    t_pass, _ = step_time(m, replace(hw, overhead_s=m.n_layers * layer_latency_bottom_up(m, C, level, B=lanes)), lanes, C)
+    lm_bw = hw.weight_bw if hw.lmhead_on_chip else hw.ext_bw
+    t_lm = m.lmhead_params * hw.weight_bytes / lm_bw + 2 * m.lmhead_params / hw.compute
+    return stats["passes"] * t_pass + per_token_extras(m, hw, 1) + (stats["readouts"] - 1) * t_lm
+
+
+def loopspec_table(m=OURO_1_4B, q=0.5, C=2048, levels=("central", "install_int8_low", "install_int8_high"),
+                   effs=(1.0, 1.3), gpu="h100", mode="1:2"):
+    """Speedups vs H100 at C: rows (a) chip vs GPU int8, (b) chip vs GPU + LoopSpec, (c) chip + LoopSpec vs GPU +
+    LoopSpec (B=1); B=16 vs GPU int8 only (LoopSpec is B=1 only). GPU + LoopSpec at C is PROVISIONAL: measured LoopSpec
+    ms at C~500 scaled by our bf16 4-loop step growth from 512 to C (replace with a measurement at C)."""
+    depth, st = MEAN_DEPTH[q], loopspec_stats(gpu, mode)
+    hwg = predict_gpu(fit_gpu("l40s", m), gpu)
+    bf, i8 = measured_steps(gpu, "bf16"), measured_steps(gpu, "int8")
+    ex = lambda B: gpu_extras(m, hwg, gpu, B)
+    four = lambda c_: m.total_loops * bf[(1, c_)] * 1e-3 + ex(1)
+    gpu_ls = st["ms_per_token"] * 1e-3 * four(C) / four(512)
+    gpu_i8 = {B: depth * i8[(B, C)] * 1e-3 + ex(B) for B in (1, 16)}
+    print(f"vs {gpu.upper()}, {C} context, q={q} (depth {depth}); LoopSpec '{mode}' passes/token {st['passes']:.3f}, "
+          f"lanes {st['lanes'][0]:.2f}-{st['lanes'][1]:.2f}, readouts/token {st['readouts']:.2f}")
+    print(f"GPU per token: int8 B=1 {gpu_i8[1] * 1e3:.2f} ms, B=16 {gpu_i8[16] * 1e3:.2f} ms; GPU + LoopSpec B=1 "
+          f"{gpu_ls * 1e3:.2f} ms (PROVISIONAL, scaled from C~500: {st['ms_per_token']:.2f} ms)\n")
+    D = LOOPCORE_CONFIGS["D: 3 chips, 8-bit, all resident"]
+    designs = {"as trained (fp8 KV, 4 caches, HBM)": dict(kv_bytes=1.0),
+               "trained shared KV, on-chip": dict(kv_bytes=1.0, kv_caches=1, kv_on_chip=True)}
+    print(f"{'design':36s} {'per-layer level':18s} {'t_L':>6} eff | (a) B=1 | (b) B=1 | (c) B=1 lanes lo-hi | B=16 (a)")
+    for name, kw in designs.items():
+        for level in levels:
+            for eff in effs:
+                out = []
+                for B in (1, 16):
+                    tl = layer_latency_bottom_up(m, C, level, B=B)
+                    hw = sized(m, replace(D, overhead_s=m.n_layers * tl, **kw), B, C)
+                    out.append(eff * token_time(m, hw, B, C, depth))
+                hw1 = sized(m, replace(D, **kw), 1, C)
+                ls = [eff * chip_token_time_loopspec(m, hw1, C, st, ln, level) for ln in st["lanes"]]
+                print(f"{name:36s} {level:18s} {layer_latency_bottom_up(m, C, level) * 1e6:5.2f}µ {eff:3.1f} | "
+                      f"{gpu_i8[1] / out[0]:6.1f}x | {gpu_ls / out[0]:6.1f}x | {gpu_ls / ls[1]:5.1f}-{gpu_ls / ls[0]:5.1f}x "
+                      f"(chip gain {out[0] / eff / (ls[1] / eff):.2f}-{out[0] / ls[0]:.2f}x) | {gpu_i8[16] / out[1]:5.1f}x")
+        print()
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--validate", action="store_true", help="L40S fit (in-sample) and H100 prediction")
@@ -759,10 +835,13 @@ def main():
     ap.add_argument("--layer-latency-us", type=float, nargs="+", default=[LAYER_LATENCY * 1e6])
     ap.add_argument("--q", type=float, choices=sorted(MEAN_DEPTH), default=0.5)
     ap.add_argument("--kv-levers", action="store_true", help="KV design options on config D vs measured H100 int8")
+    ap.add_argument("--loopspec-table", action="store_true", help="L4/L5: speedups with LoopSpec and install latency")
     ap.add_argument("--chip-efficiency", type=float, default=1.0, help="with --kv-levers: chip token time x this factor")
     ap.add_argument("--unified", metavar="GPU", help="write results/unified/<gpu>_<variant>_<klist>.json (unified formula)")
     args = ap.parse_args()
-    if args.unified:
+    if args.loopspec_table:
+        loopspec_table()
+    elif args.unified:
         out = ROOT / "results" / "unified"
         out.mkdir(exist_ok=True)
         for variant in ("a", "b"):

@@ -19,7 +19,9 @@ LOOPSPEC_DIR = "/opt/loopspec"
 MODEL_DIR = "/vol/models/Ouro-1.4B"   # LoopSpec identifies the model by the directory name
 REVISION = "574fa66cb8bf5abdc979642d01cf2b79b16bfab1"   # = harness.REVISION
 GSM8K = "https://raw.githubusercontent.com/openai/grade-school-math/master/grade_school_math/data/{}.jsonl"
-MODES = {"baseline": [], "1": ["--loopspec", "--first", "1"], "1:2": ["--loopspec", "--first", "1", "--second", "2"]}
+MODES = {"baseline": [], "1": ["--loopspec", "--first", "1"], "1:2": ["--loopspec", "--first", "1", "--second", "2"],
+         # a second normal-decoding server in the same container: how much text drift is ordinary run-to-run noise
+         "baseline_repeat": []}
 PORT = 30000
 METRICS_RE = re.compile(r"generation_metrics\s+(\{.*\})\s*$")
 # Loaded by every server process (via PYTHONPATH): logs which linear backend LoopSpec's install_linear_backend picks
@@ -118,6 +120,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--n", type=int, default=40)
+    ap.add_argument("--shots", type=int, default=3, help="GSM8K examples before each question (sets the context)")
     ap.add_argument("--warmup", type=int, default=2)
     ap.add_argument("--max-new-tokens", type=int, default=256)
     ap.add_argument("--modes", nargs="+", default=list(MODES))
@@ -127,10 +130,10 @@ def main():
         from huggingface_hub import snapshot_download
         snapshot_download("ByteDance/Ouro-1.4B", revision=REVISION, local_dir=MODEL_DIR)
     import torch
-    texts = prompts(a.n)
+    texts = prompts(a.n, a.shots)
     res = dict(gpu=torch.cuda.get_device_name(), torch=torch.__version__, model_revision=REVISION,
                loopspec_commit=open(os.path.join(LOOPSPEC_DIR, "COMMIT")).read().strip(), n=a.n, warmup=a.warmup,
-               max_new_tokens=a.max_new_tokens, no_tinygemm=a.no_tinygemm, modes={})
+               max_new_tokens=a.max_new_tokens, shots=a.shots, no_tinygemm=a.no_tinygemm, modes={})
     path = os.path.join(a.out_dir, "loopspec_bench.json")
     for mode in a.modes:   # warm-up = the first `warmup` measured prompts, sent once before the measured set
         rows, summary = run_mode(mode, texts, a.warmup, a.max_new_tokens, a.out_dir, a.no_tinygemm)

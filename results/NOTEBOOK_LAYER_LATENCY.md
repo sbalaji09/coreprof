@@ -176,3 +176,52 @@ int8). Against the published cross-checks (Groq BERT-base 8.9, WSE-2 Llama3-8B 1
 the old bottom-up central (1.36 µs; 6.5-12.5x below) narrows to ~1.4-5x below.
 Then: speedup tables (as trained, shared KV on-chip; B=1, 16; C=2048) over {int8 install low/high} x {eff 1.0, 1.3} x
 {rows a, b, c at B=1}. Proposed numbers only; no write-up changed.
+
+## L5 - results (`layer_latency_bottom_up(m, 2048, "install_<fmt>_<low|high>", B)`)
+| variant | per layer, B=1 | of which matmul | B=16 | pre-registered |
+|---|---|---|---|---|
+| install int8, 20 / 40 cycles | **3.83 / 6.68 µs** | 3.14 / 5.99 | 5.97 / 8.81 | 3.5-6.5 (top end 0.2 µs above) |
+| install fp16, 20 / 40 cycles | 6.61 / 12.23 µs | 5.92 / 11.54 | 10.83 / 16.45 | 6.5-12 |
+| old bottom-up central (assumed costs) | 1.36 µs | 0.74 | 1.36 | – |
+Matmul installs per layer: int8 128, fp16 253 (as in LATENCY_SOURCES §2). Against the published per-layer cross-checks
+(Groq BERT-base 8.9, WSE-2 Llama3-8B 11.6, CS-3 8B 17 µs; all Derived, different models/settings): the int8 range is now
+1.3-4.4x below them (old central: 6.5-12.5x below) → **the gap narrows**, as predicted. The remaining gap is consistent with
+larger layers in those models (Llama3-8B: ~4x Ouro's weights per layer) and per-token costs spread over layers.
+Evidence level: Derived from published primitives (install latency, array size, clock); the install throughput is a
+latency used as a throughput (LATENCY_SOURCES notes this), and vector-stage costs remain assumptions.
+
+## L4 - results (`python3 loopcore_model.py --loopspec-table`; vs H100, 1x2048 unless noted)
+Validity: (a) at central latency, eff 1.0 = 14.6x, reproducing L3.
+LoopSpec "1:2" (H100 counters): 1.189 passes/token, lanes 3.37-4.06, readouts 2.08/token. GPU per token: int8 5.01 ms
+(B=1), 15.87 ms (B=16); GPU + LoopSpec 3.54 ms **PROVISIONAL** (measured 2.89 ms at C≈500, scaled by our bf16 step growth).
+| design | t_L level | eff | (a) chip vs GPU int8 | (b) chip vs GPU+LS | (c) chip+LS vs GPU+LS | chip's own LS gain | B=16 vs GPU int8 |
+|---|---|---|---|---|---|---|---|
+| as trained | central 1.36 µs | 1.0 / 1.3 | 14.6 / 11.2x | 10.3 / 7.9x | 10.0-11.7 / 7.7-9.0x | 0.97-1.13x | 4.7 / 3.6x |
+| as trained | install int8 low 3.83 µs | 1.0 / 1.3 | 9.4 / 7.2x | 6.6 / 5.1x | 8.1-9.2 / 6.2-7.1x | 1.22-1.39x | 4.3 / 3.3x |
+| as trained | install int8 high 6.68 µs | 1.0 / 1.3 | 6.6 / 5.1x | 4.7 / 3.6x | 6.8-7.6 / 5.2-5.9x | 1.45-1.62x | 4.0 / 3.1x |
+| shared KV on-chip | central | 1.0 / 1.3 | 31.9 / 24.6x | 22.6 / 17.4x | 48.5-50.7 / 37.3-39.0x | 2.15-2.25x | 44.1 / 33.9x |
+| shared KV on-chip | install int8 low | 1.0 / 1.3 | 14.4 / 11.1x | 10.2 / 7.8x | 22.7-23.6 / 17.5-18.2x | 2.23-2.32x | 22.2 / 17.0x |
+| shared KV on-chip | install int8 high | 1.0 / 1.3 | 8.8 / 6.8x | 6.2 / 4.8x | 14.9-15.3 / 11.5-11.8x | 2.40-2.46x | 16.9 / 13.0x |
+Hypotheses:
+- **H2 supported (Ouro as trained, KV in HBM):** the chip's own LoopSpec gain is 1.2-1.6x at the sourced latencies (and
+  ~1.0x at 1.36 µs), vs ~2.5x on the GPU: each extra lane re-reads its 2048-token context from HBM (~60 µs per pass), so
+  sharing the per-pass latency buys little. Predicted 1.3-1.6x: matched.
+- **H1 supported (shared KV on-chip):** 2.2-2.5x, close to the GPU's gain, because KV reads come from SRAM and the
+  per-pass latency dominates.
+- **H3 refuted:** a draft readout costs the chip 0.84 µs (LM head on chip) per extra readout vs ~400-700 µs per token.
+- Predicted row (c) as trained at the install range: ~6-10x; got 5.2-9.2x (eff 1.0-1.3): low end slightly below.
+Proposed numbers only (GPU + LoopSpec at 2048 provisional until task 1 of the 2026-11-23 brief). No write-up changed.
+
+## Robustness: does each conclusion survive? (vs H100; B=1 rows at 1x2048)
+Columns: formula error ±30 % (chip time x 0.7-1.3; only the 1.3 side can break a "≥" claim); full per-layer latency range
+0.31-17.4 µs (bottom-up low .. Cerebras 8B); LoopSpec (GPU + LS, chip with and without LS; provisional at 2048);
+software-efficiency band 1.0-1.3 (S1). "Yes" = the stated direction/threshold holds at every point of that column.
+| conclusion | ±30 % formula | full t_L range | LoopSpec | efficiency band |
+|---|---|---|---|---|
+| At B=1 the per-layer latency is the main chip-design lever | yes | yes (3.2-19x as trained across it) | yes (rows a-c all move with t_L) | yes |
+| At B=16 with KV in HBM, speedup is ~3-5x whatever the latency | yes (3.1-4.7x) | yes (3.4-4.8x) | n/a (LoopSpec is B=1 only) | yes |
+| Keeping (shared) KV on-chip is the largest lever | yes | yes (B=16: 9.9-57x vs 3.4-4.8x) | yes (chip gains more from LS with on-chip KV) | yes |
+| Ouro as trained beats H100 by ≥ 3x at B=1 | yes | **no** at ≥ ~17 µs (3.2x at 17.4 µs, ~2.5x with 1.3) | yes at sourced latencies (≥ 3.6x) | yes at sourced latencies |
+| Ouro as trained reaches 10x at B=1 | needs t_L < ~1.9 µs (S1) | only at t_L ≲ 3.4 µs | **no** at sourced latencies (≤ 9.2x in row c, ≤ 6.6x in row b) | no at 1.3 |
+| Shared on-chip KV reaches 10x at B=1 | yes in row (c) | no at ≥ ~8 µs | yes if the chip also runs LS (11.5-23.6x); **no** if only the GPU does (row b 4.8-10.2x) | yes in row (c) |
+| Ouro as trained ≥ 3x at 16x8192 | **no** (2.3x at 1.3, S1) | no at 17.4 µs (2.8x) | n/a | no |
