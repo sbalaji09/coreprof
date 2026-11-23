@@ -496,3 +496,33 @@ Expected on L40S (hand estimate from the fingerprint, written before running), v
 - grid: median ~3-6 %, max ~−10…−15 % at B=64 (64x128 ~8.0 vs 8.99 ms: in-step tensor-core GEMMs read slower than F1).
 - overall: pass likely, non-weight row borderline.
 Variant (b): weight ~3.33 ms (~−2 %), step ~−4…−5 %; rest as (a).
+
+## U1 - results on L40S (design GPU; `results/unified/l40s_*.json`, scored with `calibrate.py --pred`, not written)
+| row | (a) K1 | (b) K1 | expected (a) |
+|---|---|---|---|
+| weight | 3.45 ms (inside 3.41-3.98) | 3.29 (−3.7 %) | 3.45, inside |
+| KV per token | 0.263 µs (+0.5 %) | same | +0.5 % |
+| crossover | 13,095 (inside) | 12,479 (−4.2 %) | ~13,100 |
+| step 1x128 | 3.72 ms (**−0.7 %**) | 3.56 (−5.0 %) | ~−1.5 % |
+| δ | 3.70 (**−9.0 %**) | 3.63 (−10.7 % ✗) | ±5 % (missed, inside the rule) |
+| non-weight 1x128 | 0.271 ms (−0.3 % vs range 0.272-0.402) | same | −5…−10 % |
+| grid | median **7.2 %**, max **−12.8 %** (16x128) | 7.5 % / −13.4 % | median 3-6 %, max −10…−15 % at B=64 |
+| verdict | **PASS** | FAIL (δ) | pass |
+K1 = K2 on L40S (its own list); the K2 files are identical in content.
+Grid pattern (a): B=1 within ±1 % at every C. B ≥ 2: −9…−13 % at C ≤ 512, shrinking to −1…−6 % at C = 8192 (the KV term
+is right; the fixed part is short by ~0.5 ms). Cause, from E5's in-step data: tensor-core GEMMs at small M (B=2-64) read
+weights at ~83 % of the F1 read rate (in-step other-weights at B=16: 3.74 ms vs formula 3.25 ms). A GPU-software
+efficiency term again, as with H100's B=1 reductions.
+Caveats: the non-weight row passes at the range's lower edge only because of the later-graph gap; with the first-graph
+gap the formula gives 0.192 ms (−29 % vs the first-graph value 0.272). Several expectations were off (δ, grid median),
+all within the rule. Not changed after seeing this: **v2.0 frozen** as committed in a6514b1.
+
+## U2 - H100, applied once: pre-registered before running
+Same code, same frozen v2.0, H100 fingerprint (`fingerprint-h100-20261122-234738`). Semi-blind (H100 fingerprint and
+F0/FP2/FP3 diagnostics already seen). All four combinations reported: (a)/(b) x K1/K2.
+Expected (from FP2/FP3 and the kernel lists, written before running):
+- (a): weight at B=1 ~−25 % → weight ~0.95 vs 1.26-1.77 ms (✗); step 1x128 ~−20 % (✗); FAIL.
+- (b): weight ~−15 % (✗); step 1x128 ~−12 % (✗); FAIL.
+- KV per token: BW_read 3100 GB/s vs α′-implied 2594 → ~−16 % (✗) in all variants (H100 KV reads at 87 % of the read rate).
+- K2 vs K1 at B ≥ 2: + ~96 split-K kernels x (L_tiny + g ≈ 1.3 µs) ≈ +0.13 ms per step, i.e. K2 ~+5-8 % at small C.
+- grid with K1: B ≥ 2 ~−15…−30 %; max beyond −20 % likely (✗).
