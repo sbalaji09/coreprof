@@ -202,3 +202,12 @@ def test_v13_changes_only_the_b1_weight_term():
         assert (s13, a13) == (s12, a12) and w13 != w12
         # busy part = the in-step weight kernels (o_proj included); the slot adds a positive launch gap
         assert lm.kernel_sum(gpu, 1, 128, "busy_us", version="v1.3")[0] < w13
+
+
+def test_v14_is_busy_time_plus_one_ingraph_gap_per_kernel():
+    assert lm.ingraph_gap_us("l40s") < 0.1                                   # graph replay hides launches on L40S
+    h100 = [0.506, 0.040]                                                    # the H200 run (0.329) must be excluded
+    assert lm.ingraph_gap_us("h100") == pytest.approx(sum(h100) / 2, abs=0.01)
+    for gpu in ("l40s", "h100"):
+        for B in (1, 16):
+            assert lm.kernel_sum(gpu, B, 512, "busy_us", "v1.4") == lm.kernel_sum(gpu, B, 512, "busy_us", "v1.3")

@@ -288,17 +288,35 @@ CD_RUN = {"l40s": "results/modal/delta_bf16_cd-l40s-20261120-010859",
           "h100": "results/modal/delta_bf16_cd-h100-20261120-010911"}
 
 
-def instep_weights_b1(gpu, field, m=OURO_1_4B):
-    """v1.3 weight term at B=1, µs per loop step."""
+def instep_b1(gpu, m=OURO_1_4B):
+    """(busy µs, kernel count) of the weight kernels in the cd step's 1x128 profile."""
     bd = json.load(open(ROOT / CD_RUN[gpu] / "delta_split.json"))["kernel_breakdown"]["compiled_graph 1x128"]
-    busy = cal.weight_kernel_ms(bd) * 1e3
+    # older breakdowns filed the o_proj kernels (one per layer) outside gemm_kernels
+    n = bd["gemm_kernels"] + (m.n_layers if bd.get("kernel_cats_version", 1) < 2 else 0)
+    return cal.weight_kernel_ms(bd) * 1e3, n
+
+
+def instep_weights_b1(gpu, field):
+    """v1.3 weight term at B=1, µs per loop step."""
+    busy, n = instep_b1(gpu)
     if field == "busy_us":
         return busy
     gemm = json.load(open(ROOT / KERNEL_BENCH_V12[gpu] / "kernel_bench.json"))["gemm_compiled"]
-    gap = statistics.mean(t["1"]["slot_us"] - t["1"]["busy_us"] for t in gemm.values())
-    # older breakdowns filed the o_proj kernels (one per layer) outside gemm_kernels
-    n = bd["gemm_kernels"] + (m.n_layers if bd.get("kernel_cats_version", 1) < 2 else 0)
-    return busy + n * gap
+    return busy + n * statistics.mean(t["1"]["slot_us"] - t["1"]["busy_us"] for t in gemm.values())
+
+
+# v1.4 (pre-registered 2026-11-22, before scoring): as v1.3, except every kernel costs its busy time plus ONE in-graph
+# gap per kernel, g, instead of the microbenchmark's slot time (slot - busy = 0.2-1.2 µs, measured with kernels
+# alternating outside the real graph). g = mean over the GPU's delta_noise runs of (step - busy) / kernels: separate
+# containers, fused non-cd step, not calibration targets. Runs whose device is not this GPU are dropped (one "h100"
+# noise run was an H200). Kernel counts: weights 168 (B >= 2) or the in-step count (B=1), small 126, attention 48.
+def ingraph_gap_us(gpu):
+    vals = []
+    for f in sorted(ROOT.glob(f"results/modal/delta_noise-{gpu}-*/noise.json")):
+        j = json.load(open(f))
+        if j["gpu"] == cal.RUNS[gpu][0]:
+            vals.append((j["step"]["median_ms"] - j["busy_ms"]) / j["kernels"] * 1e3)
+    return statistics.mean(vals)
 
 
 def _interp(table, B, field):
@@ -312,6 +330,13 @@ def _interp(table, B, field):
 
 def kernel_sum(gpu, B, C, field="slot_us", version="v1.1"):
     """(weights, small, attention) in µs per loop step from the GPU's own microbenchmarks."""
+    if version == "v1.4":
+        w, s, a = kernel_sum(gpu, B, C, "busy_us", "v1.3")
+        if field == "busy_us":
+            return w, s, a
+        g = ingraph_gap_us(gpu)
+        n_w = instep_b1(gpu)[1] if B == 1 else sum(KERNEL_COUNTS["gemm"].values())
+        return w + n_w * g, s + KERNEL_COUNTS["small"] * g, a + 2 * KERNEL_COUNTS["attention_calls"] * g
     v12 = version in ("v1.2", "v1.3")
     run = KERNEL_BENCH_V12[gpu] if v12 else KERNEL_BENCH[gpu]
     kb = json.load(open(ROOT / run / "kernel_bench.json"))
@@ -328,12 +353,12 @@ def kernel_sum(gpu, B, C, field="slot_us", version="v1.1"):
     return w, small, KERNEL_COUNTS["attention_calls"] * (a128 + kv * B * (C - 128))
 
 
-def kernel_sum_predictions(gpu, version="v1.3"):
+def kernel_sum_predictions(gpu, version="v1.4"):
     """calibrate.py predictions from the kernel-sum model."""
     env, _ = cal.envelope(gpu)
     grid = {f"{B}x{C}": sum(kernel_sum(gpu, B, C, version=version)) / 1e3 for (B, C) in env}
     delta, _, _, _ = cal.fit_m2([{"B": B, "C": C, "t": grid[f"{B}x{C}"]} for (B, C) in env])
-    run = KERNEL_BENCH_V12[gpu] if version in ("v1.2", "v1.3") else KERNEL_BENCH[gpu]
+    run = KERNEL_BENCH_V12[gpu] if version in ("v1.2", "v1.3", "v1.4") else KERNEL_BENCH[gpu]
     kb = json.load(open(ROOT / run / "kernel_bench.json"))
     w_busy = kernel_sum(gpu, 1, 128, "busy_us", version=version)[0] / 1e3
     att = kb["attention"]
@@ -445,7 +470,7 @@ def validate(m=OURO_1_4B, write=False):
     print("GEMV -> GEMM jump v0 noted. Anchoring the overhead at the measured B=1 step fixes L40S but worsens the H100")
     print("prediction (median 12.6 %), so it is not used; more variants tuned against H100 would overfit it.")
     have_bench = all((ROOT / KERNEL_BENCH_V12[g] / "kernel_bench.json").exists() for g in KERNEL_BENCH_V12)
-    for version in ("v1.1", "v1.2", "v1.3"):
+    for version in ("v1.1", "v1.2", "v1.3", "v1.4"):
         print(f"\n{version} kernel-sum model (microbenchmarks only; both GPUs are predictions):")
         for gpu in ("l40s", "h100"):
             env, _ = cal.envelope(gpu)
@@ -463,11 +488,11 @@ def validate(m=OURO_1_4B, write=False):
     if write:
         for gpu, hw in (("l40s", l40s), ("h100", h100)):
             p = ROOT / cal.RUNS[gpu][1]
-            # pre-registered: the latest kernel-sum model's (v1.3) predictions are recorded, whatever they score
-            pred = kernel_sum_predictions(gpu, "v1.3") if have_bench else \
+            # pre-registered: the latest kernel-sum model's (v1.4) predictions are recorded, whatever they score
+            pred = kernel_sum_predictions(gpu, "v1.4") if have_bench else \
                 {**predictions(m, hw, gpu), "date": __import__("time").strftime("%Y-%m-%d")}
             p.write_text(json.dumps(pred, indent=2) + "\n")
-            print(f"wrote {p.name} ({'v1.3 kernel-sum' if have_bench else 'v1 transfer'} model)")
+            print(f"wrote {p.name} ({'v1.4 kernel-sum' if have_bench else 'v1 transfer'} model)")
     return l40s, h100
 
 
