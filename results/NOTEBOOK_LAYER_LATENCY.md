@@ -103,3 +103,27 @@ Expected: I sketched this formula roughly while designing it, which suggested ~1
 (~8 µs), and the honest use is: bottom-up = an optimistic floor, published = a demonstrated ceiling.
 Decision rule for the model input (proposed to Sid, not applied): sweep t_L between the bottom-up central value and the
 published ~8 µs, and report the speedup at both ends rather than a single number.
+Result (`layer_latency_bottom_up`, committed before computing): C = 2048: **low 0.31 µs, central 1.36 µs, high 5.06 µs**
+per layer (C = 128 / 8192 within ±0.05 µs). Central breakdown: 1,356 cycles; matmul stages 54 %, unit-to-unit hand-offs
+alone 41 % (11 × 50 cycles). As predicted (central ~1–2 µs, range ~0.3–5 µs).
+Verdict: the count is dominated by the assumed per-stage costs (hand-off and matrix-unit fill), which no opened source
+gives. It is an optimistic floor for a design that achieves those costs, not evidence that a real chip will.
+Reconciliation with published systems: the bottom-up central is ~6× below the best published (~8.2 µs, 405B) and ~13×
+below Cerebras 8B. Candidates for the gap (untested): per-token costs spread over layers (sampling, host, LM head),
+multi-chip / multi-region hops, serving batch > 1, synchronisation/control not in the count, larger per-stage costs.
+Implication (vs measured H100 int8, q = 0.5; GPU keeps bf16 KV, so the fp8-KV gain is not LoopCore-only):
+| per-layer latency | Ouro as trained (int8, fp8 KV, 4 caches, HBM) 1x2048 / 16x2048 | with trained KV sharing (1 cache on-chip) 1x2048 / 16x2048 |
+|---|---|---|
+| 0.31 µs (bottom-up low) | 19.1× / 4.8× | 65.6× / 56.8× |
+| 1.36 µs (bottom-up central) | 14.6× / 4.7× | 31.9× / 44.1× |
+| 5.06 µs (bottom-up high) | 8.0× / 4.3× | 11.3× / 24.5× |
+| 8.2 µs (best published, 405B) | 5.8× / 4.1× | 7.3× / 17.8× |
+| 17.4 µs (Cerebras 8B) | 3.2× / 3.4× | 3.6× / 9.9× |
+- At B=1 the answer swings 3–19× (Ouro as trained) on this one unknown; at B=16 it barely matters (3.4–4.8×) because KV
+  reads dominate there.
+- 10× at B=1 for Ouro as trained needs t_L ≲ 3–4 µs: inside the bottom-up range, below anything published.
+Proposed (Sid to decide; LAYER_LATENCY default unchanged): report LoopCore at B=1 as a band, bottom-up central (1.4 µs)
+to best published (8.2 µs), i.e. 5.8–14.6× for Ouro as trained at 1x2048, and say which design properties (hand-off and
+matrix-fill cycles) put a chip at the optimistic end.
+Next: (a) find per-stage cycle figures (Groq ISCA 2020 paper text, Groq 2022 ISCA multi-chip paper, Cerebras/SambaNova
+papers) to replace the swept values; (b) test the gap candidates against published small- vs large-model speeds.
