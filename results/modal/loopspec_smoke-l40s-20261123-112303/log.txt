@@ -1,0 +1,31 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=loopspec_smoke-l40s-20261123-112303
+git=576014b-dirty
+Mon Nov 23 19:23:11 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-2df86f3e-b835-b7b4-f372-5df3f491bba5, 46068 MiB, 610.57.04
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.11.0+cu130 transformers 5.8.1
+[exit 0]
+
+$ python loopspec_bench.py --n 3 --warmup 1 --max-new-tokens 64 --out-dir $OUT
+
+Fetching 13 files:   0%|          | 0/13 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+Fetching 13 files:   8%|▊         | 1/13 [00:00<00:06,  1.76it/s]
+Fetching 13 files:  77%|███████▋  | 10/13 [00:00<00:00, 13.04it/s]
+Fetching 13 files: 100%|██████████| 13/13 [00:04<00:00,  2.43it/s]
+Fetching 13 files: 100%|██████████| 13/13 [00:04<00:00,  2.94it/s]
+Traceback (most recent call last):
+  File "/root/loopcore/loopspec_bench.py", line 123, in <module>
+    main()
+  File "/root/loopcore/loopspec_bench.py", line 110, in main
+    rows, summary = run_mode(mode, texts, a.warmup, a.max_new_tokens, a.out_dir)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/loopcore/loopspec_bench.py", line 80, in run_mode
+    raise RuntimeError(f"{mode}: {len(metrics)} metrics lines for {len(outs)} requests; see {log_path}")
+RuntimeError: baseline: 5 metrics lines for 4 requests; see /vol/results/loopspec_smoke-l40s-20261123-112303/server_baseline.log
+[exit 1]

@@ -1,0 +1,34 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=loopspec-h100-20261123-120219
+git=576014b-dirty
+Mon Nov 23 20:02:25 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA H100 80GB HBM3, GPU-d3e041cc-6c06-51f4-6e3a-973a15070cad, 81559 MiB, 620.70.06
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.11.0+cu130 transformers 5.8.1
+[exit 0]
+
+$ python loopspec_bench.py --out-dir $OUT
+Traceback (most recent call last):
+  File "/root/loopcore/loopspec_bench.py", line 65, in run_mode
+    ready_s = wait_ready(proc, log_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/loopcore/loopspec_bench.py", line 51, in wait_ready
+    raise RuntimeError(f"server exited with {proc.returncode}; see {log_path}")
+RuntimeError: server exited with -9; see /vol/results/loopspec-h100-20261123-120219/server_baseline.log
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/loopcore/loopspec_bench.py", line 122, in <module>
+    main()
+  File "/root/loopcore/loopspec_bench.py", line 109, in main
+    rows, summary = run_mode(mode, texts, a.warmup, a.max_new_tokens, a.out_dir)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/loopcore/loopspec_bench.py", line 75, in run_mode
+    os.killpg(proc.pid, signal.SIGTERM)
+ProcessLookupError: [Errno 3] No such process
+[exit 1]

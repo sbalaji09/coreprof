@@ -1,0 +1,159 @@
+{
+ "gpu": "NVIDIA L40S",
+ "torch": "2.11.0+cu130",
+ "model_revision": "574fa66cb8bf5abdc979642d01cf2b79b16bfab1",
+ "loopspec_commit": "41aa710ed7c9ce908cffa03597be5d1df19d7b56",
+ "n": 3,
+ "warmup": 1,
+ "max_new_tokens": 64,
+ "modes": {
+  "baseline": {
+   "summary": {
+    "ms_per_token": 16.802146824858898,
+    "median_ms_per_token": 16.810053682539834,
+    "decode_tokens": 177,
+    "mean_prompt_tokens": 436.3333333333333,
+    "mean_completion_tokens": 60,
+    "server_ready_s": 60.00958800315857
+   },
+   "rows": [
+    {
+     "text": " Janet\u2019s ducks lay 16 eggs per day.\nShe eats 3 eggs for breakfast every morning and bakes muffins for her friends with 4 eggs.\nThis means, she sells 16 - 3 - 4 = $<<16-3-4=9>>9 eggs",
+     "prompt_tokens": 452,
+     "completion_tokens": 64,
+     "decode_seconds": 1.0600548140000114,
+     "decode_tok_s": 59.43088901438574,
+     "decode_tokens": 63
+    },
+    {
+     "text": " The robe takes 2 bolts of blue fiber and 2/2 = 1 bolt of white fiber.\nThe robe takes 2 + 1 = <<2+1=3>>3 bolts in total.\n#### 3\n\n",
+     "prompt_tokens": 413,
+     "completion_tokens": 52,
+     "decode_seconds": 0.8548917920000036,
+     "decode_tok_s": 59.65667289972037,
+     "decode_tokens": 51
+    },
+    {
+     "text": " The value of the house increased by 150% of $80,000 = $<<150/100*80000=120000>>120000.\nThe value of the house after the repairs is $80",
+     "prompt_tokens": 444,
+     "completion_tokens": 64,
+     "decode_seconds": 1.0590333820000097,
+     "decode_tok_s": 59.4882097871391,
+     "decode_tokens": 63
+    }
+   ]
+  },
+  "1": {
+   "summary": {
+    "ms_per_token": 7.9195339127907385,
+    "median_ms_per_token": 7.806720826086857,
+    "decode_tokens": 172,
+    "mean_prompt_tokens": 436.3333333333333,
+    "mean_completion_tokens": 58.333333333333336,
+    "server_ready_s": 35.00620174407959,
+    "identical_text_vs_baseline": 0.6666666666666666,
+    "speedup_vs_baseline": 2.1216080403067616
+   },
+   "rows": [
+    {
+     "text": " Janet\u2019s ducks lay 16 eggs per day.\nShe eats 3 eggs for breakfast every morning and bakes muffins for her friends with 4 eggs.\nThis means, she sells 16 - 3 - 4 = $<<16-3-4=9>>9 eggs",
+     "prompt_tokens": 452,
+     "completion_tokens": 64,
+     "decode_seconds": 0.5380286940000047,
+     "decode_tok_s": 117.09412658202844,
+     "decode_tokens": 63,
+     "first_accept": 49,
+     "first_reject": 14,
+     "pipeline_cycles": 105,
+     "second_accept": 0,
+     "second_reject": 0,
+     "second_skip": 14
+    },
+    {
+     "text": " The robe takes 2 bolts of blue fiber and 2 / 2 = 1 bolt of white fiber.\nThe robe takes 2 + 1 = 3 bolts in total.\n#### 3\n\n",
+     "prompt_tokens": 413,
+     "completion_tokens": 47,
+     "decode_seconds": 0.35910915799999543,
+     "decode_tok_s": 128.09475607971152,
+     "decode_tokens": 46,
+     "first_accept": 39,
+     "first_reject": 7,
+     "pipeline_cycles": 70,
+     "second_accept": 0,
+     "second_reject": 0,
+     "second_skip": 7
+    },
+    {
+     "text": " The value of the house increased by 150% of $80,000 = $<<150/100*80000=120000>>120000.\nThe value of the house after the repairs is $80",
+     "prompt_tokens": 444,
+     "completion_tokens": 64,
+     "decode_seconds": 0.4650219810000067,
+     "decode_tok_s": 135.47746681677634,
+     "decode_tokens": 63,
+     "first_accept": 55,
+     "first_reject": 8,
+     "pipeline_cycles": 90,
+     "second_accept": 0,
+     "second_reject": 0,
+     "second_skip": 8
+    }
+   ]
+  },
+  "1:2": {
+   "summary": {
+    "ms_per_token": 6.765732895348852,
+    "median_ms_per_token": 6.812858739130473,
+    "decode_tokens": 172,
+    "mean_prompt_tokens": 436.3333333333333,
+    "mean_completion_tokens": 58.333333333333336,
+    "server_ready_s": 30.006083726882935,
+    "identical_text_vs_baseline": 0.6666666666666666,
+    "speedup_vs_baseline": 2.4834185866855085
+   },
+   "rows": [
+    {
+     "text": " Janet\u2019s ducks lay 16 eggs per day.\nShe eats 3 eggs for breakfast every morning and bakes muffins for her friends with 4 eggs.\nThis means, she sells 16 - 3 - 4 = $<<16-3-4=9>>9 eggs",
+     "prompt_tokens": 452,
+     "completion_tokens": 64,
+     "decode_seconds": 0.4391965320000111,
+     "decode_tok_s": 143.4437556077934,
+     "decode_tokens": 63,
+     "first_accept": 49,
+     "first_reject": 14,
+     "pipeline_cycles": 83,
+     "second_accept": 12,
+     "second_reject": 0,
+     "second_skip": 2
+    },
+    {
+     "text": " The robe takes 2 bolts of blue fiber and 2 / 2 = 1 bolt of white fiber.\nThe robe takes 2 + 1 = 3 bolts in total.\n#### 3\n\n",
+     "prompt_tokens": 413,
+     "completion_tokens": 47,
+     "decode_seconds": 0.31339150200000176,
+     "decode_tok_s": 146.78126147785508,
+     "decode_tokens": 46,
+     "first_accept": 39,
+     "first_reject": 7,
+     "pipeline_cycles": 60,
+     "second_accept": 5,
+     "second_reject": 0,
+     "second_skip": 2
+    },
+    {
+     "text": " The value of the house increased by 150% of $80,000 = $<<150/100*80000=120000>>120000.\nThe value of the house after the repairs is $80",
+     "prompt_tokens": 444,
+     "completion_tokens": 64,
+     "decode_seconds": 0.41111802399998965,
+     "decode_tok_s": 153.24066648073202,
+     "decode_tokens": 63,
+     "first_accept": 55,
+     "first_reject": 8,
+     "pipeline_cycles": 78,
+     "second_accept": 6,
+     "second_reject": 1,
+     "second_skip": 1
+    }
+   ]
+  }
+ }
+}

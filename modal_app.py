@@ -62,7 +62,9 @@ loopspec_image = (
     .run_commands(
         f"git clone https://github.com/kaist-flexml-lab/loopspec /opt/loopspec && "
         f"git -C /opt/loopspec checkout {LOOPSPEC_COMMIT} && echo {LOOPSPEC_COMMIT} > /opt/loopspec/COMMIT",
-        "cd /opt/loopspec && uv sync --python 3.11 --locked --no-dev --link-mode copy",
+        # --frozen, not --locked: the anonymized repo's pyproject no longer matches its uv.lock exactly; --frozen still
+        # installs exactly the lockfile's pinned versions
+        "cd /opt/loopspec && uv sync --python 3.11 --frozen --no-dev --link-mode copy",
         "cd /opt/loopspec && uv pip install --python .venv/bin/python --reinstall --no-deps --link-mode copy "
         "nvidia-cutlass-dsl-libs-cu13==4.5.2",
     )
@@ -169,6 +171,8 @@ TASKS = {
     # LoopSpec vs normal decoding at B=1 in LoopSpec's SGLang stack (loopspec_image; no selfcheck: it tests our stack).
     "loopspec_smoke": ["python loopspec_bench.py --n 3 --warmup 1 --max-new-tokens 64 --out-dir $OUT"],
     "loopspec": ["python loopspec_bench.py --out-dir $OUT"],
+    # H100: FlashInfer TinyGEMM crashes CUDA-graph capture (2 of 2 runs); SGLang's linear kernels in all modes, as on L40S
+    "loopspec_notinygemm": ["python loopspec_bench.py --no-tinygemm --out-dir $OUT"],
     "bench_q03": CHECK + [
         "python bench_cdb.py --q 0.3 --slots 2 4 8 16 32 64 --repeats 3 --run-id $RID --out-dir $OUT",
         "python bench_cdb.py --q 1.0 --slots 4 16 64 --repeats 2 --run-id $RID --out-dir $OUT",
