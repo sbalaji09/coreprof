@@ -435,3 +435,24 @@ o_proj with `L + max(W / BW_read, B·W / BW_L2)`: L40S knee at B ≈ 7.4 (E5: fl
 Decision needed (Sid): how the formula treats kernel efficiency below the hardware (H100 weight kernels). Options in the
 report of 2026-11-22. Any option chosen now is informed by H100 data, so H100 can no longer be called semi-blind for
 that term; the A100 stays the real test.
+
+## Decision (Sid, 2026-11-22): both predictions
+- **Prediction (a), primary:** hardware fingerprint only. Weight kernel = t0 (F1 read intercept) + bytes / BW_read (F1).
+- **Prediction (b), secondary:** weight kernel = t0_eff + bytes / BW_eff from F6, a compiled matrix-vector kernel with
+  coordinate-descent tuning on generic shapes. Designed after seeing H100's gap, so H100 is not semi-blind for this term.
+  The A100 is blind for both.
+Both are combined with K1 (primary kernel list) and K2 (secondary), and reported separately; none is chosen after the
+A100 data.
+
+## FP3 - fingerprint v3: pre-registered before running
+Changes: F6 added (lone `torch.compile` F.linear, coordinate_descent_tuning, B=1, shapes 1024x4096, 4096x4096,
+8192x4096, 4096x16384 fitted; 1024x16384 held out; distinct weights, ≥ 384 MB per graph). F4: a new random start
+per timed call. Everything else as v2.
+Predictions and rules:
+- F6 is valid only if the stored kernel names are Triton reductions (`triton_red...`), not cuBLAS/cutlass, on both GPUs.
+- F6 fit: L40S BW_eff 730-770 GB/s, t0_eff 1.5-2.5 µs; H100 BW_eff 2.6-3.0 TB/s, t0_eff 2.5-4 µs (in-step F0 fit:
+  763 / 1.97 and 2819 / 3.05).
+- (b) explains the gap if `t0_eff + bytes / BW_eff`, applied to Ouro's 4 weight kernels at 1x128, gives the in-step weight
+  time per layer within ±10 % on both GPUs (L40S 142.0 µs, H100 52.5 µs; prediction (a) gave +1 % / −25 %).
+  Held-out long reduction 1024x16384: no number predicted; reported to judge H100's down_proj (−26 % vs the line).
+- F4 valid if kernel = host and latency at 1 GB ≥ 2x latency at 1 MB on both GPUs. Expected DRAM 400-700 ns.

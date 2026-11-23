@@ -10,6 +10,8 @@ no step timings. It writes fingerprint.json:
      v2: F1 and F2 use read_sum, ONE Triton kernel per read (v1 used torch.sum, which is 2 kernels from 256 KB up)
   F4 pointer chase (dependent loads, L1 bypassed), 1 MB .. 4 GB, checked against the same chain followed on the host
   F5 dense bf16 GEMM (tensor cores) and fp32 GEMM with TF32 off (CUDA cores): Thr_tc, Thr_fp32
+  F6 (v3) kernel-efficiency probe: torch.compile + coordinate_descent_tuning of a lone F.linear at B=1 on generic
+     shapes (not Ouro's), distinct weights: BW_eff, t0_eff of the reductions inductor generates (prediction (b))
 Fits pre-registered in the notebook: BW_read, t0 = least squares of busy time on bytes over 4..256 MB;
 BW_L2 = slope over 2..16 MB.
 
@@ -31,9 +33,9 @@ try:   # GPU container only; the laptop has no torch/triton (--existing-checks d
     import triton.language as tl
 
     @triton.jit
-    def chase(p, out, steps):
+    def chase(p, out, start, steps):
         """One thread follows a cyclic permutation; .cg skips L1, so each step is one L2 or DRAM round trip."""
-        i = tl.load(p)
+        i = tl.load(p + start)
         for _ in range(steps):
             i = tl.load(p + i, cache_modifier=".cg")
         tl.store(out, i)
@@ -66,7 +68,7 @@ def fingerprint(out_dir):
     import delta_split as ds
 
     bf = torch.bfloat16
-    res = dict(version=2, read_probe=f"triton read_sum, BLOCK={READ_BLOCK}", gpu=torch.cuda.get_device_name(),
+    res = dict(version=3, read_probe=f"triton read_sum, BLOCK={READ_BLOCK}", gpu=torch.cuda.get_device_name(),
                torch=torch.__version__, smi_start=smi())
     path = os.path.join(out_dir, "fingerprint.json")
 
@@ -141,13 +143,16 @@ def fingerprint(out_dir):
             nxt[perm] = perm.roll(-1)
             del perm
             out = torch.empty(1, dtype=torch.int64, device="cuda")
-            i, lines = nxt[0].item(), set()
+            start = int(torch.randint(n, (1,)))
+            i, lines = nxt[start].item(), set()
             for _ in range(k):
                 lines.add(i // 16)
                 i = nxt[i].item()
-            chase[(1,)](nxt, out, k)
+            chase[(1,)](nxt, out, start, k)
             matches = out.item() == i
-            t = ds.stats(ds.gpu_times(lambda: chase[(1,)](nxt, out, steps), 2, 5))["median_ms"]
+            # v3: a new random start per call. v2 repeated one 20,000-step path, which stayed in L2 after the first call.
+            starts = iter(torch.randint(n, (16,)).tolist())
+            t = ds.stats(ds.gpu_times(lambda: chase[(1,)](nxt, out, next(starts), steps), 2, 5))["median_ms"]
             res["pointer_chase"][str(nbytes)] = dict(ns_per_load=t * 1e6 / steps, steps=steps,
                                                      kernel_matches_host=matches,
                                                      distinct_128B_lines_in_first_k=len(lines), k=k)
@@ -167,12 +172,42 @@ def fingerprint(out_dir):
             del a, bm
         print("F5", res["gemm_peak"])
 
+        # F6: lone compiled F.linear at B=1 with coordinate-descent tuning, as the best step is built; generic shapes.
+        import torch._dynamo as dynamo
+        import torch._inductor.config as ind
+        ind.coordinate_descent_tuning = True
+        ind.triton.unique_kernel_names = True
+        res["compiled_gemv"] = {}
+        for N, K in ((1024, 4096), (4096, 4096), (8192, 4096), (4096, 16384), (1024, 16384)):
+            nbytes = N * K * 2
+            n = max(4, (384 * MB) // nbytes)
+            ws = [torch.randn(N, K, device="cuda", dtype=bf) for _ in range(n)]
+            xg = torch.randn(1, 1, K, device="cuda", dtype=bf)
+            dynamo.reset()
+            lin = torch.compile(lambda x, w: torch.nn.functional.linear(x, w), dynamic=False)
+            for w in ws[:2]:
+                lin(xg, w)
+            r = per_op([lambda w=w: lin(xg, w) for w in ws])
+            r.update(N=N, K=K, bytes=nbytes, copies=n)
+            res["compiled_gemv"][f"{N}x{K}"] = r
+            del ws
+            torch.cuda.empty_cache()
+            print("F6", N, K, r)
+            save()
+        pts = [(r["bytes"], r["busy_us"]) for key, r in res["compiled_gemv"].items() if key != "1024x16384"]
+        slope, t0 = np.polyfit([b for b, _ in pts], [t for _, t in pts], 1)
+        res["compiled_gemv_fit"] = dict(bw_gbps=1e-3 / slope, t0_us=t0, range="4 shapes with K <= 16384, N >= 1024; "
+                                        "1024x16384 (long reduction) held out as a check")
+        ind.coordinate_descent_tuning = False
+        save()
+
         r = per_op(chain)
         r["position"], r["gap_us"] = "last", r["slot_us"] - r["busy_us"] if r["busy_us"] else None
         res["tiny_chain"].append(r)
     res["smi_end"] = smi()
     save()
-    print(json.dumps({k: res[k] for k in ("gpu", "read_fit", "l2_fit", "pointer_chase", "gemm_peak")}, default=str))
+    print(json.dumps({k: res[k] for k in ("gpu", "read_fit", "l2_fit", "pointer_chase", "gemm_peak", "compiled_gemv_fit")},
+                     default=str))
 
 
 def kernel_list(out_dir, configs):
