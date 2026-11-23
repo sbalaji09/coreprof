@@ -121,6 +121,28 @@ def measured(gpu="l40s"):
     }, env
 
 
+# B=1 non-weight time under two measurement protocols (2026-11-22, notebook E6). Inter-kernel gaps depend on whether a
+# graph is the first one captured in the process. Informational: not part of pass/fail until Sid picks a protocol.
+PROTOCOL_RUNS = {"l40s": ["results/modal/delta_cd_profile-l40s-20261122-202020",
+                          "results/modal/delta_cd_repeat-l40s-20261122-205226",
+                          "results/modal/delta_cd_repeat-l40s-20261122-205241",
+                          "results/modal/delta_cd_repeat-l40s-20261122-205256"]}
+
+
+def protocol_non_weight(gpu):
+    """{"first graph": (median ms, n), "later graphs": (median ms, n)} of step − weight kernels (same graph) at 1x128,
+    or {} without data. First = each container's first 1x128 graph; later = every other 1x128 graph (cached or fresh)."""
+    first, later = [], []
+    for run in PROTOCOL_RUNS.get(gpu, []):
+        pts = json.load(open(ROOT / run / "step_profile.json"))["points"]
+        nw = {k: p["step"]["median_ms"] - weight_kernel_ms(p["breakdown"]) for k, p in pts.items()
+              if k.split("#")[0].rstrip("f") == "1x128"}
+        first.append(nw.pop("1x128"))
+        later += nw.values()
+    return {"first graph": (statistics.median(first), len(first)),
+            "later graphs": (statistics.median(later), len(later))} if first else {}
+
+
 def error_pct(pred, lo, hi):
     """0 inside the measured range, else % distance to the nearest end."""
     if lo <= pred <= hi:
@@ -180,6 +202,13 @@ def report(meas, env, pred, tol, gpu="l40s"):
         status = f"Calibrated on {name}: {pred.get('date', '?')} (summary within ±{tol:g} %, grid passes)."
     else:
         status = f"Calibrated on {name}: **no** ({n}/{len(ROWS)} summary predictions, {len(ge)}/{len(env)} grid points)."
+    proto = protocol_non_weight(gpu)
+    p_nw = (pred.get("predictions") or {}).get("overhead_ms")
+    if proto and p_nw is not None:
+        grid_line += ("\n\n**B=1 non-weight time by measurement protocol** (informational; not in pass/fail until a "
+                      "protocol is chosen; step and weight kernels from the same graph, `PROTOCOL_RUNS`): " +
+                      "; ".join(f"{name} {v:.3f} ms (median of {n}), model {p_nw:.3f} ms, {100 * (p_nw - v) / v:+.1f} %"
+                                for name, (v, n) in proto.items()))
     inputs = pred.get("inputs") or {}
     inp = "\n".join(f"- {k}: {'pending' if v is None else v}" for k, v in inputs.items()) or "- pending"
     body = (f"**Status:** {status}\n\n"

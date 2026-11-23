@@ -50,6 +50,8 @@ Measured: the fastest of `results/modal/delta_compile-l40s-20261116-214809/`, `r
 
 **Step time over the whole grid (46 points):** median |error| 1.7 %, max -6.7 % at B=64, C=128 (pass: needs median ≤ 10 %, max ≤ 20 %)
 
+**B=1 non-weight time by measurement protocol** (informational; not in pass/fail until a protocol is chosen; step and weight kernels from the same graph, `PROTOCOL_RUNS`): first graph 0.272 ms (median of 4), model 0.289 ms, +6.2 %; later graphs 0.402 ms (median of 12), model 0.289 ms, -28.0 %
+
 **Model inputs:**
 
 - kernel_counts: {'gemm': {'2048x2048': 96, '5632x2048': 48, '2048x5632': 24}, 'small': 126, 'attention_calls': 24}

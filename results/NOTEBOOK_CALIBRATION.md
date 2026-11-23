@@ -277,3 +277,9 @@ What it means:
   small kernels: 0.276 ms = 11.5 µs per layer on L40S; gaps add 0–5 µs per layer depending on state. Use 11.5 µs (busy) as
   the GPU anchor for chip per-layer latency, not the step-minus-weights number.
 - For the B ≥ 2 pause fix: non-target L40S gaps are 0.11–0.20 ms per step, state-dependent.
+
+## Decision (Sid, 2026-11-22): report both measurement protocols
+The L40S scorecard now also shows the B=1 non-weight time under both protocols, computed from raw files
+(`calibrate.PROTOCOL_RUNS`): first graph 0.272 ms (median of 4 containers) → v1.5 +6.2 %; later graphs 0.402 ms (median
+of 12) → v1.5 −28.0 %. Informational only: the official row and the pass/fail rule are unchanged until Sid picks which
+protocol counts. H100 has no such data yet.
