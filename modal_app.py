@@ -52,6 +52,33 @@ image = (
     )
 )
 
+# LoopSpec (results/NOTEBOOK_LOOPSPEC.md) needs its own stack (CUDA 13.3, torch 2.11, sglang 0.5.14): installed from the
+# authors' uv.lock at a fixed commit, as their Dockerfile does. Its venv's python comes first on PATH.
+LOOPSPEC_COMMIT = "41aa710ed7c9ce908cffa03597be5d1df19d7b56"
+loopspec_image = (
+    modal.Image.from_registry("nvidia/cuda:13.3.0-devel-ubuntu24.04", add_python="3.11")
+    .apt_install("git", "build-essential", "ca-certificates", "curl", "libgomp1", "libnuma1", "procps", "util-linux")
+    .pip_install("uv==0.11.30")
+    .run_commands(
+        f"git clone https://github.com/kaist-flexml-lab/loopspec /opt/loopspec && "
+        f"git -C /opt/loopspec checkout {LOOPSPEC_COMMIT} && echo {LOOPSPEC_COMMIT} > /opt/loopspec/COMMIT",
+        "cd /opt/loopspec && uv sync --python 3.11 --locked --no-dev --link-mode copy",
+        "cd /opt/loopspec && uv pip install --python .venv/bin/python --reinstall --no-deps --link-mode copy "
+        "nvidia-cutlass-dsl-libs-cu13==4.5.2",
+    )
+    .env({
+        "HF_HOME": "/vol/hf",
+        "PYTHONUNBUFFERED": "1",
+        "TOKENIZERS_PARALLELISM": "false",
+        "CUDA_HOME": "/usr/local/cuda",
+        "PATH": "/opt/loopspec/.venv/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    })
+    .add_local_dir(
+        str(REPO), "/root/loopcore",
+        ignore=[".git", ".venv", "results", "**/__pycache__", ".pytest_cache", "*.pyc"],
+    )
+)
+
 # Each task is a list of shell commands run in order from the repo root.
 # $OUT is the run's output dir on the volume, $RID the run id.
 CHECK = ["python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt"]
@@ -132,7 +159,16 @@ TASKS = {
     "w6b_smoke": [f"python train_looped.py --variant {v} --tokens 5.3e6 --eval-every 5 --eval-batches 2 "
                   f"--final-eval-batches 2 --out-dir $OUT" for v in W6B_VARIANTS],
     **{f"w6b_{v}": [f"python train_looped.py --variant {v} --out-dir /vol/w6b"] for v in W6B_VARIANTS},
-    "w6b_perloop_s1": ["python train_looped.py --variant perloop --seed 1 --out-dir /vol/w6b"],
+    **{f"w6b_{v}_s1": [f"python train_looped.py --variant {v} --seed 1 --out-dir /vol/w6b"]
+       for v in ("perloop", "sharefirst")},
+    # lr check (PROPOSED, pending approval): 200M tokens each, perloop and sharefirst at 3 lrs; asks only whether
+    # both variants prefer the same lr, i.e. whether lr 1e-3 could favour one of them
+    "w6b_lrprobe": [f"python train_looped.py --variant {v} --lr {lr} --tokens 2e8 --warmup 40 --eval-every 100 "
+                    f"--final-eval-batches 100 --out-dir /vol/w6b_lr/lr{lr}"
+                    for lr in ("5e-4", "1e-3", "2e-3") for v in ("perloop", "sharefirst")],
+    # LoopSpec vs normal decoding at B=1 in LoopSpec's SGLang stack (loopspec_image; no selfcheck: it tests our stack).
+    "loopspec_smoke": ["python loopspec_bench.py --n 3 --warmup 1 --max-new-tokens 64 --out-dir $OUT"],
+    "loopspec": ["python loopspec_bench.py --out-dir $OUT"],
     "bench_q03": CHECK + [
         "python bench_cdb.py --q 0.3 --slots 2 4 8 16 32 64 --repeats 3 --run-id $RID --out-dir $OUT",
         "python bench_cdb.py --q 1.0 --slots 4 16 64 --repeats 2 --run-id $RID --out-dir $OUT",
@@ -144,6 +180,16 @@ TASKS = {
 @app.function(image=image, gpu="L40S", cpu=8, memory=32768, volumes={"/vol": vol},
               timeout=12 * 3600)
 def run(task: str, run_id: str, git: str = "") -> int:
+    return _run(task, run_id, git)
+
+
+@app.function(image=loopspec_image, gpu="L40S", cpu=8, memory=65536, volumes={"/vol": vol},
+              timeout=6 * 3600)
+def run_loopspec(task: str, run_id: str, git: str = "") -> int:
+    return _run(task, run_id, git)
+
+
+def _run(task: str, run_id: str, git: str) -> int:
     out = f"/vol/results/{run_id}"
     os.makedirs(out, exist_ok=True)
     env = {**os.environ, "OUT": out, "RID": run_id, "GIT": git}
@@ -199,13 +245,14 @@ def main(task: str = "check", gpu: str = "L40S", run_id: str = "", pull: bool = 
             git = head + ("-dirty" if dirty else "")
         except OSError:
             git = ""
+        fn = run_loopspec if task.startswith("loopspec") else run
         if spawn:
-            call = run.with_options(gpu=gpu).spawn(task, rid, git)
+            call = fn.with_options(gpu=gpu).spawn(task, rid, git)
             print(f"spawned {call.object_id}; runs on Modal independently of this machine.\n"
                   f"progress: .venv/bin/python watch_runs.py {rid}   (delta tasks)\n"
                   f"download: ./run_modal.sh --task {task} --run-id {rid} --pull")
             return
-        rc = run.with_options(gpu=gpu).remote(task, rid, git)
+        rc = fn.with_options(gpu=gpu).remote(task, rid, git)
 
     # Pull everything this run wrote back into the repo.
     dest = REPO / "results" / "modal" / rid
