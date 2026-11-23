@@ -86,6 +86,8 @@ def parse_args():
     p.add_argument("--coord-descent", action="store_true",
                    help="with --compile: inductor coordinate_descent_tuning (gpt-fast's setting; fuses the int8 cast "
                         "into a reduction at B=1). Applies to every compile in the run, incl. the bf16 reference")
+    p.add_argument("--profile-configs", default=None,
+                   help="BxC list: step time + full kernel breakdown per point (step_profile.json); honours --coord-descent")
     p.add_argument("--noise-check", action="store_true",
                    help="only: fused (torch.compile + CUDA graph) step at B=1, C=128: step time, weight-kernel time and "
                         "their difference, for measuring container-to-container noise; writes noise.json")
@@ -413,6 +415,41 @@ def noise_check(args):
     with open(os.path.join(args.out_dir, "noise.json"), "w") as f:
         json.dump(res, f, indent=1)
     print(json.dumps(res, default=str))
+
+
+def step_profile(args):
+    """Step time + full kernel breakdown of the fused step at each --profile-configs point (one container), with
+    SM clock and power sampled by nvidia-smi while the graph replays (tests clock throttling at large B)."""
+    import subprocess
+    import torch._inductor.config as ind
+    ind.triton.unique_kernel_names = True
+    if args.coord_descent:
+        ind.coordinate_descent_tuning = True
+    res = dict(gpu=torch.cuda.get_device_name(), torch=torch.__version__, coord_descent=args.coord_descent, points={})
+    path = os.path.join(args.out_dir, "step_profile.json")
+    with torch.inference_mode():
+        model = harness.load_model(args.dtype)
+        L = model.model.config.num_hidden_layers
+        for cfg in args.profile_configs.split(","):
+            B, C = map(int, cfg.split("x"))
+            step, cache, info = make_step(model, B, C, L, args, "default")
+            g, _ = capture_graph(step)
+            t = stats(gpu_times(g.replay, args.warmup, args.reps))
+            smi = subprocess.Popen(["nvidia-smi", "--query-gpu=clocks.sm,clocks.max.sm,power.draw",
+                                    "--format=csv,noheader,nounits", "-lms", "100"], stdout=subprocess.PIPE, text=True)
+            t_end = time.time() + 2.0
+            while time.time() < t_end:
+                g.replay()
+            torch.cuda.synchronize()
+            smi.terminate()
+            samples = [[float(x) for x in ln.split(",")] for ln in smi.communicate()[0].splitlines() if ln.strip()]
+            res["points"][cfg] = dict(step=t, breakdown=safe_breakdown(g.replay), smi_sm_mhz_max_mhz_watts=samples,
+                                      **info)
+            del g, step, cache
+            torch.cuda.empty_cache()
+            with open(path, "w") as f:
+                json.dump(res, f, indent=1, default=str)
+            print(cfg, f"{t['median_ms']:.3f} ms", samples[-1:] if samples else "no nvidia-smi samples")
 
 
 def kernel_bench(args, copies=24, batches=(1, 2, 4, 8, 16, 32, 64)):
@@ -781,6 +818,9 @@ def main():
     torch.manual_seed(args.seed)
     if args.compile_check:
         compile_numerics(args)
+        return
+    if args.profile_configs:
+        step_profile(args)
         return
     if args.noise_check:
         noise_check(args)

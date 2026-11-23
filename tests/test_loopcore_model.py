@@ -211,3 +211,13 @@ def test_v14_is_busy_time_plus_one_ingraph_gap_per_kernel():
     for gpu in ("l40s", "h100"):
         for B in (1, 16):
             assert lm.kernel_sum(gpu, B, 512, "busy_us", "v1.4") == lm.kernel_sum(gpu, B, 512, "busy_us", "v1.3")
+
+
+def test_v15_changes_only_oproj_at_b2_and_up():
+    for gpu in ("l40s", "h100"):
+        assert lm.kernel_sum(gpu, 1, 512, version="v1.5") == lm.kernel_sum(gpu, 1, 512, version="v1.4")
+        w15, s15, a15 = lm.kernel_sum(gpu, 64, 512, version="v1.5")
+        w14, s14, a14 = lm.kernel_sum(gpu, 64, 512, version="v1.4")
+        assert (s15, a15) == (s14, a14) and w15 > w14
+        # the line passes through the measured B=1 and B=16 points and grows with B
+        assert lm.oproj_instep_us(gpu, 1) < lm.oproj_instep_us(gpu, 16) < lm.oproj_instep_us(gpu, 64)
