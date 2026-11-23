@@ -562,3 +562,28 @@ reaches the hardware (L40S).
 - One shared fp8 KV cache on-chip: −5 % (1x2048, central), −12 % (16x2048), −14 % (16x8192); up to −16 % at the low
   level. The difference is the per-stage max: the current model adds weight-read time and compute time; when both are
   small and comparable (on-chip KV, B=16) that double-counts.
+
+## U3 - A100 (third GPU, blind): frozen predictions, committed BEFORE any target data is downloaded (2026-11-23)
+Inputs: `fingerprint-a100-80gb-20261123-000828` (NVIDIA A100-SXM4-80GB, 81920 MiB, ALL OK; its own container).
+F1 BW_read 1757 GB/s, t0 3.67 µs; F2 BW_L2 4.02 TB/s; F3 L_tiny 1.71-1.81 µs, gap first −0.24 / later ~0.00 µs;
+F4 L2 ~202 ns, DRAM ~386 ns (valid, 1.9x... ≥ 1 GB / 1 MB = 1.92: **just below the 2x validity rule**; not used by v2.0);
+F5 bf16 288 / fp32 19.2 TFLOPS; F6 BW_eff 1753 GB/s, t0_eff 4.27 µs (Triton reductions, valid).
+K2 list totals: 1x128 222; B=2-4 438; B=8-16 414; B=32-64 342 (differs from both L40S and H100).
+Targets launched (spawned, separate containers, NOT downloaded yet): `delta_bf16_cd-a100-80gb-20261123-000836`,
+`delta_compile-a100-80gb-20261123-000904`, `delta_cd_repeat-a100-80gb-20261123-{000933,001001,001029}`.
+Frozen v2.0 code (a6514b1 + the grid-points argument, which changes no L40S/H100 output); predictions in
+`results/unified/a100_{a,b}_{K1,K2}.json`, all 49 B x C points:
+| | (a) K1 primary | (a) K2 | (b) K1 | (b) K2 |
+|---|---|---|---|---|
+| weight 1x128 | 1.757 ms | 1.757 | 1.817 | 1.817 |
+| KV per token | 0.112 µs | same | same | same |
+| step 1x128 | 2.180 ms | 2.182 | 2.241 | 2.243 |
+| non-weight 1x128, first / later graphs | 0.369 / 0.424 ms | 0.371 / 0.426 | 0.369 / 0.424 | 0.371 / 0.426 |
+| δ (fit over 49 points) | 2.336 ms | 2.445 | 2.361 | 2.470 |
+| 64x128 / 16x2048 | 6.44 / 6.78 ms | 6.49 / 6.95 | 6.46 / 6.80 | 6.50 / 6.97 |
+Scoring plan: `calibrate.py --gpu a100 --pred results/unified/a100_*.json` after adding the A100 to `calibrate.RUNS`
+(gpu name NVIDIA A100-SXM4-80GB; target runs above) and its protocol runs to `PROTOCOL_RUNS`. The non-weight target is the
+first-graph .. later-graphs range from the three repeat runs, as for L40S. Same pass rule. No re-run of `--unified a100`
+after the data is downloaded (the files above are the predictions).
+My expectation (written now): A100 lands between L40S and H100; step 1x128 −5…−20 %; overall FAIL more likely than PASS
+(~60/40).

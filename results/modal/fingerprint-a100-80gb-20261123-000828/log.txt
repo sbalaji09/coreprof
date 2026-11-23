@@ -1,0 +1,64 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=fingerprint-a100-80gb-20261123-000828
+git=8b2766f-dirty
+Mon Nov 23 08:08:31 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA A100-SXM4-80GB, GPU-a452b699-b6b8-e3da-4a1d-b5d5804915ce, 81920 MiB, 620.70.06
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python fingerprint.py --out-dir $OUT
+F3 {'slot_us': 1.5602499479427934, 'busy_us': 1.8046226562500247, 'kernels_per_op': 1.0078125, 'kernel_names': ['void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctorOnSelf_', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'position': 'first', 'gap_us': -0.24437270830723135}
+F3 {'slot_us': 1.7703124904073775, 'busy_us': 1.7453070312499963, 'kernels_per_op': 1.0078125, 'kernel_names': ['void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctorOnSelf_', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'position': 'second', 'gap_us': 0.02500545915738117}
+F3 {'slot_us': 1.7659374861977994, 'busy_us': 1.7640742187500051, 'kernels_per_op': 1.0078125, 'kernel_names': ['void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctorOnSelf_', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'position': 'third', 'gap_us': 0.0018632674477943034}
+F1 65536 {'slot_us': 2.5977109326049685, 'busy_us': 2.129104785156268, 'kernels_per_op': 1.00048828125, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 4096}
+F1 131072 {'slot_us': 2.4037083300451436, 'busy_us': 2.205734505208354, 'kernels_per_op': 1.0006510416666667, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 3072}
+F1 262144 {'slot_us': 2.3216146510094404, 'busy_us': 2.27563216145835, 'kernels_per_op': 1.0013020833333333, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 1536}
+F1 524288 {'slot_us': 2.5118334063639245, 'busy_us': 2.3988158854166817, 'kernels_per_op': 1.0026041666666667, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 768}
+F1 1048576 {'slot_us': 2.893583383411169, 'busy_us': 2.866314062499995, 'kernels_per_op': 1.0052083333333333, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 384}
+F1 2097152 {'slot_us': 3.563749914367994, 'busy_us': 3.435127083333324, 'kernels_per_op': 1.0104166666666667, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 192}
+F1 4194304 {'slot_us': 5.55783323943615, 'busy_us': 5.2951312500000105, 'kernels_per_op': 1.0208333333333333, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 96}
+F1 8388608 {'slot_us': 8.788666687905788, 'busy_us': 8.222679166666657, 'kernels_per_op': 1.0416666666666667, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 48}
+F1 16777216 {'slot_us': 14.725333079695702, 'busy_us': 13.390616666666673, 'kernels_per_op': 1.0833333333333333, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 24}
+F1 33554432 {'slot_us': 25.468000521262486, 'busy_us': 23.434166666666666, 'kernels_per_op': 1.1666666666666667, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 12}
+F1 67108864 {'slot_us': 45.8500012755394, 'busy_us': 42.15975000000001, 'kernels_per_op': 1.25, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 8}
+F1 134217728 {'slot_us': 83.61800014972687, 'busy_us': 80.10322500000004, 'kernels_per_op': 1.25, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 8}
+F1 268435456 {'slot_us': 160.85399687290192, 'busy_us': 156.310725, 'kernels_per_op': 1.25, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 8}
+F1 536870912 {'slot_us': 286.57400608062744, 'busy_us': 284.31215, 'kernels_per_op': 1.25, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'copies': 8}
+F2 {'1048576': {'slot_us': 2.642500097863376, 'busy_us': 2.177856249999998, 'kernels_per_op': 1.03125, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,']}, '2097152': {'slot_us': 2.9307500226423144, 'busy_us': 2.4828374999999943, 'kernels_per_op': 1.03125, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,']}, '4194304': {'slot_us': 3.5195000236853957, 'busy_us': 3.1196531249999984, 'kernels_per_op': 1.03125, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,']}, '8388608': {'slot_us': 4.4402501080185175, 'busy_us': 4.033615624999986, 'kernels_per_op': 1.03125, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,']}, '16777216': {'slot_us': 6.511250045150518, 'busy_us': 6.185390625000008, 'kernels_per_op': 1.03125, 'kernel_names': ['read_sum', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,']}} {'bw_gbps': np.float64(4017.0994808311943), 't0_us': np.float64(1.9976631793478143), 'range': '2..16 MB, busy_us'}
+F4 {'1048576': {'ns_per_load': 201.67360305786133, 'steps': 20000, 'kernel_matches_host': True, 'distinct_128B_lines_in_first_k': 1787, 'k': 2000}, '4194304': {'ns_per_load': 201.36001110076904, 'steps': 20000, 'kernel_matches_host': True, 'distinct_128B_lines_in_first_k': 1943, 'k': 2000}, '16777216': {'ns_per_load': 202.05280780792236, 'steps': 20000, 'kernel_matches_host': True, 'distinct_128B_lines_in_first_k': 1983, 'k': 2000}, '67108864': {'ns_per_load': 354.49280738830566, 'steps': 20000, 'kernel_matches_host': True, 'distinct_128B_lines_in_first_k': 1993, 'k': 2000}, '268435456': {'ns_per_load': 381.659197807312, 'steps': 20000, 'kernel_matches_host': True, 'distinct_128B_lines_in_first_k': 2000, 'k': 2000}, '1073741824': {'ns_per_load': 386.0352039337158, 'steps': 20000, 'kernel_matches_host': True, 'distinct_128B_lines_in_first_k': 2000, 'k': 2000}, '4294967296': {'ns_per_load': 387.4063968658447, 'steps': 20000, 'kernel_matches_host': True, 'distinct_128B_lines_in_first_k': 2000, 'k': 2000}}
+F5 {'bf16_tensor_core': {'tflops': 288.4536933954673}, 'fp32_cuda_core': {'tflops': 19.157733225753265}}
+F6 1024 4096 {'slot_us': 9.237666614353657, 'busy_us': 8.389445833333342, 'kernels_per_op': 1.0416666666666667, 'kernel_names': ['triton_red_fused_mm_0', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'N': 1024, 'K': 4096, 'bytes': 8388608, 'copies': 48}
+F6 4096 4096 {'slot_us': 24.958666414022446, 'busy_us': 24.287033333333373, 'kernels_per_op': 1.1666666666666667, 'kernel_names': ['triton_red_fused_mm_0', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'N': 4096, 'K': 4096, 'bytes': 33554432, 'copies': 12}
+F6 8192 4096 {'slot_us': 46.82133346796036, 'busy_us': 42.48683333333329, 'kernels_per_op': 1.3333333333333333, 'kernel_names': ['triton_red_fused_mm_0', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'N': 8192, 'K': 4096, 'bytes': 67108864, 'copies': 6}
+F6 4096 16384 {'slot_us': 84.94799956679344, 'busy_us': 80.68379999999999, 'kernels_per_op': 1.5, 'kernel_names': ['triton_red_fused_mm_0', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'N': 4096, 'K': 16384, 'bytes': 134217728, 'copies': 4}
+F6 1024 16384 {'slot_us': 25.585333506266277, 'busy_us': 23.646916666666645, 'kernels_per_op': 1.1666666666666667, 'kernel_names': ['triton_red_fused_mm_0', 'void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,'], 'N': 1024, 'K': 16384, 'bytes': 33554432, 'copies': 12}
+{"gpu": "NVIDIA A100-SXM4-80GB", "read_fit": {"bw_gbps": 1756.7662580689562, "t0_us": 3.671716906130246, "range": "4..256 MB, busy_us"}, "l2_fit": {"bw_gbps": 4017.0994808311943, "t0_us": 1.9976631793478143, "range": "2..16 MB, busy_us"}, "pointer_chase": {"1048576": {"ns_per_load": 201.67360305786133, "steps": 20000, "kernel_matches_host": true, "distinct_128B_lines_in_first_k": 1787, "k": 2000}, "4194304": {"ns_per_load": 201.36001110076904, "steps": 20000, "kernel_matches_host": true, "distinct_128B_lines_in_first_k": 1943, "k": 2000}, "16777216": {"ns_per_load": 202.05280780792236, "steps": 20000, "kernel_matches_host": true, "distinct_128B_lines_in_first_k": 1983, "k": 2000}, "67108864": {"ns_per_load": 354.49280738830566, "steps": 20000, "kernel_matches_host": true, "distinct_128B_lines_in_first_k": 1993, "k": 2000}, "268435456": {"ns_per_load": 381.659197807312, "steps": 20000, "kernel_matches_host": true, "distinct_128B_lines_in_first_k": 2000, "k": 2000}, "1073741824": {"ns_per_load": 386.0352039337158, "steps": 20000, "kernel_matches_host": true, "distinct_128B_lines_in_first_k": 2000, "k": 2000}, "4294967296": {"ns_per_load": 387.4063968658447, "steps": 20000, "kernel_matches_host": true, "distinct_128B_lines_in_first_k": 2000, "k": 2000}}, "gemm_peak": {"bf16_tensor_core": {"tflops": 288.4536933954673}, "fp32_cuda_core": {"tflops": 19.157733225753265}}, "compiled_gemv_fit": {"bw_gbps": 1753.1550405047153, "t0_us": 4.271515943458255, "range": "4 shapes with K <= 16384, N >= 1024; 1024x16384 (long reduction) held out as a check"}}
+[exit 0]
+
+$ python fingerprint.py --kernel-list --out-dir $OUT
+1x128 {'other': 2, 'copy': 50, 'gemm': 98, 'attention': 72}
+2x128 {'other': 26, 'copy': 74, 'gemm': 266, 'attention': 72}
+4x128 {'other': 26, 'copy': 74, 'gemm': 266, 'attention': 72}
+8x128 {'other': 26, 'copy': 74, 'gemm': 266, 'attention': 48}
+16x128 {'other': 26, 'copy': 74, 'gemm': 266, 'attention': 48}
+32x128 {'other': 26, 'copy': 74, 'gemm': 194, 'attention': 48}
+64x128 {'other': 26, 'copy': 74, 'gemm': 194, 'attention': 48}
+16x2048 {'other': 26, 'copy': 74, 'gemm': 266, 'attention': 48}
+16x8192 {'other': 26, 'copy': 74, 'gemm': 266, 'attention': 48}
+[exit 0]

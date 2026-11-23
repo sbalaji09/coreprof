@@ -641,7 +641,8 @@ def kv_levers(m, levers, q=0.5, layer_latency=5e-6, points=((1, 2048), (1, 8192)
 #   pointwise   rotary/copy/SiLU/split-K reduce    L_tiny
 # The chip side (chip_step_unified) uses the same sum over layer_stages with cycle-count latencies and g = 0.
 FINGERPRINT = {"l40s": "results/modal/fingerprint-l40s-20261122-234738",
-               "h100": "results/modal/fingerprint-h100-20261122-234738"}
+               "h100": "results/modal/fingerprint-h100-20261122-234738",
+               "a100": "results/modal/fingerprint-a100-80gb-20261123-000828"}   # third GPU, blind (2026-11-23)
 K1_GPU = "l40s"
 
 
@@ -707,11 +708,16 @@ def gpu_step_unified(gpu, B, C, variant="a", klist="K1", graph="later", m=OURO_1
     return weights, other, sum(n.values()) * p["g"]
 
 
-def unified_predictions(gpu, variant="a", klist="K1"):
-    """calibrate.py predictions from the unified formula (grid and step with later-graph gaps)."""
-    env, _ = cal.envelope(gpu)
-    grid = {f"{B}x{C}": sum(gpu_step_unified(gpu, B, C, variant, klist)) * 1e3 for (B, C) in env}
-    delta, _, _, _ = cal.fit_m2([{"B": B, "C": C, "t": grid[f"{B}x{C}"]} for (B, C) in env])
+GRID_POINTS = [(B, C) for B in (1, 2, 4, 8, 16, 32, 64) for C in (128, 256, 512, 1024, 2048, 4096, 8192)]
+
+
+def unified_predictions(gpu, variant="a", klist="K1", points=None):
+    """calibrate.py predictions from the unified formula (grid and step with later-graph gaps). points: (B, C) to
+    predict; default = the GPU's measured envelope. A GPU without targets yet (blind) gets every GRID_POINTS point,
+    and its δ is fitted over all of them (the targets may lack a few large B x C points)."""
+    points = points or list(cal.envelope(gpu)[0])
+    grid = {f"{B}x{C}": sum(gpu_step_unified(gpu, B, C, variant, klist)) * 1e3 for (B, C) in points}
+    delta, _, _, _ = cal.fit_m2([{"B": B, "C": C, "t": grid[f"{B}x{C}"]} for (B, C) in points])
     w = gpu_step_unified(gpu, 1, 128, variant, klist)[0] * 1e3
     p = fingerprint_inputs(gpu, variant)
     kv = OURO_1_4B.kv_elems_per_token_per_loop() * 2 / p["BW_read"] * 1e6
@@ -760,7 +766,10 @@ def main():
         for variant in ("a", "b"):
             for klist in ("K1", "K2"):
                 p = out / f"{args.unified}_{variant}_{klist}.json"
-                p.write_text(json.dumps(unified_predictions(args.unified, variant, klist), indent=2) + "\n")
+                have_targets = args.unified in cal.RUNS and all(
+                    (ROOT / r / "graph_grid.csv").exists() for r in cal.RUNS[args.unified][2])
+                pts = None if have_targets else GRID_POINTS
+                p.write_text(json.dumps(unified_predictions(args.unified, variant, klist, pts), indent=2) + "\n")
                 print("wrote", p.relative_to(ROOT))
     elif args.kv_levers:
         for lat in args.layer_latency_us if args.layer_latency_us != [LAYER_LATENCY * 1e6] else [5.0]:
