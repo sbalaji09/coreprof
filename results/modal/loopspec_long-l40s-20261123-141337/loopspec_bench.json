@@ -1,0 +1,1253 @@
+{
+ "gpu": "NVIDIA L40S",
+ "torch": "2.11.0+cu130",
+ "model_revision": "574fa66cb8bf5abdc979642d01cf2b79b16bfab1",
+ "loopspec_commit": "41aa710ed7c9ce908cffa03597be5d1df19d7b56",
+ "n": 40,
+ "warmup": 2,
+ "max_new_tokens": 256,
+ "shots": 10,
+ "no_tinygemm": false,
+ "modes": {
+  "baseline": {
+   "summary": {
+    "ms_per_token": 19.146393220995495,
+    "median_ms_per_token": 19.127165838760504,
+    "decode_tokens": 5525,
+    "mean_prompt_tokens": 2078.05,
+    "mean_completion_tokens": 139.125,
+    "server_ready_s": 75.01576352119446
+   },
+   "rows": [
+    {
+     "text": " Janet\u2019s ducks lay 16 eggs per day.\nShe eats three for breakfast every morning and bakes muffins for her friends every day with four.\nShe sells the remainder at the farmers' market daily for $2 per fresh duck egg.\nSo she sells 16 - 3 - 4 = <<16-3-4=9>>9 eggs per day.\nShe makes 9 * 2 = $<<9*2=18>>18 per day.\n#### 18\n\n",
+     "prompt_tokens": 2086,
+     "completion_tokens": 113,
+     "decode_seconds": 2.1420464369999905,
+     "decode_tok_s": 52.286448167230134,
+     "decode_tokens": 112
+    },
+    {
+     "text": " The robe takes 2 bolts of blue fiber and half that much white fiber.\nSo the robe takes 2 + 2/2 = <<2+2/2=3>>3 bolts in total.\n#### 3\n\nQuestion",
+     "prompt_tokens": 2047,
+     "completion_tokens": 51,
+     "decode_seconds": 0.9532140910000066,
+     "decode_tok_s": 52.45411337503995,
+     "decode_tokens": 50
+    },
+    {
+     "text": " The value of the house increased by 150% of $80,000, which is 1.5 * 80,000 = $<<1.5*80000=120000>>120,000.\nThe new value of the house is $80,000 + $120,000 = $<<80000+120000=200000>>200,000.\nJosh spent $80,000 + $50,000 = $<<80000+50000=130000>>130,000.\nHis profit is $200,000 - $130,000 = $<<200000-130000=70000>>70,000.\n#### 70000\n\n",
+     "prompt_tokens": 2078,
+     "completion_tokens": 229,
+     "decode_seconds": 4.371542781000002,
+     "decode_tok_s": 52.15550011107163,
+     "decode_tokens": 228
+    },
+    {
+     "text": " James runs 3 sprints 3 times a week.\nSo he runs 3 * 3 = <<3*3=9>>9 sprints a week.\nHe runs 60 meters each sprint.\nSo he runs 60 * 9 = <<60*9=540>>540 meters a week.\n#### 540\n\n",
+     "prompt_tokens": 2056,
+     "completion_tokens": 83,
+     "decode_seconds": 1.5646350359999985,
+     "decode_tok_s": 52.40838797118696,
+     "decode_tokens": 82
+    },
+    {
+     "text": " Wendi feeds each chicken 3 cups of feed per day.\nShe has 20 chickens, so she feeds 20 * 3 = <<20*3=60>>60 cups of feed per day.\nShe gives the chickens 15 cups in the morning and 25 cups in the afternoon, so she has given them 15 + 25 = <<15+25=40>>40 cups of feed.\nShe needs to give the chickens 60 - 40 = <<60-40=20>>20 cups of feed in the final meal of the day.\n#### 20\n\n",
+     "prompt_tokens": 2131,
+     "completion_tokens": 145,
+     "decode_seconds": 2.762075750000008,
+     "decode_tok_s": 52.13470340196122,
+     "decode_tokens": 144
+    },
+    {
+     "text": " The first glass costs $5.\nThe second glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe third glass costs $5.\nThe fourth glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe fifth glass costs $5.\nThe sixth glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe seventh glass costs $5.\nThe eighth glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe ninth glass costs $5.\nThe tenth glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe eleventh glass costs $5.\nThe twelfth glass costs 5 * 60/100 = $<<5*60/100=3.",
+     "prompt_tokens": 2077,
+     "completion_tokens": 256,
+     "decode_seconds": 4.892430826000009,
+     "decode_tok_s": 52.12132967621023,
+     "decode_tokens": 255
+    },
+    {
+     "text": " Seattle has 20 sheep.\nCharleston has 4 times as many sheep as Seattle, so Charleston has 4 * 20 = <<4*20=80>>80 sheep.\nToulouse has twice as many sheep as Charleston, so Toulouse has 2 * 80 = <<2*80=160>>160 sheep.\nIn total, Toulouse, Charleston, and Seattle have 20 + 80 + 160 = <<20+80+160=260>>260 sheep.\n#### 260\n\n",
+     "prompt_tokens": 2065,
+     "completion_tokens": 138,
+     "decode_seconds": 2.6202874370000018,
+     "decode_tok_s": 52.28434028476392,
+     "decode_tokens": 137
+    },
+    {
+     "text": " Carla can download 200/2 = <<200/2=100>>100 minutes normally.\n40% of the way through the download is 100 * 40/100 = <<100*40/100=40>>40 minutes.\nShe has to restart the download from the beginning, which takes 20 minutes.\nSo it takes 100 + 20 = <<100+20=120>>120 minutes to download the file.\n#### 120\n\n",
+     "prompt_tokens": 2092,
+     "completion_tokens": 133,
+     "decode_seconds": 2.5265305820000066,
+     "decode_tok_s": 52.24555797599273,
+     "decode_tokens": 132
+    },
+    {
+     "text": " John drives for 3 hours at a speed of 60 mph and then turns around because he realizes he forgot something very important at home.  He tries to get home in 4 hours but spends the first 2 hours in standstill traffic.  He spends the next half-hour driving at a speed of 30mph, before being able to drive the remaining time of the 4 hours going at 80 mph.  How far is he from home at the end of those 4 hours?\nJohn drives for 3 hours at a speed of 60 mph and then turns around because he realizes he forgot something very important at home.  He tries to get home in 4 hours but spends the first 2 hours in standstill traffic.  He spends the next half-hour driving at a speed of 30mph, before being able to drive the remaining time of the 4 hours going at 80 mph.  How far is he from home at the end of those 4 hours?\nJohn drives for 3 hours at a speed of 60 mph and then turns around because he realizes he forgot something very important at home.  He tries to get home in 4 hours but spends the first ",
+     "prompt_tokens": 2126,
+     "completion_tokens": 256,
+     "decode_seconds": 4.905959387999999,
+     "decode_tok_s": 51.977601083231804,
+     "decode_tokens": 255
+    },
+    {
+     "text": " Eliza's rate per hour for the first 40 hours she works each week is $10.\nHer overtime pay is 1.2 times her regular hourly rate, so her overtime pay is 1.2 * $10 = $<<1.2*10=12.00>>12.00\nShe worked for 45 hours this week, so she worked 45 - 40 = <<45-40=5>>5 hours of overtime.\nHer earnings for the first 40 hours are 40 * $10 = $<<40*10=400.00>>400.00\nHer earnings for the overtime hours are 5 * $12 = $<<5*12=60.00>>60.00\nHer total earnings for the week are $400 + $60 = $<<400+60=460.00>>460.00\n#### 460\n\n",
+     "prompt_tokens": 2079,
+     "completion_tokens": 228,
+     "decode_seconds": 4.351248242000011,
+     "decode_tok_s": 52.168938055269756,
+     "decode_tokens": 227
+    },
+    {
+     "text": " The number of downloads in the second month was three times as many as the downloads in the first month, so the number of downloads in the second month was 60 * 3 = <<60*3=180>>180.\nThe number of downloads in the third month was reduced by 30% from the second month, so the number of downloads in the third month was 180 - (180 * 30/100) = <<180-(180*30/100)=126>>126.\nThe total number of downloads over the three months was 60 + 180 + 126 = <<60+180+126=366>>366.\n#### 366\n\n",
+     "prompt_tokens": 2081,
+     "completion_tokens": 181,
+     "decode_seconds": 3.4472250269999876,
+     "decode_tok_s": 52.21591239045058,
+     "decode_tokens": 180
+    },
+    {
+     "text": " The total cost of the donuts is 3 * 68 = $<<3*68=204.00>>204.00\nThe total cost of the mini cupcakes is 2 * 80 = $<<2*80=160.00>>160.00\nThe total cost of the mini cheesecakes is 6 * 55 = $<<6*55=330.00>>330.00\nThe total cost of all the pastries is $204 + $160 + $330 = $<<204+160+330=694.00>>694.00\n#### 694\n\n",
+     "prompt_tokens": 2086,
+     "completion_tokens": 172,
+     "decode_seconds": 3.275058981000001,
+     "decode_tok_s": 52.212800133384825,
+     "decode_tokens": 171
+    },
+    {
+     "text": " Carlos will make 7 * 1.5 = $<<7*1.5=10.5>>10.5 per year.\nIt costs $3 a year to water and feed the tree, so he will make 10.5 - 3 = $<<10.5-3=7.5>>7.5 per year.\nHe will need to make $90 to pay for the tree, so it will take 90 / 7.5 = <<90/7.5=12>>12 years.\n#### 12\n\n",
+     "prompt_tokens": 2087,
+     "completion_tokens": 129,
+     "decode_seconds": 2.449685262999992,
+     "decode_tok_s": 52.25161041432955,
+     "decode_tokens": 128
+    },
+    {
+     "text": " Melanie sold 1/3 of her vacuum cleaners at the green house, so she had 2/3 of her vacuum cleaners left.\nShe sold 2 more to the red house, so she had 2/3 - 2 = <<2/3-2=1/3>>1/3 of her vacuum cleaners left.\nShe sold half of what was left at the orange house, so she had 1/3 * 1/2 = <<1/3*1/2=1/6>>1/6 of her vacuum cleaners left.\nShe has 5 vacuum cleaners left, so 1/6 of her vacuum cleaners is 5.\nThat means she started with 5 * 6 = <<5*6=30>>30 vacuum cleaners.\n#### 30\n\n",
+     "prompt_tokens": 2082,
+     "completion_tokens": 175,
+     "decode_seconds": 3.332376328999999,
+     "decode_tok_s": 52.21499099179325,
+     "decode_tokens": 174
+    },
+    {
+     "text": " 20% of 20 students enrolled in contemporary dance, which is 20/100 * 20 = <<20/100*20=4>>4 students.\nThe remaining students are 20 - 4 = <<20-4=16>>16 students.\n25% of the remaining students enrolled in jazz dance, which is 25/100 * 16 = <<25/100*16=4>>4 students.\nThe remaining students enrolled in hip-hop dance, which is 16 - 4 = <<16-4=12>>12 students.\nThe percentage of the entire students enrolled in hip-hop dance is 12/20 * 100 = <<12/20*100=60>>60%.\n#### 60\n\n",
+     "prompt_tokens": 2075,
+     "completion_tokens": 197,
+     "decode_seconds": 3.754904228000015,
+     "decode_tok_s": 52.198401902888484,
+     "decode_tokens": 196
+    },
+    {
+     "text": " The jewelry market will go up 2.5% so the jewelry will be worth $5,000 * 1.025 = $<<5000*1.025=5125.00>>5125.00\nThe electronic gadgets market will go up 1.2% so the electronic gadgets will be worth $8,000 * 1.012 = $<<8000*1.012=8096.00>>8096.00\nThe difference between the two is $8096 - $5125 = $<<8096-5125=2971.00>>2971.00\n#### 2971\n\n",
+     "prompt_tokens": 2115,
+     "completion_tokens": 178,
+     "decode_seconds": 3.3943220879999956,
+     "decode_tok_s": 52.14590584251008,
+     "decode_tokens": 177
+    },
+    {
+     "text": " The distance covered by each train in the two days is 80 + 150 = <<80+150=230>>230 miles.\n#### 230\n\n",
+     "prompt_tokens": 2074,
+     "completion_tokens": 47,
+     "decode_seconds": 0.877553684999981,
+     "decode_tok_s": 52.41844548803985,
+     "decode_tokens": 46
+    },
+    {
+     "text": " Jill gets paid $20 per hour to teach and $30 to be a cheerleading coach.\nIf she works 50 weeks a year, 35 hours a week as a teacher and 15 hours a week as a coach, her annual salary is $20 * 35 * 50 + $30 * 15 * 50 = $<<20*35*50+30*15*50=105000>>105000.\n#### 105000\n\n",
+     "prompt_tokens": 2078,
+     "completion_tokens": 127,
+     "decode_seconds": 2.409968195999994,
+     "decode_tok_s": 52.28284763638445,
+     "decode_tokens": 126
+    },
+    {
+     "text": " Claire eats 3 eggs every day for breakfast.\nIn 4 weeks, she eats 3 * 7 * 4 = <<3*7*4=84>>84 eggs.\nSince there are 12 eggs in a dozen, she eats 84/12 = <<84/12=7>>7 dozen eggs.\n#### 7\n\n",
+     "prompt_tokens": 2049,
+     "completion_tokens": 83,
+     "decode_seconds": 1.5647348120000117,
+     "decode_tok_s": 52.40504612739413,
+     "decode_tokens": 82
+    },
+    {
+     "text": " She has 12 - 4 - 2 = <<12-4-2=6>>6 miles left to walk.\nShe has 2 hours left to walk the remaining distance.\nTo walk 6 miles in 2 hours, she needs to walk at a speed of 6/2 = <<6/2=3>>3 miles per hour.\n#### 3\n\n",
+     "prompt_tokens": 2087,
+     "completion_tokens": 85,
+     "decode_seconds": 1.6054807240000173,
+     "decode_tok_s": 52.3207776613574,
+     "decode_tokens": 84
+    },
+    {
+     "text": " The orange drink is 10 - 1 = <<10-1=9>>9 liters and is 2/3 water, so it contains 9 * 2/3 = <<9*2/3=6>>6 liters of water.\nThe pineapple drink is 15 liters and is 3/5 water, so it contains 15 * 3/5 = <<15*3/5=9>>9 liters of water.\nThe total amount of water is 6 + 9 = <<6+9=15>>15 liters.\n#### 15\n\n",
+     "prompt_tokens": 2085,
+     "completion_tokens": 132,
+     "decode_seconds": 2.5073547380000036,
+     "decode_tok_s": 52.24629687002024,
+     "decode_tokens": 131
+    },
+    {
+     "text": " Raymond was born 6 years before Samantha, so he is 6 years younger than Samantha.\nRaymond had a son at the age of 23, so his son is 23 years younger than Raymond.\nSince Raymond is 6 years younger than Samantha, his son is 23 + 6 = <<23+6=29>>29 years younger than Samantha.\nSamantha is now 31, so Raymond's son was born 31 - 29 = <<31-29=2>>2 years ago.\n#### 2\n\n",
+     "prompt_tokens": 2066,
+     "completion_tokens": 126,
+     "decode_seconds": 2.3897227690000022,
+     "decode_tok_s": 52.307322682583475,
+     "decode_tokens": 125
+    },
+    {
+     "text": " Billy's first 3 customers buy 3 DVDs.\nHis next 2 customers buy 2 * 2 = 4 DVDs.\nHis last 3 customers buy 0 DVDs.\nSo Billy sells 3 + 4 + 0 = 7 DVDs.\n#### 7\n\n",
+     "prompt_tokens": 2080,
+     "completion_tokens": 68,
+     "decode_seconds": 1.279597372000012,
+     "decode_tok_s": 52.360220070848484,
+     "decode_tokens": 67
+    },
+    {
+     "text": " The candle burns for 4 hours.\nThe candle melts 2 centimeters per hour.\nThe candle melts 2 * 4 = <<2*4=8>>8 centimeters.\n#### 8\n\n",
+     "prompt_tokens": 2059,
+     "completion_tokens": 46,
+     "decode_seconds": 0.8578159959999994,
+     "decode_tok_s": 52.45880259850043,
+     "decode_tokens": 45
+    },
+    {
+     "text": " Let x be the original price of the book.\nThe discount is 25/100 * x = 0.25x\nThe price after the discount is x - 0.25x = 0.75x\nWe know that the price after the discount is $19.50, so 0.75x = 19.50\nx = 19.50 / 0.75 = $<<19.50/0.75=26.00>>26.00\n#### 26\n\n",
+     "prompt_tokens": 2062,
+     "completion_tokens": 132,
+     "decode_seconds": 2.5044269549999854,
+     "decode_tok_s": 52.307375041809024,
+     "decode_tokens": 131
+    },
+    {
+     "text": " The total cost of the chicken meal, milk, and apples is $12 + $3*5 + $1.50*4 = $12 + $15 + $6 = $33.\nThe total cost of the pizza is $50 - $33 = $17.\nThe number of boxes of pizza is $17 / $8.50 = 2.\n#### 2\n\n",
+     "prompt_tokens": 2088,
+     "completion_tokens": 94,
+     "decode_seconds": 1.778285062000009,
+     "decode_tok_s": 52.29757702367717,
+     "decode_tokens": 93
+    },
+    {
+     "text": " Mishka bought 3 pairs of shorts, 3 pairs of pants, and 3 pairs of shoes.\nThe cost of 3 pairs of shorts is 3 * $16.50 = $<<3*16.50=49.50>>49.50.\nThe cost of 3 pairs of pants is 3 * $22.50 = $<<3*22.50=67.50>>67.50.\nThe cost of 3 pairs of shoes is 3 * $42 = $<<3*42=126.00>>126.00.\nThe total cost of all the clothing items is $49.50 + $67.50 + $126.00 = $<<49.50+67.50+126.00=243.00>>243.00.\n#### 243\n\n",
+     "prompt_tokens": 2089,
+     "completion_tokens": 221,
+     "decode_seconds": 4.217420086000004,
+     "decode_tok_s": 52.164592455540316,
+     "decode_tokens": 220
+    },
+    {
+     "text": " She eats 1 serving of ice cream every night, so in 60 days she will eat 60 servings of ice cream.\nShe buys cartons of ice cream with 15 servings of ice cream per carton, so she will need 60/15 = <<60/15=4>>4 cartons of ice cream.\nEach carton costs $4.00, so 4 cartons will cost 4*4 = $<<4*4=16.00>>16.00.\n#### 16\n\n",
+     "prompt_tokens": 2080,
+     "completion_tokens": 125,
+     "decode_seconds": 2.3716061420000187,
+     "decode_tok_s": 52.28524155171421,
+     "decode_tokens": 124
+    },
+    {
+     "text": " He traveled 60 - 15 = <<60-15=45>>45 miles after his second stop.\nHe traveled 20 miles before his first stop.\nSo he traveled 45 - 20 = <<45-20=25>>25 miles between his first and second stops.\n#### 25\n\n",
+     "prompt_tokens": 2072,
+     "completion_tokens": 81,
+     "decode_seconds": 1.5279395849999844,
+     "decode_tok_s": 52.35809110868792,
+     "decode_tokens": 80
+    },
+    {
+     "text": " One pair of heels costs $33 and the other costs twice as much, so the other pair costs 2 * 33 = $<<2*33=66>>66.\nThe total cost of the two pairs of heels is 33 + 66 = $<<33+66=99>>99.\nThe total cost of the two pairs of heels is five dollars less than the boots, so the boots cost 99 + 5 = $<<99+5=104>>104.\n#### 104\n\n",
+     "prompt_tokens": 2089,
+     "completion_tokens": 128,
+     "decode_seconds": 2.430290795000019,
+     "decode_tok_s": 52.25712094259856,
+     "decode_tokens": 127
+    },
+    {
+     "text": " Let x be the multiplier for the ratio.\nDarrell's age is 7x and Allen's age is 11x.\nTheir total age is 7x + 11x = 18x.\nWe are told that their total age is 162, so 18x = 162.\nSolving for x, we get x = 162/18 = 9.\nDarrell's age is 7x = 7 * 9 = 63.\nAllen's age is 11x = 11 * 9 = 99.\nTen years from now, Allen's age will be 99 + 10 = 109.\n#### 109\n\n",
+     "prompt_tokens": 2060,
+     "completion_tokens": 169,
+     "decode_seconds": 3.2142510220000133,
+     "decode_tok_s": 52.267230795018875,
+     "decode_tokens": 168
+    },
+    {
+     "text": " The first friend guessed 80 jelly beans.\nThe second friend guessed 80/2 + 20 = <<80/2+20=40+20=60>>60 jelly beans.\nThe third friend guessed 80 + 80*.25 = <<80+80*.25=80+20=100>>100 jelly beans.\nThe average of 80, 60, and 100 is (80+60+100)/3 = <<(80+60+100)/3=240/3=80>>80.\n#### 80\n\n",
+     "prompt_tokens": 2084,
+     "completion_tokens": 156,
+     "decode_seconds": 2.9671279229999925,
+     "decode_tok_s": 52.239068898412434,
+     "decode_tokens": 155
+    },
+    {
+     "text": " John spends 10 * .5 = <<10*.5=5>>5 hours a day walking and taking care of the dogs.\nThere are 7 days in a week so he spends 5 * 7 = <<5*7=35>>35 hours a week taking care of the dogs.\n#### 35\n\n",
+     "prompt_tokens": 2062,
+     "completion_tokens": 75,
+     "decode_seconds": 1.4126126920000104,
+     "decode_tok_s": 52.38520113763742,
+     "decode_tokens": 74
+    },
+    {
+     "text": " Let S be the number of silver coins.\nThen there are S + 30 gold coins.\nTogether, there are S + S + 30 = 2S + 30 coins.\nWe know that there are 110 coins, so 2S + 30 = 110.\nThus, S = (110 - 30) / 2 = 40.\nThere are 40 silver coins, so there are 40 + 30 = 70 gold coins.\n#### 70\n\n",
+     "prompt_tokens": 2051,
+     "completion_tokens": 126,
+     "decode_seconds": 2.3878456580000034,
+     "decode_tok_s": 52.34844202815717,
+     "decode_tokens": 125
+    },
+    {
+     "text": " Raymond has 40 jewels.\nAaron has 5 more jewels than half of Raymond's jewels, so Aaron has 40/2 + 5 = <<40/2+5=25>>25 jewels.\nSiobhan has 2 fewer jewels than Aaron, so Siobhan has 25 - 2 = <<25-2=23>>23 jewels.\n#### 23\n\n",
+     "prompt_tokens": 2062,
+     "completion_tokens": 95,
+     "decode_seconds": 1.795249186999996,
+     "decode_tok_s": 52.36041920012311,
+     "decode_tokens": 94
+    },
+    {
+     "text": " In the first 20 minutes, Mike scores 4 points.\nIn the second 20 minutes, he scores 25% more points, which is 4 * 1.25 = <<4*1.25=5>>5 points.\nSo, Mike scores a total of 4 + 5 = <<4+5=9>>9 points.\n#### 9\n\n",
+     "prompt_tokens": 2074,
+     "completion_tokens": 88,
+     "decode_seconds": 1.6621590279999907,
+     "decode_tok_s": 52.34156210954352,
+     "decode_tokens": 87
+    },
+    {
+     "text": " Terry eats 2 yogurts a day, so in 30 days he eats 2*30 = <<2*30=60>>60 yogurts.\nSince they are on sale at 4 yogurts for $5.00, he needs to buy 60/4 = <<60/4=15>>15 sets of 4 yogurts.\nEach set of 4 yogurts costs $5.00, so 15 sets cost 15*5 = $<<15*5=75>>75.\n#### 75\n\n",
+     "prompt_tokens": 2064,
+     "completion_tokens": 137,
+     "decode_seconds": 2.601353595000006,
+     "decode_tok_s": 52.28047438894968,
+     "decode_tokens": 136
+    },
+    {
+     "text": " John sells 13 * 15 = $<<13*15=195>>195 worth of lego sets.\nHe buys 8 * 20 = $<<8*20=160>>160 worth of video games.\nHe has $195 - $160 = $<<195-160=35>>35 left.\nHe has $35 - $5 = $<<35-5=30>>30 left to buy lego sets.\nHe can buy 30 / 15 = <<30/15=2>>2 more lego sets.\nHe has 13 - 2 = $<<13-2=11>>11 lego sets left.\n#### 11\n\n",
+     "prompt_tokens": 2084,
+     "completion_tokens": 182,
+     "decode_seconds": 3.467672279999988,
+     "decode_tok_s": 52.196397290461555,
+     "decode_tokens": 181
+    },
+    {
+     "text": " He runs 3 hours the first day and half as much the other two days he runs, so he runs 3/2 = <<3/2=1.5>>1.5 hours the other two days.\nHe runs 3 + 1.5 + 1.5 = <<3+1.5+1.5=6>>6 hours a week.\nHe runs 60 miles a week, so he runs 60/6 = <<60/6=10>>10 miles per hour.\n#### 10\n\n",
+     "prompt_tokens": 2065,
+     "completion_tokens": 122,
+     "decode_seconds": 2.3124634750000155,
+     "decode_tok_s": 52.32515077886763,
+     "decode_tokens": 121
+    },
+    {
+     "text": " Dana can skip at 3 miles per hour, which is half as fast as she can run, so she can run at 3 * 2 = <<3*2=6>>6 miles per hour.\nDana can run at a rate of speed four times faster than she can walk, so she can walk at 6 / 4 = <<6/4=1.5>>1.5 miles per hour.\nIf she spends one-third of the time running and two-thirds of the time walking, then she runs for 6 * 1/3 = <<6*1/3=2>>2 hours and walks for 6 * 2/3 = <<6*2/3=4>>4 hours.\nIn 2 hours, she can run 6 * 2 = <<6*2=12>>12 miles.\nIn 4 hours, she can walk 1.5 * 4 = <<1.5*4=6>>6 miles.\nIn 6 hours, she can run 12 miles and walk 6 miles, for a total of 12 + 6 = <<12+6=18>>18 miles.\n#### ",
+     "prompt_tokens": 2095,
+     "completion_tokens": 256,
+     "decode_seconds": 4.897348283000014,
+     "decode_tok_s": 52.068994334173084,
+     "decode_tokens": 255
+    }
+   ]
+  },
+  "1:2": {
+   "summary": {
+    "ms_per_token": 8.25407182683742,
+    "median_ms_per_token": 8.256817549166772,
+    "decode_tokens": 5388,
+    "mean_prompt_tokens": 2078.05,
+    "mean_completion_tokens": 135.7,
+    "server_ready_s": 45.0095055103302,
+    "identical_text_vs_baseline": 0.55,
+    "speedup_vs_baseline": 2.319630071396109
+   },
+   "rows": [
+    {
+     "text": " Janet\u2019s ducks lay 16 eggs per day.\nShe eats three for breakfast every morning and bakes muffins for her friends every day with four.\nShe sells the remainder at the farmers' market daily for $2 per fresh duck egg.\nSo, she sells 16 - 3 - 4 = <<16-3-4=9>>9 eggs per day.\nShe makes 9 * 2 = $<<9*2=18>>18 per day.\n#### 18\n\n",
+     "prompt_tokens": 2086,
+     "completion_tokens": 114,
+     "decode_seconds": 0.9061450160000106,
+     "decode_tok_s": 124.70410144594193,
+     "decode_tokens": 113,
+     "first_accept": 104,
+     "first_reject": 9,
+     "pipeline_cycles": 127,
+     "second_accept": 8,
+     "second_reject": 0,
+     "second_skip": 1
+    },
+    {
+     "text": " The robe takes 2 bolts of blue fiber and half that much white fiber.\nSo the robe takes 2 + 2/2 = <<2+2/2=3>>3 bolts in total.\n#### 3\n\n",
+     "prompt_tokens": 2047,
+     "completion_tokens": 51,
+     "decode_seconds": 0.4512663350000139,
+     "decode_tok_s": 110.79931322596546,
+     "decode_tokens": 50,
+     "first_accept": 42,
+     "first_reject": 8,
+     "pipeline_cycles": 65,
+     "second_accept": 6,
+     "second_reject": 0,
+     "second_skip": 2
+    },
+    {
+     "text": " The value of the house increased by 150% of $80,000, which is 1.5 * 80,000 = $<<1.5*80000=120000>>120,000.\nThe new value of the house is $80,000 + $120,000 = $<<80000+120000=200000>>200,000.\nThe total cost of the house and repairs is $80,000 + $50,000 = $<<80000+50000=130000>>130,000.\nThe profit is $200,000 - $130,000 = $<<200000-130000=70000>>70,000.\n#### 70000\n\n",
+     "prompt_tokens": 2078,
+     "completion_tokens": 236,
+     "decode_seconds": 1.9169179069999984,
+     "decode_tok_s": 122.59262597623602,
+     "decode_tokens": 235,
+     "first_accept": 221,
+     "first_reject": 14,
+     "pipeline_cycles": 260,
+     "second_accept": 10,
+     "second_reject": 0,
+     "second_skip": 4
+    },
+    {
+     "text": " James runs 3 sprints 3 times a week, so he runs 3*3 = <<3*3=9>>9 sprints a week.\nEach sprint is 60 meters, so he runs 9*60 = <<9*60=540>>540 meters a week.\n#### 540\n\n",
+     "prompt_tokens": 2056,
+     "completion_tokens": 78,
+     "decode_seconds": 0.601742296999987,
+     "decode_tok_s": 127.96175436542673,
+     "decode_tokens": 77,
+     "first_accept": 74,
+     "first_reject": 3,
+     "pipeline_cycles": 83,
+     "second_accept": 3,
+     "second_reject": 0,
+     "second_skip": 0
+    },
+    {
+     "text": " Wendi feeds each chicken three cups of mixed chicken feed, containing seeds, mealworms and vegetables to help keep them healthy.\nShe gives the chickens their feed in three separate meals.\nIn the morning, she gives her flock of chickens 15 cups of feed.\nIn the afternoon, she gives her chickens another 25 cups of feed.\nIn the final meal of the day, she needs to give her chickens 15 + 25 = <<15+25=40>>40 cups of feed.\n#### 40\n\n",
+     "prompt_tokens": 2131,
+     "completion_tokens": 120,
+     "decode_seconds": 1.0178075879999824,
+     "decode_tok_s": 116.91797290864966,
+     "decode_tokens": 119,
+     "first_accept": 111,
+     "first_reject": 8,
+     "pipeline_cycles": 140,
+     "second_accept": 3,
+     "second_reject": 1,
+     "second_skip": 4
+    },
+    {
+     "text": " The first glass costs $5.\nThe second glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe third glass costs $5.\nThe fourth glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe fifth glass costs $5.\nThe sixth glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe seventh glass costs $5.\nThe eighth glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe ninth glass costs $5.\nThe tenth glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe eleventh glass costs $5.\nThe twelfth glass costs 5 * 60/100 = $<<5*60/100=3.",
+     "prompt_tokens": 2077,
+     "completion_tokens": 256,
+     "decode_seconds": 2.037566943999991,
+     "decode_tok_s": 125.1492623351084,
+     "decode_tokens": 255,
+     "first_accept": 243,
+     "first_reject": 12,
+     "pipeline_cycles": 270,
+     "second_accept": 12,
+     "second_reject": 0,
+     "second_skip": 0
+    },
+    {
+     "text": " Seattle has 20 sheep.\nCharleston has 4 times as many sheep as Seattle, so Charleston has 4 * 20 = <<4*20=80>>80 sheep.\nToulouse has twice as many sheep as Charleston, so Toulouse has 2 * 80 = <<2*80=160>>160 sheep.\nIn total, Toulouse, Charleston, and Seattle have 20 + 80 + 160 = <<20+80+160=260>>260 sheep.\n#### 260\n\n",
+     "prompt_tokens": 2065,
+     "completion_tokens": 138,
+     "decode_seconds": 1.064074092999988,
+     "decode_tok_s": 128.75043279528614,
+     "decode_tokens": 137,
+     "first_accept": 132,
+     "first_reject": 5,
+     "pipeline_cycles": 149,
+     "second_accept": 3,
+     "second_reject": 0,
+     "second_skip": 2
+    },
+    {
+     "text": " Carla can download 200/2 = <<200/2=100>>100 minutes normally.\n40% of the way through the download is 100 * 40/100 = <<100*40/100=40>>40 minutes.\nShe has to restart the download from the beginning, which takes 20 minutes.\nSo it takes 100 + 20 = <<100+20=120>>120 minutes to download the file.\n#### 120\n\n",
+     "prompt_tokens": 2092,
+     "completion_tokens": 133,
+     "decode_seconds": 1.1347955859999956,
+     "decode_tok_s": 116.32050884625181,
+     "decode_tokens": 132,
+     "first_accept": 120,
+     "first_reject": 12,
+     "pipeline_cycles": 161,
+     "second_accept": 5,
+     "second_reject": 1,
+     "second_skip": 6
+    },
+    {
+     "text": " John drives for 3 hours at a speed of 60 mph, so he travels 3 * 60 = <<3*60=180>>180 miles.\nHe then turns around and drives for 2 hours in standstill traffic, so he travels 0 miles.\nHe then drives for 0.5 hours at a speed of 30 mph, so he travels 0.5 * 30 = <<0.5*30=15>>15 miles.\nHe then drives for 1.5 hours at a speed of 80 mph, so he travels 1.5 * 80 = <<1.5*80=120>>120 miles.\nSo in total, John travels 180 + 0 + 15 + 120 = <<180+0+15+120=315>>315 miles.\n#### 315\n\n",
+     "prompt_tokens": 2126,
+     "completion_tokens": 214,
+     "decode_seconds": 1.763331297000036,
+     "decode_tok_s": 120.7940903461408,
+     "decode_tokens": 213,
+     "first_accept": 196,
+     "first_reject": 17,
+     "pipeline_cycles": 243,
+     "second_accept": 12,
+     "second_reject": 0,
+     "second_skip": 5
+    },
+    {
+     "text": " Eliza's rate per hour for the first 40 hours she works each week is $10.\nShe also receives an overtime pay of 1.2 times her regular hourly rate.\nHer overtime pay is 1.2 * $10 = $<<1.2*10=12.00>>12.00\nHer earnings for the first 40 hours are 40 * $10 = $<<40*10=400.00>>400.00\nHer earnings for the 5 overtime hours are 5 * $12 = $<<5*12=60.00>>60.00\nHer total earnings for the week are $400 + $60 = $<<400+60=460.00>>460.00\n#### 460\n\n",
+     "prompt_tokens": 2079,
+     "completion_tokens": 197,
+     "decode_seconds": 1.615715367000007,
+     "decode_tok_s": 121.30849529761213,
+     "decode_tokens": 196,
+     "first_accept": 183,
+     "first_reject": 13,
+     "pipeline_cycles": 220,
+     "second_accept": 9,
+     "second_reject": 3,
+     "second_skip": 1
+    },
+    {
+     "text": " The number of downloads in the second month was three times as many as the downloads in the first month, so the number of downloads in the second month was 60 * 3 = <<60*3=180>>180.\nThe number of downloads in the third month was reduced by 30% from the second month, so the number of downloads in the third month was 180 - (180 * 0.3) = <<180-(180*0.3)=180-54=126>>126.\nThe total number of downloads over the three months was 60 + 180 + 126 = <<60+180+126=366>>366.\n#### 366\n\n",
+     "prompt_tokens": 2081,
+     "completion_tokens": 182,
+     "decode_seconds": 1.4183229669999946,
+     "decode_tok_s": 127.61550381070624,
+     "decode_tokens": 181,
+     "first_accept": 174,
+     "first_reject": 7,
+     "pipeline_cycles": 195,
+     "second_accept": 5,
+     "second_reject": 1,
+     "second_skip": 1
+    },
+    {
+     "text": " The total cost of the donuts is 3 * 68 = $<<3*68=204.00>>204.00\nThe total cost of the mini cupcakes is 2 * 80 = $<<2*80=160.00>>160.00\nThe total cost of the mini cheesecakes is 6 * 55 = $<<6*55=330.00>>330.00\nThe total cost of all the pastries is $204 + $160 + $330 = $<<204+160+330=694.00>>694.00\n#### 694\n\n",
+     "prompt_tokens": 2086,
+     "completion_tokens": 172,
+     "decode_seconds": 1.338819385000022,
+     "decode_tok_s": 127.72447270771866,
+     "decode_tokens": 171,
+     "first_accept": 164,
+     "first_reject": 7,
+     "pipeline_cycles": 183,
+     "second_accept": 6,
+     "second_reject": 0,
+     "second_skip": 1
+    },
+    {
+     "text": " Carlos will make 7 * 1.5 = $<<7*1.5=10.5>>10.5 per year.\nIt costs $3 a year to water and feed the tree, so he will make 10.5 - 3 = $<<10.5-3=7.5>>7.5 per year.\nHe will need to make $90 to pay for the tree, so it will take 90 / 7.5 = <<90/7.5=12>>12 years.\n#### 12\n\n",
+     "prompt_tokens": 2087,
+     "completion_tokens": 129,
+     "decode_seconds": 1.1095906489999834,
+     "decode_tok_s": 115.35785752643083,
+     "decode_tokens": 128,
+     "first_accept": 112,
+     "first_reject": 16,
+     "pipeline_cycles": 157,
+     "second_accept": 11,
+     "second_reject": 1,
+     "second_skip": 4
+    },
+    {
+     "text": " Melanie sold 1/3 of her vacuum cleaners at the green house, so she had 2/3 of her vacuum cleaners left.\nShe sold 2 more to the red house, so she had 2/3 - 2 = <<2/3-2=1/3>>1/3 of her vacuum cleaners left.\nShe sold half of what was left at the orange house, so she had 1/3 * 1/2 = <<1/3*1/2=1/6>>1/6 of her vacuum cleaners left.\nShe has 5 vacuum cleaners left, so 1/6 of her vacuum cleaners is 5.\nThat means she started with 5 * 6 = <<5*6=30>>30 vacuum cleaners.\n#### 30\n\n",
+     "prompt_tokens": 2082,
+     "completion_tokens": 175,
+     "decode_seconds": 1.460957589999964,
+     "decode_tok_s": 119.09996648157616,
+     "decode_tokens": 174,
+     "first_accept": 161,
+     "first_reject": 13,
+     "pipeline_cycles": 198,
+     "second_accept": 9,
+     "second_reject": 3,
+     "second_skip": 1
+    },
+    {
+     "text": " 20% of 20 students enrolled in contemporary dance, which is 20/100 * 20 = <<20/100*20=4>>4 students.\nThe remaining students are 20 - 4 = <<20-4=16>>16 students.\n25% of the remaining students enrolled in jazz dance, which is 25/100 * 16 = <<25/100*16=4>>4 students.\nThe remaining students enrolled in hip-hop dance, which is 16 - 4 = <<16-4=12>>12 students.\nThe percentage of the entire students enrolled in hip-hop dance is 12/20 * 100 = <<12/20*100=60>>60%.\n#### 60\n\n",
+     "prompt_tokens": 2075,
+     "completion_tokens": 197,
+     "decode_seconds": 1.592556381999998,
+     "decode_tok_s": 123.07256572847683,
+     "decode_tokens": 196,
+     "first_accept": 184,
+     "first_reject": 12,
+     "pipeline_cycles": 221,
+     "second_accept": 7,
+     "second_reject": 0,
+     "second_skip": 5
+    },
+    {
+     "text": " The jewelry market will go up 2.5% so the jewelry will be worth $5,000 * 1.025 = $<<5000*1.025=5125.00>>5125.00\nThe electronic gadgets market will go up 1.2% so the electronic gadgets will be worth $8,000 * 1.012 = $<<8000*1.012=8096.00>>8096.00\nThe difference between the two is $8096 - $5125 = $<<8096-5125=2971.00>>2971.00\n#### 2971\n\n",
+     "prompt_tokens": 2115,
+     "completion_tokens": 178,
+     "decode_seconds": 1.4442395710000255,
+     "decode_tok_s": 122.55584430320035,
+     "decode_tokens": 177,
+     "first_accept": 162,
+     "first_reject": 15,
+     "pipeline_cycles": 199,
+     "second_accept": 13,
+     "second_reject": 0,
+     "second_skip": 2
+    },
+    {
+     "text": " The distance covered by each train in the two days is 80 + 150 = <<80+150=230>>230 miles.\n#### 230\n\n",
+     "prompt_tokens": 2074,
+     "completion_tokens": 47,
+     "decode_seconds": 0.3675178870000195,
+     "decode_tok_s": 125.1639760325395,
+     "decode_tokens": 46,
+     "first_accept": 45,
+     "first_reject": 1,
+     "pipeline_cycles": 52,
+     "second_accept": 0,
+     "second_reject": 0,
+     "second_skip": 1
+    },
+    {
+     "text": " Jill gets paid $20 per hour to teach and $30 to be a cheerleading coach.\nIf she works 50 weeks a year, 35 hours a week as a teacher and 15 hours a week as a coach, her annual salary is $20 * 35 * 50 + $30 * 15 * 50 = $<<20*35*50+30*15*50=10500>>10500.\n#### 10500\n\n",
+     "prompt_tokens": 2078,
+     "completion_tokens": 124,
+     "decode_seconds": 1.0293042650000075,
+     "decode_tok_s": 119.4981932771833,
+     "decode_tokens": 123,
+     "first_accept": 111,
+     "first_reject": 12,
+     "pipeline_cycles": 146,
+     "second_accept": 8,
+     "second_reject": 1,
+     "second_skip": 3
+    },
+    {
+     "text": " She eats 3 eggs every day for 7 days a week, so she eats 3*7 = <<3*7=21>>21 eggs a week.\nIn 4 weeks, she eats 21*4 = <<21*4=84>>84 eggs.\nThere are 12 eggs in a dozen, so she eats 84/12 = <<84/12=7>>7 dozen eggs.\n#### 7\n\n",
+     "prompt_tokens": 2049,
+     "completion_tokens": 105,
+     "decode_seconds": 0.8437250950000248,
+     "decode_tok_s": 123.26289761476983,
+     "decode_tokens": 104,
+     "first_accept": 95,
+     "first_reject": 9,
+     "pipeline_cycles": 118,
+     "second_accept": 8,
+     "second_reject": 1,
+     "second_skip": 0
+    },
+    {
+     "text": " She has 12 - 4 - 2 = <<12-4-2=6>>6 miles left to walk.\nShe has 2 hours left to walk the remaining distance.\nTo walk 6 miles in 2 hours, she needs to walk at a speed of 6/2 = <<6/2=3>>3 miles per hour.\n#### 3\n\n",
+     "prompt_tokens": 2087,
+     "completion_tokens": 85,
+     "decode_seconds": 0.7179143810000141,
+     "decode_tok_s": 117.00559596395429,
+     "decode_tokens": 84,
+     "first_accept": 75,
+     "first_reject": 9,
+     "pipeline_cycles": 102,
+     "second_accept": 6,
+     "second_reject": 2,
+     "second_skip": 1
+    },
+    {
+     "text": " The orange drink is 10 - 1 = <<10-1=9>>9 liters and is 2/3 water, so it contains 9 * 2/3 = <<9*2/3=6>>6 liters of water.\nThe pineapple drink is 15 liters and is 3/5 water, so it contains 15 * 3/5 = <<15*3/5=9>>9 liters of water.\nThe total amount of water is 6 + 9 = <<6+9=15>>15 liters.\n#### 15\n\n",
+     "prompt_tokens": 2085,
+     "completion_tokens": 132,
+     "decode_seconds": 1.0903944140000021,
+     "decode_tok_s": 120.14001385007072,
+     "decode_tokens": 131,
+     "first_accept": 120,
+     "first_reject": 11,
+     "pipeline_cycles": 153,
+     "second_accept": 7,
+     "second_reject": 2,
+     "second_skip": 2
+    },
+    {
+     "text": " Raymond was born 6 years before Samantha, so he is 6 years younger than Samantha.\nRaymond had a son at the age of 23, so his son is 23 years younger than Raymond.\nSince Raymond is 6 years younger than Samantha, his son is 23 + 6 = <<23+6=29>>29 years younger than Samantha.\nSamantha is now 31, so Raymond's son was born 31 - 29 = <<31-29=2>>2 years ago.\n#### 2\n\n",
+     "prompt_tokens": 2066,
+     "completion_tokens": 126,
+     "decode_seconds": 1.092647741999997,
+     "decode_tok_s": 114.40100518690346,
+     "decode_tokens": 125,
+     "first_accept": 109,
+     "first_reject": 16,
+     "pipeline_cycles": 156,
+     "second_accept": 10,
+     "second_reject": 1,
+     "second_skip": 5
+    },
+    {
+     "text": " Billy's first 3 customers buy 1 DVD each, so he sells 3 DVDs.\nHis next 2 customers buy 2 DVDs each, so he sells 2 * 2 = 4 DVDs.\nHis last 3 customers don't buy any DVDs, so he sells 0 DVDs.\nIn total, Billy sells 3 + 4 + 0 = 7 DVDs.\n#### 7\n\n",
+     "prompt_tokens": 2080,
+     "completion_tokens": 96,
+     "decode_seconds": 0.7775573870000017,
+     "decode_tok_s": 122.17747730046297,
+     "decode_tokens": 95,
+     "first_accept": 87,
+     "first_reject": 8,
+     "pipeline_cycles": 110,
+     "second_accept": 6,
+     "second_reject": 0,
+     "second_skip": 2
+    },
+    {
+     "text": " The candle burns for 4 hours.\nThe candle melts 2 centimeters per hour.\nThe candle melts 2 * 4 = <<2*4=8>>8 centimeters.\n#### 8\n\n",
+     "prompt_tokens": 2059,
+     "completion_tokens": 46,
+     "decode_seconds": 0.4294201630000316,
+     "decode_tok_s": 104.792471051241,
+     "decode_tokens": 45,
+     "first_accept": 35,
+     "first_reject": 10,
+     "pipeline_cycles": 62,
+     "second_accept": 8,
+     "second_reject": 0,
+     "second_skip": 2
+    },
+    {
+     "text": " Let x be the original price of the book.\nThe discount is 25/100 * x = 0.25x\nThe price after the discount is x - 0.25x = 0.75x\nWe know that the price after the discount is $19.50, so 0.75x = 19.50\nx = 19.50 / 0.75 = $<<19.50/0.75=26.00>>26.00\n#### 26\n\n",
+     "prompt_tokens": 2062,
+     "completion_tokens": 132,
+     "decode_seconds": 1.008776169999976,
+     "decode_tok_s": 129.86032372275716,
+     "decode_tokens": 131,
+     "first_accept": 126,
+     "first_reject": 5,
+     "pipeline_cycles": 141,
+     "second_accept": 4,
+     "second_reject": 0,
+     "second_skip": 1
+    },
+    {
+     "text": " The total cost of the chicken meal, milk, and apples is $12 + 5 * $3 + 4 * $1.50 = $12 + $15 + $6 = $33.\nThe total cost of the pizza is $50 - $33 = $17.\nThe number of boxes of pizza is $17 / $8.50 = 2.\n#### 2\n\n",
+     "prompt_tokens": 2088,
+     "completion_tokens": 96,
+     "decode_seconds": 0.7757083820000048,
+     "decode_tok_s": 122.46870370932696,
+     "decode_tokens": 95,
+     "first_accept": 88,
+     "first_reject": 7,
+     "pipeline_cycles": 109,
+     "second_accept": 5,
+     "second_reject": 1,
+     "second_skip": 1
+    },
+    {
+     "text": " Mishka bought 3 pairs of shorts, 3 pairs of pants, and 3 pairs of shoes.\nThe cost of 3 pairs of shorts is 3 * $16.50 = $<<3*16.50=49.50>>49.50.\nThe cost of 3 pairs of pants is 3 * $22.50 = $<<3*22.50=67.50>>67.50.\nThe cost of 3 pairs of shoes is 3 * $42 = $<<3*42=126.00>>126.00.\nThe total cost of all the clothing items is $49.50 + $67.50 + $126.00 = $<<49.50+67.50+126.00=243.00>>243.00.\n#### 243\n\n",
+     "prompt_tokens": 2089,
+     "completion_tokens": 221,
+     "decode_seconds": 1.6969335379999961,
+     "decode_tok_s": 129.64561962709024,
+     "decode_tokens": 220,
+     "first_accept": 212,
+     "first_reject": 8,
+     "pipeline_cycles": 235,
+     "second_accept": 6,
+     "second_reject": 0,
+     "second_skip": 2
+    },
+    {
+     "text": " She eats 15 servings of ice cream per carton and she buys 1 carton per 60 days.\nSo she buys 1 carton of ice cream per 60 days.\nShe spends $4.00 per carton and she buys 1 carton per 60 days.\nSo she spends $4.00 per 60 days.\nAfter 60 days, she spends $4.00.\n#### 4\n\n",
+     "prompt_tokens": 2080,
+     "completion_tokens": 104,
+     "decode_seconds": 0.9041445849999832,
+     "decode_tok_s": 113.91983285505373,
+     "decode_tokens": 103,
+     "first_accept": 88,
+     "first_reject": 15,
+     "pipeline_cycles": 129,
+     "second_accept": 11,
+     "second_reject": 2,
+     "second_skip": 2
+    },
+    {
+     "text": " He traveled 60 - 15 = <<60-15=45>>45 miles from his first stop to the end of the trip.\nHe traveled 20 miles from the start of the trip to his first stop.\nSo he traveled 45 - 20 = <<45-20=25>>25 miles between his first and second stops.\n#### 25\n\n",
+     "prompt_tokens": 2072,
+     "completion_tokens": 93,
+     "decode_seconds": 0.8295292760000166,
+     "decode_tok_s": 110.90627258343822,
+     "decode_tokens": 92,
+     "first_accept": 80,
+     "first_reject": 12,
+     "pipeline_cycles": 119,
+     "second_accept": 6,
+     "second_reject": 0,
+     "second_skip": 6
+    },
+    {
+     "text": " One pair of heels costs $33 and the other costs twice as much, so the other pair costs 2 * 33 = $<<2*33=66>>66.\nThe total cost of the two pairs of heels is 33 + 66 = $<<33+66=99>>99.\nThe total cost of the two pairs of heels is five dollars less than the boots, so the boots cost 99 + 5 = $<<99+5=104>>104.\n#### 104\n\n",
+     "prompt_tokens": 2089,
+     "completion_tokens": 128,
+     "decode_seconds": 1.0519346329999735,
+     "decode_tok_s": 120.72993512706526,
+     "decode_tokens": 127,
+     "first_accept": 117,
+     "first_reject": 10,
+     "pipeline_cycles": 148,
+     "second_accept": 6,
+     "second_reject": 2,
+     "second_skip": 2
+    },
+    {
+     "text": " Let Darrell's age be 7x and Allen's age be 11x.\nTheir total age is 7x + 11x = 162\nCombine like terms: 18x = 162\nDivide both sides by 18: x = 9\nAllen's age is 11x = 11 * 9 = 99\n10 years from now, Allen's age will be 99 + 10 = 109\n#### 109\n\n",
+     "prompt_tokens": 2060,
+     "completion_tokens": 121,
+     "decode_seconds": 0.9924001669999711,
+     "decode_tok_s": 120.91896393242293,
+     "decode_tokens": 120,
+     "first_accept": 112,
+     "first_reject": 8,
+     "pipeline_cycles": 141,
+     "second_accept": 3,
+     "second_reject": 2,
+     "second_skip": 3
+    },
+    {
+     "text": " The first friend guessed 80 jelly beans.\nThe second friend guessed 80/2 + 20 = <<80/2+20=40+20=60>>60 jelly beans.\nThe third friend guessed 80 + 80*.25 = <<80+80*.25=80+20=100>>100 jelly beans.\nThe average of 80, 60, and 100 is (80+60+100)/3 = <<(80+60+100)/3=240/3=80>>80.\n#### 80\n\n",
+     "prompt_tokens": 2084,
+     "completion_tokens": 156,
+     "decode_seconds": 1.2351477740000405,
+     "decode_tok_s": 125.4910572344155,
+     "decode_tokens": 155,
+     "first_accept": 144,
+     "first_reject": 11,
+     "pipeline_cycles": 173,
+     "second_accept": 9,
+     "second_reject": 0,
+     "second_skip": 2
+    },
+    {
+     "text": " John spends 10 * .5 = <<10*.5=5>>5 hours a day walking and taking care of the dogs.\nThere are 7 days in a week, so he spends 5 * 7 = <<5*7=35>>35 hours a week taking care of the dogs.\n#### 35\n\n",
+     "prompt_tokens": 2062,
+     "completion_tokens": 76,
+     "decode_seconds": 0.6182725280000341,
+     "decode_tok_s": 121.30572943715828,
+     "decode_tokens": 75,
+     "first_accept": 69,
+     "first_reject": 6,
+     "pipeline_cycles": 88,
+     "second_accept": 4,
+     "second_reject": 1,
+     "second_skip": 1
+    },
+    {
+     "text": " Let S be the number of silver coins.\nThen there are S + 30 gold coins.\nTogether, there are S + S + 30 = 2S + 30 coins.\nWe know that there are 110 coins, so 2S + 30 = 110.\nThus, S = (110 - 30) / 2 = 40.\nThere are 40 silver coins, so there are 40 + 30 = 70 gold coins.\n#### 70\n\n",
+     "prompt_tokens": 2051,
+     "completion_tokens": 126,
+     "decode_seconds": 1.0692131049999603,
+     "decode_tok_s": 116.90840620589348,
+     "decode_tokens": 125,
+     "first_accept": 107,
+     "first_reject": 18,
+     "pipeline_cycles": 152,
+     "second_accept": 15,
+     "second_reject": 2,
+     "second_skip": 1
+    },
+    {
+     "text": " Raymond has 40 jewels.\nAaron has 5 more jewels than half of Raymond's jewels, so Aaron has 40/2 + 5 = <<40/2+5=25>>25 jewels.\nSiobhan has 2 fewer jewels than Aaron, so Siobhan has 25 - 2 = <<25-2=23>>23 jewels.\n#### 23\n\n",
+     "prompt_tokens": 2062,
+     "completion_tokens": 95,
+     "decode_seconds": 0.753968011999973,
+     "decode_tok_s": 124.67372422160977,
+     "decode_tokens": 94,
+     "first_accept": 87,
+     "first_reject": 7,
+     "pipeline_cycles": 106,
+     "second_accept": 6,
+     "second_reject": 0,
+     "second_skip": 1
+    },
+    {
+     "text": " In the first 20 minutes, Mike scores 4 points.\nIn the second 20 minutes, he scores 25% more points, which is 4 * 1.25 = <<4*1.25=5>>5 points.\nSo, Mike scores a total of 4 + 5 = <<4+5=9>>9 points.\n#### 9\n\n",
+     "prompt_tokens": 2074,
+     "completion_tokens": 88,
+     "decode_seconds": 0.745001215000002,
+     "decode_tok_s": 116.77833303936258,
+     "decode_tokens": 87,
+     "first_accept": 79,
+     "first_reject": 8,
+     "pipeline_cycles": 106,
+     "second_accept": 4,
+     "second_reject": 0,
+     "second_skip": 4
+    },
+    {
+     "text": " Terry eats 2 yogurts a day, so in 30 days he eats 2*30 = <<2*30=60>>60 yogurts.\nThe yogurts are on sale at 4 yogurts for $5.00, so 60 yogurts cost 60/4 * 5 = $<<60/4*5=75>>75.\n#### 75\n\n",
+     "prompt_tokens": 2064,
+     "completion_tokens": 101,
+     "decode_seconds": 0.8760745179999958,
+     "decode_tok_s": 114.14554121296845,
+     "decode_tokens": 100,
+     "first_accept": 85,
+     "first_reject": 15,
+     "pipeline_cycles": 124,
+     "second_accept": 12,
+     "second_reject": 0,
+     "second_skip": 3
+    },
+    {
+     "text": " John sells 13 * 15 = $<<13*15=195>>195 worth of lego sets.\nHe buys 8 * 20 = $<<8*20=160>>160 worth of video games.\nHe has $195 - $160 = $<<195-160=35>>35 left.\nHe has $35 - $5 = $<<35-5=30>>30 left to buy lego sets.\nHe can buy 30 / 15 = <<30/15=2>>2 more lego sets.\nHe has 13 - 2 = $<<13-2=11>>11 lego sets left.\n#### 11\n\n",
+     "prompt_tokens": 2084,
+     "completion_tokens": 182,
+     "decode_seconds": 1.5479300470000226,
+     "decode_tok_s": 116.93034859733385,
+     "decode_tokens": 181,
+     "first_accept": 162,
+     "first_reject": 19,
+     "pipeline_cycles": 219,
+     "second_accept": 11,
+     "second_reject": 3,
+     "second_skip": 5
+    },
+    {
+     "text": " He runs 3 hours the first day and half as much the other two days he runs, so he runs 3/2 = <<3/2=1.5>>1.5 hours the other two days.\nHe runs 3 + 1.5 + 1.5 = <<3+1.5+1.5=6>>6 hours a week.\nHe runs 60 miles a week, so he runs 60/6 = <<60/6=10>>10 miles per hour.\n#### 10\n\n",
+     "prompt_tokens": 2065,
+     "completion_tokens": 122,
+     "decode_seconds": 0.9739381509999703,
+     "decode_tok_s": 124.23786857077714,
+     "decode_tokens": 121,
+     "first_accept": 110,
+     "first_reject": 11,
+     "pipeline_cycles": 137,
+     "second_accept": 10,
+     "second_reject": 0,
+     "second_skip": 1
+    },
+    {
+     "text": " Dana can skip at 3 miles per hour, which is half as fast as she can run, so she can run at 3 * 2 = <<3*2=6>>6 miles per hour.\nDana can run at a rate of speed four times faster than she can walk, so she can walk at 6 / 4 = <<6/4=1.5>>1.5 miles per hour.\nIn six hours, Dana spends one-third of the time running, which is 6 / 3 = <<6/3=2>>2 hours.\nIn two hours, Dana can run 6 * 2 = <<6*2=12>>12 miles.\nIn six hours, Dana spends two-thirds of the time walking, which is 6 * 2 / 3 = <<6*2/3=4>>4 hours.\nIn four hours, Dana can walk 1.5 * 4 = <<1.5*4=6>>6 miles.\nIn six hours, Dana can run 12 miles and walk 6 miles, so she can travel 12 + 6 = <<12+6=18>>18 miles.\n",
+     "prompt_tokens": 2095,
+     "completion_tokens": 256,
+     "decode_seconds": 2.171636594000006,
+     "decode_tok_s": 117.42296142206162,
+     "decode_tokens": 255,
+     "first_accept": 228,
+     "first_reject": 27,
+     "pipeline_cycles": 303,
+     "second_accept": 18,
+     "second_reject": 1,
+     "second_skip": 8
+    }
+   ]
+  },
+  "baseline_repeat": {
+   "summary": {
+    "ms_per_token": 19.146510162714925,
+    "median_ms_per_token": 19.130768763393036,
+    "decode_tokens": 5525,
+    "mean_prompt_tokens": 2078.05,
+    "mean_completion_tokens": 139.125,
+    "server_ready_s": 40.00723147392273,
+    "identical_text_vs_baseline": 1.0,
+    "speedup_vs_baseline": 0.9999938922697433
+   },
+   "rows": [
+    {
+     "text": " Janet\u2019s ducks lay 16 eggs per day.\nShe eats three for breakfast every morning and bakes muffins for her friends every day with four.\nShe sells the remainder at the farmers' market daily for $2 per fresh duck egg.\nSo she sells 16 - 3 - 4 = <<16-3-4=9>>9 eggs per day.\nShe makes 9 * 2 = $<<9*2=18>>18 per day.\n#### 18\n\n",
+     "prompt_tokens": 2086,
+     "completion_tokens": 113,
+     "decode_seconds": 2.142537057000027,
+     "decode_tok_s": 52.274475082742335,
+     "decode_tokens": 112
+    },
+    {
+     "text": " The robe takes 2 bolts of blue fiber and half that much white fiber.\nSo the robe takes 2 + 2/2 = <<2+2/2=3>>3 bolts in total.\n#### 3\n\nQuestion",
+     "prompt_tokens": 2047,
+     "completion_tokens": 51,
+     "decode_seconds": 0.952954582000018,
+     "decode_tok_s": 52.46839770166408,
+     "decode_tokens": 50
+    },
+    {
+     "text": " The value of the house increased by 150% of $80,000, which is 1.5 * 80,000 = $<<1.5*80000=120000>>120,000.\nThe new value of the house is $80,000 + $120,000 = $<<80000+120000=200000>>200,000.\nJosh spent $80,000 + $50,000 = $<<80000+50000=130000>>130,000.\nHis profit is $200,000 - $130,000 = $<<200000-130000=70000>>70,000.\n#### 70000\n\n",
+     "prompt_tokens": 2078,
+     "completion_tokens": 229,
+     "decode_seconds": 4.371153965000019,
+     "decode_tok_s": 52.16013936493747,
+     "decode_tokens": 228
+    },
+    {
+     "text": " James runs 3 sprints 3 times a week.\nSo he runs 3 * 3 = <<3*3=9>>9 sprints a week.\nHe runs 60 meters each sprint.\nSo he runs 60 * 9 = <<60*9=540>>540 meters a week.\n#### 540\n\n",
+     "prompt_tokens": 2056,
+     "completion_tokens": 83,
+     "decode_seconds": 1.56540286500001,
+     "decode_tok_s": 52.382681693890646,
+     "decode_tokens": 82
+    },
+    {
+     "text": " Wendi feeds each chicken 3 cups of feed per day.\nShe has 20 chickens, so she feeds 20 * 3 = <<20*3=60>>60 cups of feed per day.\nShe gives the chickens 15 cups in the morning and 25 cups in the afternoon, so she has given them 15 + 25 = <<15+25=40>>40 cups of feed.\nShe needs to give the chickens 60 - 40 = <<60-40=20>>20 cups of feed in the final meal of the day.\n#### 20\n\n",
+     "prompt_tokens": 2131,
+     "completion_tokens": 145,
+     "decode_seconds": 2.7618165289999865,
+     "decode_tok_s": 52.13959670671545,
+     "decode_tokens": 144
+    },
+    {
+     "text": " The first glass costs $5.\nThe second glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe third glass costs $5.\nThe fourth glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe fifth glass costs $5.\nThe sixth glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe seventh glass costs $5.\nThe eighth glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe ninth glass costs $5.\nThe tenth glass costs 5 * 60/100 = $<<5*60/100=3.00>>3.00\nThe eleventh glass costs $5.\nThe twelfth glass costs 5 * 60/100 = $<<5*60/100=3.",
+     "prompt_tokens": 2077,
+     "completion_tokens": 256,
+     "decode_seconds": 4.892458068999986,
+     "decode_tok_s": 52.12103944554026,
+     "decode_tokens": 255
+    },
+    {
+     "text": " Seattle has 20 sheep.\nCharleston has 4 times as many sheep as Seattle, so Charleston has 4 * 20 = <<4*20=80>>80 sheep.\nToulouse has twice as many sheep as Charleston, so Toulouse has 2 * 80 = <<2*80=160>>160 sheep.\nIn total, Toulouse, Charleston, and Seattle have 20 + 80 + 160 = <<20+80+160=260>>260 sheep.\n#### 260\n\n",
+     "prompt_tokens": 2065,
+     "completion_tokens": 138,
+     "decode_seconds": 2.6200724020000052,
+     "decode_tok_s": 52.28863137347749,
+     "decode_tokens": 137
+    },
+    {
+     "text": " Carla can download 200/2 = <<200/2=100>>100 minutes normally.\n40% of the way through the download is 100 * 40/100 = <<100*40/100=40>>40 minutes.\nShe has to restart the download from the beginning, which takes 20 minutes.\nSo it takes 100 + 20 = <<100+20=120>>120 minutes to download the file.\n#### 120\n\n",
+     "prompt_tokens": 2092,
+     "completion_tokens": 133,
+     "decode_seconds": 2.526513204999958,
+     "decode_tok_s": 52.24591731354209,
+     "decode_tokens": 132
+    },
+    {
+     "text": " John drives for 3 hours at a speed of 60 mph and then turns around because he realizes he forgot something very important at home.  He tries to get home in 4 hours but spends the first 2 hours in standstill traffic.  He spends the next half-hour driving at a speed of 30mph, before being able to drive the remaining time of the 4 hours going at 80 mph.  How far is he from home at the end of those 4 hours?\nJohn drives for 3 hours at a speed of 60 mph and then turns around because he realizes he forgot something very important at home.  He tries to get home in 4 hours but spends the first 2 hours in standstill traffic.  He spends the next half-hour driving at a speed of 30mph, before being able to drive the remaining time of the 4 hours going at 80 mph.  How far is he from home at the end of those 4 hours?\nJohn drives for 3 hours at a speed of 60 mph and then turns around because he realizes he forgot something very important at home.  He tries to get home in 4 hours but spends the first ",
+     "prompt_tokens": 2126,
+     "completion_tokens": 256,
+     "decode_seconds": 4.906173452000019,
+     "decode_tok_s": 51.975333219425494,
+     "decode_tokens": 255
+    },
+    {
+     "text": " Eliza's rate per hour for the first 40 hours she works each week is $10.\nHer overtime pay is 1.2 times her regular hourly rate, so her overtime pay is 1.2 * $10 = $<<1.2*10=12.00>>12.00\nShe worked for 45 hours this week, so she worked 45 - 40 = <<45-40=5>>5 hours of overtime.\nHer earnings for the first 40 hours are 40 * $10 = $<<40*10=400.00>>400.00\nHer earnings for the overtime hours are 5 * $12 = $<<5*12=60.00>>60.00\nHer total earnings for the week are $400 + $60 = $<<400+60=460.00>>460.00\n#### 460\n\n",
+     "prompt_tokens": 2079,
+     "completion_tokens": 228,
+     "decode_seconds": 4.351206724999997,
+     "decode_tok_s": 52.169435824725184,
+     "decode_tokens": 227
+    },
+    {
+     "text": " The number of downloads in the second month was three times as many as the downloads in the first month, so the number of downloads in the second month was 60 * 3 = <<60*3=180>>180.\nThe number of downloads in the third month was reduced by 30% from the second month, so the number of downloads in the third month was 180 - (180 * 30/100) = <<180-(180*30/100)=126>>126.\nThe total number of downloads over the three months was 60 + 180 + 126 = <<60+180+126=366>>366.\n#### 366\n\n",
+     "prompt_tokens": 2081,
+     "completion_tokens": 181,
+     "decode_seconds": 3.4477772449999975,
+     "decode_tok_s": 52.207549156790186,
+     "decode_tokens": 180
+    },
+    {
+     "text": " The total cost of the donuts is 3 * 68 = $<<3*68=204.00>>204.00\nThe total cost of the mini cupcakes is 2 * 80 = $<<2*80=160.00>>160.00\nThe total cost of the mini cheesecakes is 6 * 55 = $<<6*55=330.00>>330.00\nThe total cost of all the pastries is $204 + $160 + $330 = $<<204+160+330=694.00>>694.00\n#### 694\n\n",
+     "prompt_tokens": 2086,
+     "completion_tokens": 172,
+     "decode_seconds": 3.2749065419999965,
+     "decode_tok_s": 52.21523051328656,
+     "decode_tokens": 171
+    },
+    {
+     "text": " Carlos will make 7 * 1.5 = $<<7*1.5=10.5>>10.5 per year.\nIt costs $3 a year to water and feed the tree, so he will make 10.5 - 3 = $<<10.5-3=7.5>>7.5 per year.\nHe will need to make $90 to pay for the tree, so it will take 90 / 7.5 = <<90/7.5=12>>12 years.\n#### 12\n\n",
+     "prompt_tokens": 2087,
+     "completion_tokens": 129,
+     "decode_seconds": 2.44939135300001,
+     "decode_tok_s": 52.25788024572955,
+     "decode_tokens": 128
+    },
+    {
+     "text": " Melanie sold 1/3 of her vacuum cleaners at the green house, so she had 2/3 of her vacuum cleaners left.\nShe sold 2 more to the red house, so she had 2/3 - 2 = <<2/3-2=1/3>>1/3 of her vacuum cleaners left.\nShe sold half of what was left at the orange house, so she had 1/3 * 1/2 = <<1/3*1/2=1/6>>1/6 of her vacuum cleaners left.\nShe has 5 vacuum cleaners left, so 1/6 of her vacuum cleaners is 5.\nThat means she started with 5 * 6 = <<5*6=30>>30 vacuum cleaners.\n#### 30\n\n",
+     "prompt_tokens": 2082,
+     "completion_tokens": 175,
+     "decode_seconds": 3.3321099909999816,
+     "decode_tok_s": 52.21916457439083,
+     "decode_tokens": 174
+    },
+    {
+     "text": " 20% of 20 students enrolled in contemporary dance, which is 20/100 * 20 = <<20/100*20=4>>4 students.\nThe remaining students are 20 - 4 = <<20-4=16>>16 students.\n25% of the remaining students enrolled in jazz dance, which is 25/100 * 16 = <<25/100*16=4>>4 students.\nThe remaining students enrolled in hip-hop dance, which is 16 - 4 = <<16-4=12>>12 students.\nThe percentage of the entire students enrolled in hip-hop dance is 12/20 * 100 = <<12/20*100=60>>60%.\n#### 60\n\n",
+     "prompt_tokens": 2075,
+     "completion_tokens": 197,
+     "decode_seconds": 3.754702341999973,
+     "decode_tok_s": 52.20120855055556,
+     "decode_tokens": 196
+    },
+    {
+     "text": " The jewelry market will go up 2.5% so the jewelry will be worth $5,000 * 1.025 = $<<5000*1.025=5125.00>>5125.00\nThe electronic gadgets market will go up 1.2% so the electronic gadgets will be worth $8,000 * 1.012 = $<<8000*1.012=8096.00>>8096.00\nThe difference between the two is $8096 - $5125 = $<<8096-5125=2971.00>>2971.00\n#### 2971\n\n",
+     "prompt_tokens": 2115,
+     "completion_tokens": 178,
+     "decode_seconds": 3.394758507000006,
+     "decode_tok_s": 52.139202136182966,
+     "decode_tokens": 177
+    },
+    {
+     "text": " The distance covered by each train in the two days is 80 + 150 = <<80+150=230>>230 miles.\n#### 230\n\n",
+     "prompt_tokens": 2074,
+     "completion_tokens": 47,
+     "decode_seconds": 0.8775154250000128,
+     "decode_tok_s": 52.42073095182268,
+     "decode_tokens": 46
+    },
+    {
+     "text": " Jill gets paid $20 per hour to teach and $30 to be a cheerleading coach.\nIf she works 50 weeks a year, 35 hours a week as a teacher and 15 hours a week as a coach, her annual salary is $20 * 35 * 50 + $30 * 15 * 50 = $<<20*35*50+30*15*50=105000>>105000.\n#### 105000\n\n",
+     "prompt_tokens": 2078,
+     "completion_tokens": 127,
+     "decode_seconds": 2.4106407890000128,
+     "decode_tok_s": 52.26826019660424,
+     "decode_tokens": 126
+    },
+    {
+     "text": " Claire eats 3 eggs every day for breakfast.\nIn 4 weeks, she eats 3 * 7 * 4 = <<3*7*4=84>>84 eggs.\nSince there are 12 eggs in a dozen, she eats 84/12 = <<84/12=7>>7 dozen eggs.\n#### 7\n\n",
+     "prompt_tokens": 2049,
+     "completion_tokens": 83,
+     "decode_seconds": 1.5651573619999795,
+     "decode_tok_s": 52.39089818752747,
+     "decode_tokens": 82
+    },
+    {
+     "text": " She has 12 - 4 - 2 = <<12-4-2=6>>6 miles left to walk.\nShe has 2 hours left to walk the remaining distance.\nTo walk 6 miles in 2 hours, she needs to walk at a speed of 6/2 = <<6/2=3>>3 miles per hour.\n#### 3\n\n",
+     "prompt_tokens": 2087,
+     "completion_tokens": 85,
+     "decode_seconds": 1.6053393590000269,
+     "decode_tok_s": 52.32538499045085,
+     "decode_tokens": 84
+    },
+    {
+     "text": " The orange drink is 10 - 1 = <<10-1=9>>9 liters and is 2/3 water, so it contains 9 * 2/3 = <<9*2/3=6>>6 liters of water.\nThe pineapple drink is 15 liters and is 3/5 water, so it contains 15 * 3/5 = <<15*3/5=9>>9 liters of water.\nThe total amount of water is 6 + 9 = <<6+9=15>>15 liters.\n#### 15\n\n",
+     "prompt_tokens": 2085,
+     "completion_tokens": 132,
+     "decode_seconds": 2.507359701999974,
+     "decode_tok_s": 52.24619343427629,
+     "decode_tokens": 131
+    },
+    {
+     "text": " Raymond was born 6 years before Samantha, so he is 6 years younger than Samantha.\nRaymond had a son at the age of 23, so his son is 23 years younger than Raymond.\nSince Raymond is 6 years younger than Samantha, his son is 23 + 6 = <<23+6=29>>29 years younger than Samantha.\nSamantha is now 31, so Raymond's son was born 31 - 29 = <<31-29=2>>2 years ago.\n#### 2\n\n",
+     "prompt_tokens": 2066,
+     "completion_tokens": 126,
+     "decode_seconds": 2.3895926939999867,
+     "decode_tok_s": 52.31016997744499,
+     "decode_tokens": 125
+    },
+    {
+     "text": " Billy's first 3 customers buy 3 DVDs.\nHis next 2 customers buy 2 * 2 = 4 DVDs.\nHis last 3 customers buy 0 DVDs.\nSo Billy sells 3 + 4 + 0 = 7 DVDs.\n#### 7\n\n",
+     "prompt_tokens": 2080,
+     "completion_tokens": 68,
+     "decode_seconds": 1.279606579000017,
+     "decode_tok_s": 52.35984332962632,
+     "decode_tokens": 67
+    },
+    {
+     "text": " The candle burns for 4 hours.\nThe candle melts 2 centimeters per hour.\nThe candle melts 2 * 4 = <<2*4=8>>8 centimeters.\n#### 8\n\n",
+     "prompt_tokens": 2059,
+     "completion_tokens": 46,
+     "decode_seconds": 0.8577155340000218,
+     "decode_tok_s": 52.46494696223942,
+     "decode_tokens": 45
+    },
+    {
+     "text": " Let x be the original price of the book.\nThe discount is 25/100 * x = 0.25x\nThe price after the discount is x - 0.25x = 0.75x\nWe know that the price after the discount is $19.50, so 0.75x = 19.50\nx = 19.50 / 0.75 = $<<19.50/0.75=26.00>>26.00\n#### 26\n\n",
+     "prompt_tokens": 2062,
+     "completion_tokens": 132,
+     "decode_seconds": 2.5045604809999986,
+     "decode_tok_s": 52.3045863710568,
+     "decode_tokens": 131
+    },
+    {
+     "text": " The total cost of the chicken meal, milk, and apples is $12 + $3*5 + $1.50*4 = $12 + $15 + $6 = $33.\nThe total cost of the pizza is $50 - $33 = $17.\nThe number of boxes of pizza is $17 / $8.50 = 2.\n#### 2\n\n",
+     "prompt_tokens": 2088,
+     "completion_tokens": 94,
+     "decode_seconds": 1.7776685669999779,
+     "decode_tok_s": 52.31571380988544,
+     "decode_tokens": 93
+    },
+    {
+     "text": " Mishka bought 3 pairs of shorts, 3 pairs of pants, and 3 pairs of shoes.\nThe cost of 3 pairs of shorts is 3 * $16.50 = $<<3*16.50=49.50>>49.50.\nThe cost of 3 pairs of pants is 3 * $22.50 = $<<3*22.50=67.50>>67.50.\nThe cost of 3 pairs of shoes is 3 * $42 = $<<3*42=126.00>>126.00.\nThe total cost of all the clothing items is $49.50 + $67.50 + $126.00 = $<<49.50+67.50+126.00=243.00>>243.00.\n#### 243\n\n",
+     "prompt_tokens": 2089,
+     "completion_tokens": 221,
+     "decode_seconds": 4.217989608000039,
+     "decode_tok_s": 52.157549080428645,
+     "decode_tokens": 220
+    },
+    {
+     "text": " She eats 1 serving of ice cream every night, so in 60 days she will eat 60 servings of ice cream.\nShe buys cartons of ice cream with 15 servings of ice cream per carton, so she will need 60/15 = <<60/15=4>>4 cartons of ice cream.\nEach carton costs $4.00, so 4 cartons will cost 4*4 = $<<4*4=16.00>>16.00.\n#### 16\n\n",
+     "prompt_tokens": 2080,
+     "completion_tokens": 125,
+     "decode_seconds": 2.3716762399999993,
+     "decode_tok_s": 52.28369619286654,
+     "decode_tokens": 124
+    },
+    {
+     "text": " He traveled 60 - 15 = <<60-15=45>>45 miles after his second stop.\nHe traveled 20 miles before his first stop.\nSo he traveled 45 - 20 = <<45-20=25>>25 miles between his first and second stops.\n#### 25\n\n",
+     "prompt_tokens": 2072,
+     "completion_tokens": 81,
+     "decode_seconds": 1.5276027229999727,
+     "decode_tok_s": 52.3696369451951,
+     "decode_tokens": 80
+    },
+    {
+     "text": " One pair of heels costs $33 and the other costs twice as much, so the other pair costs 2 * 33 = $<<2*33=66>>66.\nThe total cost of the two pairs of heels is 33 + 66 = $<<33+66=99>>99.\nThe total cost of the two pairs of heels is five dollars less than the boots, so the boots cost 99 + 5 = $<<99+5=104>>104.\n#### 104\n\n",
+     "prompt_tokens": 2089,
+     "completion_tokens": 128,
+     "decode_seconds": 2.430370833999973,
+     "decode_tok_s": 52.25539996749377,
+     "decode_tokens": 127
+    },
+    {
+     "text": " Let x be the multiplier for the ratio.\nDarrell's age is 7x and Allen's age is 11x.\nTheir total age is 7x + 11x = 18x.\nWe are told that their total age is 162, so 18x = 162.\nSolving for x, we get x = 162/18 = 9.\nDarrell's age is 7x = 7 * 9 = 63.\nAllen's age is 11x = 11 * 9 = 99.\nTen years from now, Allen's age will be 99 + 10 = 109.\n#### 109\n\n",
+     "prompt_tokens": 2060,
+     "completion_tokens": 169,
+     "decode_seconds": 3.2141327190000197,
+     "decode_tok_s": 52.269154601763965,
+     "decode_tokens": 168
+    },
+    {
+     "text": " The first friend guessed 80 jelly beans.\nThe second friend guessed 80/2 + 20 = <<80/2+20=40+20=60>>60 jelly beans.\nThe third friend guessed 80 + 80*.25 = <<80+80*.25=80+20=100>>100 jelly beans.\nThe average of 80, 60, and 100 is (80+60+100)/3 = <<(80+60+100)/3=240/3=80>>80.\n#### 80\n\n",
+     "prompt_tokens": 2084,
+     "completion_tokens": 156,
+     "decode_seconds": 2.9670442609999554,
+     "decode_tok_s": 52.24054188789276,
+     "decode_tokens": 155
+    },
+    {
+     "text": " John spends 10 * .5 = <<10*.5=5>>5 hours a day walking and taking care of the dogs.\nThere are 7 days in a week so he spends 5 * 7 = <<5*7=35>>35 hours a week taking care of the dogs.\n#### 35\n\n",
+     "prompt_tokens": 2062,
+     "completion_tokens": 75,
+     "decode_seconds": 1.4123570389999713,
+     "decode_tok_s": 52.394683466438615,
+     "decode_tokens": 74
+    },
+    {
+     "text": " Let S be the number of silver coins.\nThen there are S + 30 gold coins.\nTogether, there are S + S + 30 = 2S + 30 coins.\nWe know that there are 110 coins, so 2S + 30 = 110.\nThus, S = (110 - 30) / 2 = 40.\nThere are 40 silver coins, so there are 40 + 30 = 70 gold coins.\n#### 70\n\n",
+     "prompt_tokens": 2051,
+     "completion_tokens": 126,
+     "decode_seconds": 2.3875657469999965,
+     "decode_tok_s": 52.354579201458186,
+     "decode_tokens": 125
+    },
+    {
+     "text": " Raymond has 40 jewels.\nAaron has 5 more jewels than half of Raymond's jewels, so Aaron has 40/2 + 5 = <<40/2+5=25>>25 jewels.\nSiobhan has 2 fewer jewels than Aaron, so Siobhan has 25 - 2 = <<25-2=23>>23 jewels.\n#### 23\n\n",
+     "prompt_tokens": 2062,
+     "completion_tokens": 95,
+     "decode_seconds": 1.7952915500000017,
+     "decode_tok_s": 52.359183665739366,
+     "decode_tokens": 94
+    },
+    {
+     "text": " In the first 20 minutes, Mike scores 4 points.\nIn the second 20 minutes, he scores 25% more points, which is 4 * 1.25 = <<4*1.25=5>>5 points.\nSo, Mike scores a total of 4 + 5 = <<4+5=9>>9 points.\n#### 9\n\n",
+     "prompt_tokens": 2074,
+     "completion_tokens": 88,
+     "decode_seconds": 1.6622326080000107,
+     "decode_tok_s": 52.33924517019187,
+     "decode_tokens": 87
+    },
+    {
+     "text": " Terry eats 2 yogurts a day, so in 30 days he eats 2*30 = <<2*30=60>>60 yogurts.\nSince they are on sale at 4 yogurts for $5.00, he needs to buy 60/4 = <<60/4=15>>15 sets of 4 yogurts.\nEach set of 4 yogurts costs $5.00, so 15 sets cost 15*5 = $<<15*5=75>>75.\n#### 75\n\n",
+     "prompt_tokens": 2064,
+     "completion_tokens": 137,
+     "decode_seconds": 2.600541860000021,
+     "decode_tok_s": 52.29679325369479,
+     "decode_tokens": 136
+    },
+    {
+     "text": " John sells 13 * 15 = $<<13*15=195>>195 worth of lego sets.\nHe buys 8 * 20 = $<<8*20=160>>160 worth of video games.\nHe has $195 - $160 = $<<195-160=35>>35 left.\nHe has $35 - $5 = $<<35-5=30>>30 left to buy lego sets.\nHe can buy 30 / 15 = <<30/15=2>>2 more lego sets.\nHe has 13 - 2 = $<<13-2=11>>11 lego sets left.\n#### 11\n\n",
+     "prompt_tokens": 2084,
+     "completion_tokens": 182,
+     "decode_seconds": 3.4677811799999745,
+     "decode_tok_s": 52.194758147917895,
+     "decode_tokens": 181
+    },
+    {
+     "text": " He runs 3 hours the first day and half as much the other two days he runs, so he runs 3/2 = <<3/2=1.5>>1.5 hours the other two days.\nHe runs 3 + 1.5 + 1.5 = <<3+1.5+1.5=6>>6 hours a week.\nHe runs 60 miles a week, so he runs 60/6 = <<60/6=10>>10 miles per hour.\n#### 10\n\n",
+     "prompt_tokens": 2065,
+     "completion_tokens": 122,
+     "decode_seconds": 2.312999615000024,
+     "decode_tok_s": 52.31302211003557,
+     "decode_tokens": 121
+    },
+    {
+     "text": " Dana can skip at 3 miles per hour, which is half as fast as she can run, so she can run at 3 * 2 = <<3*2=6>>6 miles per hour.\nDana can run at a rate of speed four times faster than she can walk, so she can walk at 6 / 4 = <<6/4=1.5>>1.5 miles per hour.\nIf she spends one-third of the time running and two-thirds of the time walking, then she runs for 6 * 1/3 = <<6*1/3=2>>2 hours and walks for 6 * 2/3 = <<6*2/3=4>>4 hours.\nIn 2 hours, she can run 6 * 2 = <<6*2=12>>12 miles.\nIn 4 hours, she can walk 1.5 * 4 = <<1.5*4=6>>6 miles.\nIn 6 hours, she can run 12 miles and walk 6 miles, for a total of 12 + 6 = <<12+6=18>>18 miles.\n#### ",
+     "prompt_tokens": 2095,
+     "completion_tokens": 256,
+     "decode_seconds": 4.897791342000005,
+     "decode_tok_s": 52.06428412196735,
+     "decode_tokens": 255
+    }
+   ]
+  }
+ }
+}

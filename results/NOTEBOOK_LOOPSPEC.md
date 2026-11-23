@@ -122,3 +122,33 @@ Predictions (written before any run):
 - What would change my mind on "÷1.6": a measured LoopSpec/int8 ratio at 2048 outside 1.3-1.9x.
 Output: ms/token at ~2048 per mode, LoopSpec/int8 ratio at 2048, replacement for the provisional GPU+LS (3.54 ms on
 H100) in the L4 table.
+
+# Results: LoopSpec at context ~2048 (`loopspec_long-l40s-20261123-141337`, `loopspec_long_notinygemm-h100-20261123-141351`)
+NVIDIA L40S (46068 MiB) and NVIDIA H100 80GB HBM3; both [exit 0]. Mean prompt 2,078 tokens (not ~1,900 as estimated),
+mean completion ~139. Ours = depth x measured best step at (1, 2048) + LM head (GPU time only).
+| | L40S | H100 |
+|---|---|---|
+| SGLang normal decoding | 19.15 ms | 10.29 ms |
+| LoopSpec "1:2" | 8.25 ms (2.32x) | **3.74 ms (2.75x)** |
+| normal-decoding repeat (same container) | 19.15 ms, text identical 40/40 | 10.29 ms, text identical 40/40 |
+| ours bf16 4 loops / SGLang vs ours | 17.36 ms / SGLang +10 % | 8.70 ms / SGLang +18 % |
+| ours bf16 early exit | 14.03 ms | 7.02 ms |
+| ours int8 early exit (LoopCore baseline) | 9.00 ms | 5.01 ms |
+| **LoopSpec vs ours int8 early exit** | **1.09x** | **1.34x** |
+| LoopSpec identical text / same answer / correct | 55 % / 36 of 40 / 28 (normal 30) | 57.5 % / 36 / 30 (normal 29) |
+| passes per token, first-proposal acceptance | 1.151, 0.919 | 1.147, 0.922 |
+Against the pre-registration:
+- LoopSpec gain 1.8-2.3x at ~2048: **refuted on H100** (2.75x: larger than at C≈500, not smaller); L40S 2.32x (edge).
+  Why (from the numbers): SGLang's normal decoding slows with context much more than our compiled step (+18 % vs ours at
+  2048 on H100, +2 % at C≈500), while LoopSpec batches several lanes' attention per pass; and acceptance rose slightly
+  (0.92 vs 0.90). The gain is relative to a normal decoder that is itself slower at long context.
+- LoopSpec vs our int8 baseline 1.0-1.3x: L40S 1.09x (≤ 1.1: per the rule, LoopSpec does **not clearly beat** our int8
+  baseline at long context on L40S); H100 1.34x (just above the range).
+- Normal-vs-normal repeat ≥ 95 % identical: **as predicted (100 %)** on both GPUs. So LoopSpec's 55-58 % text agreement is
+  NOT ordinary same-GPU noise: LoopSpec changes greedy outputs (likely via different batch shapes in verification, which
+  alter bf16 rounding — not proven). Accuracy differences on 40 questions: −2 (L40S), +1 (H100): inside n=40 noise.
+- "÷1.6" replaced: at 1x2048 on H100 the measured factor is **÷1.34** (C≈500: ÷1.57). Inside my stated 1.3-1.9 range,
+  so the earlier conclusion stands in direction, with a smaller size.
+Decision (per the pre-registered rule): on H100, LoopSpec beats the best B=1 implementation by more than 10 % at both
+contexts → it is the B=1 GPU baseline on H100 (bf16; no int8 LoopSpec exists). On L40S at long context it does not
+clearly beat the int8 baseline (1.09x).

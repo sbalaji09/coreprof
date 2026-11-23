@@ -1,0 +1,18 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=loopspec_long-l40s-20261123-141337
+git=215dc2a-dirty
+Mon Nov 23 22:14:12 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-19cd5878-c926-aa61-7cc5-f956bc1800b5, 46068 MiB, 620.70.06
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.11.0+cu130 transformers 5.8.1
+[exit 0]
+
+$ python loopspec_bench.py --shots 10 --modes baseline 1:2 baseline_repeat --out-dir $OUT
+baseline {"ms_per_token": 19.146393220995495, "median_ms_per_token": 19.127165838760504, "decode_tokens": 5525, "mean_prompt_tokens": 2078.05, "mean_completion_tokens": 139.125, "server_ready_s": 75.01576352119446}
+1:2 {"ms_per_token": 8.25407182683742, "median_ms_per_token": 8.256817549166772, "decode_tokens": 5388, "mean_prompt_tokens": 2078.05, "mean_completion_tokens": 135.7, "server_ready_s": 45.0095055103302, "identical_text_vs_baseline": 0.55, "speedup_vs_baseline": 2.319630071396109}
+baseline_repeat {"ms_per_token": 19.146510162714925, "median_ms_per_token": 19.130768763393036, "decode_tokens": 5525, "mean_prompt_tokens": 2078.05, "mean_completion_tokens": 139.125, "server_ready_s": 40.00723147392273, "identical_text_vs_baseline": 1.0, "speedup_vs_baseline": 0.9999938922697433}
+[exit 0]

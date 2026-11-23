@@ -771,10 +771,13 @@ def chip_step_unified(m, hw, B, C, level="central"):
 # (4 + 6 x reject rate + 3 x second-proposal rate) / passes (a rejected draft discards at most 3+2+1 lane-passes).
 LOOPSPEC_RUNS = {"l40s": "results/modal/loopspec-l40s-20261123-112959",
                  "h100": "results/modal/loopspec_notinygemm-h100-20261123-120532"}
+# same stack, 10-shot prompts (mean prompt 2,078 tokens): LoopSpec measured at context ~2048 (2026-11-23)
+LOOPSPEC_LONG_RUNS = {"l40s": "results/modal/loopspec_long-l40s-20261123-141337",
+                      "h100": "results/modal/loopspec_long_notinygemm-h100-20261123-141351"}
 
 
-def loopspec_stats(gpu, mode="1:2"):
-    rows = json.load(open(ROOT / LOOPSPEC_RUNS[gpu] / "loopspec_bench.json"))["modes"][mode]["rows"]
+def loopspec_stats(gpu, mode="1:2", runs=LOOPSPEC_RUNS):
+    rows = json.load(open(ROOT / runs[gpu] / "loopspec_bench.json"))["modes"][mode]["rows"]
     tot = lambda k: sum(r[k] for r in rows)
     t = tot("decode_tokens")
     c = tot("pipeline_cycles") / t
@@ -794,19 +797,21 @@ def chip_token_time_loopspec(m, hw, C, stats, lanes, level):
 def loopspec_table(m=OURO_1_4B, q=0.5, C=2048, levels=("central", "install_int8_low", "install_int8_high"),
                    effs=(1.0, 1.3), gpu="h100", mode="1:2"):
     """Speedups vs H100 at C: rows (a) chip vs GPU int8, (b) chip vs GPU + LoopSpec, (c) chip + LoopSpec vs GPU +
-    LoopSpec (B=1); B=16 vs GPU int8 only (LoopSpec is B=1 only). GPU + LoopSpec at C is PROVISIONAL: measured LoopSpec
-    ms at C~500 scaled by our bf16 4-loop step growth from 512 to C (replace with a measurement at C)."""
-    depth, st = MEAN_DEPTH[q], loopspec_stats(gpu, mode)
+    LoopSpec (B=1); B=16 vs GPU int8 only (LoopSpec is B=1 only). GPU + LoopSpec and the LoopSpec counters are MEASURED
+    at C = 2048 (LOOPSPEC_LONG_RUNS); at other C the C~500 run is scaled by our bf16 4-loop step growth (provisional)."""
+    depth = MEAN_DEPTH[q]
+    measured = C == 2048
+    st = loopspec_stats(gpu, mode, LOOPSPEC_LONG_RUNS if measured else LOOPSPEC_RUNS)
     hwg = predict_gpu(fit_gpu("l40s", m), gpu)
     bf, i8 = measured_steps(gpu, "bf16"), measured_steps(gpu, "int8")
     ex = lambda B: gpu_extras(m, hwg, gpu, B)
     four = lambda c_: m.total_loops * bf[(1, c_)] * 1e-3 + ex(1)
-    gpu_ls = st["ms_per_token"] * 1e-3 * four(C) / four(512)
+    gpu_ls = st["ms_per_token"] * 1e-3 * (1 if measured else four(C) / four(512))
     gpu_i8 = {B: depth * i8[(B, C)] * 1e-3 + ex(B) for B in (1, 16)}
     print(f"vs {gpu.upper()}, {C} context, q={q} (depth {depth}); LoopSpec '{mode}' passes/token {st['passes']:.3f}, "
           f"lanes {st['lanes'][0]:.2f}-{st['lanes'][1]:.2f}, readouts/token {st['readouts']:.2f}")
     print(f"GPU per token: int8 B=1 {gpu_i8[1] * 1e3:.2f} ms, B=16 {gpu_i8[16] * 1e3:.2f} ms; GPU + LoopSpec B=1 "
-          f"{gpu_ls * 1e3:.2f} ms (PROVISIONAL, scaled from C~500: {st['ms_per_token']:.2f} ms)\n")
+          f"{gpu_ls * 1e3:.2f} ms ({'MEASURED at C~2048' if measured else 'PROVISIONAL, scaled from C~500'})\n")
     D = LOOPCORE_CONFIGS["D: 3 chips, 8-bit, all resident"]
     designs = {"as trained (fp8 KV, 4 caches, HBM)": dict(kv_bytes=1.0),
                "trained shared KV, on-chip": dict(kv_bytes=1.0, kv_caches=1, kv_on_chip=True)}

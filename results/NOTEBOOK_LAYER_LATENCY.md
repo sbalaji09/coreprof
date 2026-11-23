@@ -225,3 +225,17 @@ software-efficiency band 1.0-1.3 (S1). "Yes" = the stated direction/threshold ho
 | Ouro as trained reaches 10x at B=1 | needs t_L < ~1.9 µs (S1) | only at t_L ≲ 3.4 µs | **no** at sourced latencies (≤ 9.2x in row c, ≤ 6.6x in row b) | no at 1.3 |
 | Shared on-chip KV reaches 10x at B=1 | yes in row (c) | no at ≥ ~8 µs | yes if the chip also runs LS (11.5-23.6x); **no** if only the GPU does (row b 4.8-10.2x) | yes in row (c) |
 | Ouro as trained ≥ 3x at 16x8192 | **no** (2.3x at 1.3, S1) | no at 17.4 µs (2.8x) | n/a | no |
+
+## L4 update - GPU + LoopSpec MEASURED at 1x2048 (replaces the provisional 3.54 ms; counters from the 2048 run)
+H100 + LoopSpec "1:2" = 3.74 ms/token (measured; provisional was 3.54). Counters at 2048: 1.147 passes/token, lanes
+3.49-4.05, readouts 2.06. Same table, recomputed (`python3 loopcore_model.py --loopspec-table`):
+| design | t_L level | eff | (a) chip vs GPU int8 | (b) chip vs GPU+LS | (c) chip+LS vs GPU+LS | chip's LS gain | B=16 |
+|---|---|---|---|---|---|---|---|
+| as trained | install int8 low 3.83 µs | 1.0 / 1.3 | 9.4 / 7.2x | 7.0 / 5.4x | 8.9-9.9 / 6.8-7.6x | 1.26-1.41x | 4.3 / 3.3x |
+| as trained | install int8 high 6.68 µs | 1.0 / 1.3 | 6.6 / 5.1x | 5.0 / 3.8x | 7.5-8.2 / 5.7-6.3x | 1.51-1.65x | 4.0 / 3.1x |
+| shared KV on-chip | install int8 low | 1.0 / 1.3 | 14.4 / 11.1x | 10.7 / 8.3x | 24.9-25.7 / 19.1-19.7x | 2.31-2.39x | 22.2 / 17.0x |
+| shared KV on-chip | install int8 high | 1.0 / 1.3 | 8.8 / 6.8x | 6.6 / 5.1x | 16.4-16.7 / 12.6-12.8x | 2.48-2.53x | 16.9 / 13.0x |
+(central 1.36 µs rows: as trained (b) 8.4-10.9x, (c) 8.4-12.4x; shared (c) 40.9-55.0x.)
+Robustness table changes with the measured value: none of the verdicts flip. "Ouro as trained reaches 10x at B=1" stays
+**no** at sourced latencies (max 9.9x in row c at 3.83 µs, eff 1.0). "Shared on-chip KV ≥ 10x at B=1": row (c) yes
+(12.6-25.7x), row (b) 5.1-10.7x (no at the high-latency end).
