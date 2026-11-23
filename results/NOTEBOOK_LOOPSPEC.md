@@ -167,3 +167,20 @@ runs: 35-37/40). Reference, not comparable (different decoder): Week 6 bf16 with
 If FAIL: LoopSpec as run here is not accuracy-preserving at the Week 6 bar, so it cannot be the B=1 baseline without a
 caveat; the write-up would report it as "faster but changes outputs".
 After the run: a table of every write-up number affected, old → new, shown to Sid BEFORE any write-up is edited.
+
+# Results: 1319-question accuracy check (`loopspec_gsm8k_notinygemm-h100-20261123-143543`)
+NVIDIA H100 80GB HBM3, [exit 0], TinyGEMM off in both servers (logged). Mean prompt 532 tokens, mean completion ~90.
+`python3 loopspec_bench.py --grade results/modal/loopspec_gsm8k_notinygemm-h100-20261123-143543/loopspec_bench.json`:
+| | normal decoding (4 loops) | LoopSpec "1:2" |
+|---|---|---|
+| GSM8K accuracy | 79.2 % (1044/1319) | 78.6 % (1037/1319) |
+| paired change | – | **−0.53 pts (95 % CI −1.53 to +0.47)** |
+| only one side right | 26 (normal only) | 19 (LoopSpec only); exact McNemar p = 0.371 |
+| same final answer | – | 1233/1319 (93.5 %) |
+| identical text | – | 70.1 % |
+| ms per token | 7.36 | 2.73 (2.70x) |
+**Rule (lower end > −2 pts): PASS.** As predicted (change within ±1 pt; same answer 93.5 % vs the predicted 90-93 %).
+LoopSpec changes ~30 % of greedy texts but does not measurably change GSM8K accuracy at n=1319 (a drop larger than
+~1.5 pts is excluded at 95 %). Reference, different decoder: Week 6 bf16 with early exit (q=0.5) 77.8 %.
+Consequence: LoopSpec qualifies as the B=1 H100 GPU baseline under decision 4, with the caveat "not token-identical to
+normal decoding; accuracy-equivalent on GSM8K (n=1319)". Write-ups not edited (Sid asked for old → new first).

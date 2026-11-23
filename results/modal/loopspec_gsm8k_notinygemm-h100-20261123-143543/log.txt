@@ -1,0 +1,17 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=loopspec_gsm8k_notinygemm-h100-20261123-143543
+git=7e01db4-dirty
+Mon Nov 23 22:35:47 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA H100 80GB HBM3, GPU-27d6f02f-4095-50bc-a855-4086dabd144d, 81559 MiB, 620.70.06
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.11.0+cu130 transformers 5.8.1
+[exit 0]
+
+$ python loopspec_bench.py --n 1319 --shots 4 --strip-annotations --no-tinygemm --modes baseline 1:2 --out-dir $OUT
+baseline {"ms_per_token": 7.359227981971194, "median_ms_per_token": 7.356693059523964, "decode_tokens": 117645, "mean_prompt_tokens": 531.6861258529188, "mean_completion_tokens": 90.19257012888552, "server_ready_s": 50.009315729141235}
+1:2 {"ms_per_token": 2.7281792203356297, "median_ms_per_token": 2.704667486840974, "decode_tokens": 117262, "mean_prompt_tokens": 531.6861258529188, "mean_completion_tokens": 89.9021986353298, "server_ready_s": 35.00577354431152, "identical_text_vs_baseline": 0.7012888551933283, "speedup_vs_baseline": 2.6974870005299127}
+[exit 0]
