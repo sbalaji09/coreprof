@@ -600,8 +600,9 @@ KV_LEVERS = {   # cumulative, as in HANDOFF.md §7
 
 
 def kv_levers(m, levers, q=0.5, layer_latency=5e-6, points=((1, 2048), (1, 8192), (16, 2048), (16, 8192)),
-              targets=(3, 10)):
-    """Config D (8-bit, all resident) with each KV option, sized to fit, vs MEASURED H100 int8 (decision 4)."""
+              targets=(3, 10), eff=1.0):
+    """Config D (8-bit, all resident) with each KV option, sized to fit, vs MEASURED H100 int8 (decision 4).
+    eff: the chip's whole token time is multiplied by eff (software reaching 1/eff of the modelled floor)."""
     depth = MEAN_DEPTH[q]
     h100 = predict_gpu(fit_gpu("l40s", m), "h100")      # only for the GPU's LM-head / KV-write terms
     gpu8 = measured_steps("h100", "int8")
@@ -609,14 +610,14 @@ def kv_levers(m, levers, q=0.5, layer_latency=5e-6, points=((1, 2048), (1, 8192)
     print(f"KV options on config D (8-bit, all resident), vs measured H100 int8; q={q} (depth {depth}), "
           f"{layer_latency * 1e6:g} µs/layer.\nChips = fewest that hold weights + LM head (+ KV if on-chip). "
           f"'need <x' = per-layer latency required for that speedup.\nCaveat: the GPU could use fp8 KV / fewer caches "
-          f"too; only the on-chip gain is LoopCore-only.\n")
+          f"too; only the on-chip gain is LoopCore-only. Chip time x {eff:g}.\n")
     print(f"{'option':32s} {'B':>3} {'C':>5}  speedup chips  KV MB   " + "  ".join(f"need <{n}x" for n in targets))
     for label, kw in levers.items():
         for B, C in points:
             hw = sized(m, replace(base, **kw), B, C)
             gpu_t = depth * gpu8[(B, C)] * 1e-3 + gpu_extras(m, h100, "h100", B)
-            lats = [max_layer_latency(m, hw, B, C, depth, gpu_t / n) for n in targets]
-            print(f"{label:32s} {B:>3} {C:>5}  {gpu_t / token_time(m, hw, B, C, depth):6.1f}x {hw.n_chips:>5} "
+            lats = [max_layer_latency(m, hw, B, C, depth, gpu_t / (n * eff)) for n in targets]
+            print(f"{label:32s} {B:>3} {C:>5}  {gpu_t / (eff * token_time(m, hw, B, C, depth)):6.1f}x {hw.n_chips:>5} "
                   f"{kv_footprint(m, hw, B, C) / 1e6:6.0f}   " +
                   "  ".join(f"{l * 1e6:6.1f} µs" if l else "     n/a" for l in lats))
         print()
@@ -758,6 +759,7 @@ def main():
     ap.add_argument("--layer-latency-us", type=float, nargs="+", default=[LAYER_LATENCY * 1e6])
     ap.add_argument("--q", type=float, choices=sorted(MEAN_DEPTH), default=0.5)
     ap.add_argument("--kv-levers", action="store_true", help="KV design options on config D vs measured H100 int8")
+    ap.add_argument("--chip-efficiency", type=float, default=1.0, help="with --kv-levers: chip token time x this factor")
     ap.add_argument("--unified", metavar="GPU", help="write results/unified/<gpu>_<variant>_<klist>.json (unified formula)")
     args = ap.parse_args()
     if args.unified:
@@ -773,7 +775,7 @@ def main():
                 print("wrote", p.relative_to(ROOT))
     elif args.kv_levers:
         for lat in args.layer_latency_us if args.layer_latency_us != [LAYER_LATENCY * 1e6] else [5.0]:
-            kv_levers(OURO_1_4B, KV_LEVERS, args.q, lat * 1e-6)
+            kv_levers(OURO_1_4B, KV_LEVERS, args.q, lat * 1e-6, eff=args.chip_efficiency)
     elif args.validate:
         validate(write=args.write_predictions)
     else:

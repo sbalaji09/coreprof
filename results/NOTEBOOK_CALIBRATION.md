@@ -621,3 +621,37 @@ right (v1.5 decomposition on both GPUs; L40S here), but a hardware-only fingerpr
 For the chip: the GPU calibration supports the formula's form, not its absolute level; real software sat 0-30 % above
 the hardware floor on these GPUs. Reporting LoopCore numbers as "if the chip's software reaches X % of the floor" is the
 honest use.
+
+## S1 - do any LoopCore conclusions flip inside the GPU-formula error? (laptop only; pre-registered before computing)
+Agreed with Sid 2026-11-23: stop refining the GPU formula; check instead that the paper's conclusions survive its error.
+Method: the chip's whole token time x f, f = 1.3 (software reaching 77 % of the hardware floor, the worst gap measured
+on H100/A100), vs f = 1.0. Conservative: f also scales the per-layer-latency part. GPU side unchanged (measured H100 int8,
+decision 4). Current chip model (not chip_step_unified). `kv_levers` gains `eff`; f = 1.0 must reproduce the L3 table
+(14.6x / 4.7x / 31.9x / 44.1x at 1.36 µs) exactly, or the check is invalid.
+Claims checked (from NOTEBOOK_LAYER_LATENCY L3, CALIBRATION.md Week 6, HANDOFF):
+- C1 Ouro as trained (int8, fp8 KV, 4 caches in HBM), 1x2048: 5.8x (8.2 µs) .. 14.6x (1.36 µs).
+- C2 same, 16x2048: 3.4-4.8x "whatever the latency".
+- C3 10x at B=1 (1x2048) needs t_L < ~3-4 µs.
+- C4 trained KV sharing, cache on-chip: 1x2048 7.3-31.9x; 16x2048 17.8-44.1x.
+- C5 +fp8 KV at 5 µs/layer: 8.0x (1x2048) .. 3.0x (16x8192).
+- C6 qualitative: latency dominates at B=1; KV reads dominate at B=16 with KV in HBM; KV on-chip is the large lever.
+Expected: every speedup / 1.3; C3 threshold drops to ~2-3 µs; C2's low end drops below 3x (a "≥ 3x at B=16" wording
+would flip); C6 unchanged. A conclusion "flips" if its stated direction or a stated threshold (3x, 10x) changes side.
+Result (`python3 loopcore_model.py --kv-levers --layer-latency-us 1.36 5 8.2 --chip-efficiency 1.0|1.3`).
+Validity: f = 1.0 reproduces L3 (14.6 / 4.7 / 31.9 / 44.0x; L3 recorded 44.1x, a rounding difference) → valid.
+| claim | f = 1.0 | f = 1.3 | flips? |
+|---|---|---|---|
+| C1 as trained, 1x2048, t_L 8.2 .. 1.36 µs | 5.8 .. 14.6x | 4.4 .. 11.2x | no (still well above 3x) |
+| C2 as trained, 16x2048 | 4.1 .. 4.7x | 3.1 .. 3.6x | no at ≤ 8.2 µs (≥ 3x holds, barely); still flat in t_L |
+| C3 t_L needed for 10x, 1x2048 | < 3.4 µs | **< 1.9 µs** | **threshold moves**: quote "~2-3.5 µs". Bottom-up central (1.36 µs) still clears it (11.2x) |
+| C4 shared KV on-chip, 1x2048 / 16x2048 | 7.3-31.9x / 17.8-44.0x | 5.6-24.5x / 13.7-33.9x | no |
+| C4 t_L for 10x with shared on-chip KV, 1x2048 | < 5.8 µs | < 4.3 µs | threshold moves (quote a range) |
+| C5 +fp8 KV at 5 µs, 16x8192 | 3.0x | **2.3x** | **yes**: "3x at 16x8192" no longer holds; 3x there becomes unreachable at any t_L ("n/a") |
+| today's design (bf16 KV), 10x at 1x2048 | needs < 0.9 µs | unreachable | already marginal; now impossible |
+| C6 qualitative (latency dominates B=1; B=16 flat in t_L; KV on-chip the big lever) | | | no |
+Against the expectation: speedups / 1.3 as predicted (it is a pure scale on the chip side); C3's threshold fell further than
+expected (1.9 vs ~2-3 µs) because the slack is a difference, not a ratio; C2 did NOT drop below 3x at 16x2048 (expected it
+would), but C5 did at 16x8192.
+Conclusion: within the GPU-formula error, the paper's qualitative conclusions and its B=1 and on-chip-KV speedup claims
+hold. Two quantitative statements must be quoted as ranges: the per-layer latency required for 10x at B=1 (~2-3.5 µs,
+not "3-4 µs") and the as-trained speedup at long context and B=16 (2.3-3.0x at 16x8192, i.e. not "≥ 3x").
