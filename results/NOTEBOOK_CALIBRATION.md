@@ -125,3 +125,22 @@ Learned: the model's non-weight row was "passing" by accident. Two errors offset
 non-weight, and the model counts ~0.19 ms of launch gaps around its matrix-vector kernels as non-weight.
 Note: the prose paragraphs under the blocks in CALIBRATION.md ("Model status 2026-11-20", "Target noise") still
 quote the old −13.8 % / −1.9 % and the H200-contaminated H100 noise. Not edited; asked Sid.
+
+## E2 - v1.3: B=1 weight term from the in-step coordinate-descent kernels (approach A2, fix 1; pre-registered 5ff8a69)
+Change (one thing): weight term at B=1 = in-step busy time of the cd weight kernels (1x128 profile) + one
+microbenchmark launch gap per weight kernel. Everything else as v1.2.
+Prediction: step L40S ~3.87 (+~3 %), H100 ~1.74 (+~4 %); non-weight ~0.46 (+~37 %) / ~0.48 (+~17 %); grid max unchanged.
+Result: step **3.88 ms (+3.5 %, pass)** L40S, **1.74 ms (+4.4 %, pass)** H100. Non-weight 0.463 (+39.1 % ✗) / 0.48
+(+18.1 % ✗). δ +6.4 % / +3.8 %. Grid median 3.1 → 2.7 % (L40S), 7.6 → 6.2 % (H100); max unchanged −23.0 % / −33.1 %
+(B=64). B=1 row L40S +2.3 to +5.5 %; H100 +4.4, +2.0, +1.3, +1.5, −11.9, −5.8, −6.1 % (C=128 … 8192).
+Overall: FAIL on both GPUs (non-weight row and grid max), as predicted.
+Guardrails: pytest 23 passed (+1 xfail), new test checks only B=1 weights changed.
+Verdict: supported. Every predicted number matched within ~0.01 ms.
+Caveats: (1) The B=1 step is a decomposition check, not an independent prediction (kernel times and target are
+from the same run). (2) The "weight streaming time" row now equals the measured low end by construction (3.41 /
+1.26 ms): that row no longer tests anything for v1.3. (3) H100 B=1 at C ≥ 2048 swings from +1.5 % to −11.9 %: the
+measured B=1 row jumps there (also seen in v1.2: +16.3 → +0.3 %); unexplained, within the ±20 % max rule.
+Learned: once the right weight kernels are used, the remaining B=1 error is ~0.13 ms (L40S) / ~0.07 ms (H100), all of
+it in the non-weight part, consistent with the ~0.1 ms of launch gaps charged per weight kernel (fix 2).
+Chip relevance: none directly. This was GPU kernel choice. It does show that, with good kernels, L40S weight time is
+within 3 % of bytes / measured read peak (the chip model's form); H100 is 52 % above it (per-kernel ramp, O3).
