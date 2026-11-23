@@ -63,3 +63,11 @@ cited in `loopcore_model.py`); per-stage cycle costs that no source gives are sw
 Expected (written now): S ≈ 11–13; central t_L ≈ 2–8 µs; the dominant unknown is the matmul reduction latency across
 K = 2048 / 5632 spread over tiles. If the bottom-up count lands far below the 9–17 µs of the best published systems, the
 gap must be explained (serving batch, sampling, host, multi-chip) before the low number is used.
+
+## L2 - GPU check of the latency-chain model (HB) — pre-registered before computing
+Formula (fixed now): per-layer non-weight busy time = attention call at 1x128 (split-KV + combine, isolated busy) +
+1 elementwise kernel (rotary + cache write; proxy: isolated silu_mul busy at B=1) + 2 RMSNorm kernels (isolated
+rmsnorm_2048 busy at B=1). Kernel list from the in-step cd profile: 3 attention-category + 2 norm-fused kernels per layer.
+Inputs: v1.2 kernel microbenchmarks (`delta_kernel_bench-*-20261118-1234*`), not the target runs.
+Compare with measured in-step busy: L40S 11.5 µs (first-graph repeat run c3), H100 13.2 µs (cd target run).
+Pass: within ±25 % on both GPUs. Expected: ~10 µs L40S, ~11 µs H100 (−10…−20 %).
