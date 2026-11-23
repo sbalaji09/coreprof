@@ -164,3 +164,23 @@ gaps that cuBLAS kernels do not?
 Not changed after seeing the result. v1.4 is the recorded model; fix 3 builds on it.
 Chip relevance: the in-graph gap per kernel is a GPU software cost (0–0.5 µs). It has no chip counterpart in a fused
 dataflow design; it is excluded from the chip's per-layer latency anchor.
+
+## E4 - v1.5: o_proj priced at its in-step, batch-dependent time (fix 3; pre-registered a4b6e21)
+Change (one thing): at B ≥ 2, o_proj per call = line through its in-step time at B=1 and B=16 (cd run profiles).
+Dropped before coding: "uncounted splitK kernels on H100" (in-step non-o_proj weights at B=16 within 4 % of the model).
+Prediction: L40S grid max ~−7 %, grid passes, overall still fails on non-weight (−13.2 %). H100 max ~−18 % at B=2
+(borderline pass), median ~10 % (borderline fail). B=1 unchanged.
+Result: L40S grid median 1.7 %, max **−6.7 %** (64x128) → grid passes; overall **FAIL** (non-weight −13.2 %, only miss).
+H100 grid median **8.2 %**, max **−18.7 %** (2x4096) → passes; every summary row within ±10 % → **H100 PASSES** the rule.
+Verdict: supported; L40S as predicted; H100 median better than predicted (8.2 vs ~10 %).
+Caveats (strong):
+- The model now takes in-step kernel times from the target runs' own profiles (weights at B=1, o_proj at B=1 and 16).
+  It shows the step is the sum of its parts, not that the model predicts a GPU it has not seen.
+- The H100 pass is narrow: max −18.7 % vs the 20 % limit, with between-container noise about ±6 %. A repeat run could
+  flip it.
+- The H100 rows at B=2–8 are still −12…−15 %: the gaps between kernels grow at B ≥ 2 (step − busy 0.37 ms at 16x2048
+  vs 0.09 at B=1). Not modelled.
+- L40S B ≥ 32 was not a blind test (O5 had already shown the match).
+Chip relevance: o_proj's slowdown is GPU software (compiler lowering). It inflates the GPU baseline at B ≥ 16 (L40S
+16x128: 0.36 ms of 5.37 ms over a tensor-core o_proj). LoopCore speedups at B ≥ 16 should be reported both against
+the measured baseline and against the baseline with that excess removed.

@@ -37,7 +37,7 @@ cost is a PyTorch artifact LoopCore will not have, so reproducing it would not t
 <!-- calibration:l40s:begin -->
 **Status:** Calibrated on NVIDIA L40S: **no** (6/6 summary predictions, 46/46 grid points).
 
-Measured: the fastest of `results/modal/delta_compile-l40s-20261116-214809/`, `results/modal/delta_grid-l40s-20261116-184352/`, `results/modal/delta_bf16_cd-l40s-20261120-010859/` at each point (wins: compiled_graph 1, compiled_graph+cd 45 of 46). Predictions: `calibration_predictions.json`, from loopcore_model.py v1.4 kernel-sum: results/modal/delta_kernel_bench-l40s-20261118-123411/kernel_bench.json. Error % is 0 inside a measured range, else the distance to its nearest end.
+Measured: the fastest of `results/modal/delta_compile-l40s-20261116-214809/`, `results/modal/delta_grid-l40s-20261116-184352/`, `results/modal/delta_bf16_cd-l40s-20261120-010859/` at each point (wins: compiled_graph 1, compiled_graph+cd 45 of 46). Predictions: `calibration_predictions.json`, from loopcore_model.py v1.5 kernel-sum: results/modal/delta_kernel_bench-l40s-20261118-123411/kernel_bench.json. Error % is 0 inside a measured range, else the distance to its nearest end.
 
 | quantity | measured (NVIDIA L40S, best GPU) | source | model prediction | error % |
 |---|---|---|---|---|
@@ -45,10 +45,10 @@ Measured: the fastest of `results/modal/delta_compile-l40s-20261116-214809/`, `r
 | KV cost per cached token | 0.262 µs | M2 fit over the envelope | 0.263 µs | +0.2 |
 | weight/KV crossover | 13,023–15,173 cached tokens | weight_ms / kv_us_per_token | 13,000 cached tokens | -0.2 |
 | best GPU step time, B=1, C=128 | 3.75 ms | envelope | 3.7 ms | -1.2 |
-| fixed cost δ (M2 fit) | 4.07 ms | M2 fit over the envelope | 4.08 ms | +0.4 |
+| fixed cost δ (M2 fit) | 4.07 ms | M2 fit over the envelope | 4.01 ms | -1.4 |
 | non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.333 ms | step − weight kernels of the fastest implementation | 0.289 ms | -13.2 ✗ |
 
-**Step time over the whole grid (46 points):** median |error| 3.0 %, max -26.0 % at B=64, C=128 (**fail**: needs median ≤ 10 %, max ≤ 20 %)
+**Step time over the whole grid (46 points):** median |error| 1.7 %, max -6.7 % at B=64, C=128 (pass: needs median ≤ 10 %, max ≤ 20 %)
 
 **Model inputs:**
 
@@ -61,9 +61,9 @@ Measured: the fastest of `results/modal/delta_compile-l40s-20261116-214809/`, `r
 ### H100 80GB HBM3
 
 <!-- calibration:h100:begin -->
-**Status:** Calibrated on NVIDIA H100 80GB HBM3: **no** (6/6 summary predictions, 48/48 grid points).
+**Status:** Calibrated on NVIDIA H100 80GB HBM3: 2026-11-22 (summary within ±10 %, grid passes).
 
-Measured: the fastest of `results/modal/delta_compile-h100-20261116-214809/`, `results/modal/delta_grid-h100-20261116-184347/`, `results/modal/delta_bf16_cd-h100-20261120-010911/` at each point (wins: compiled_graph 7, compiled_graph+cd 41 of 48). Predictions: `calibration_predictions_h100.json`, from loopcore_model.py v1.4 kernel-sum: results/modal/delta_kernel_bench-h100-20261118-123424/kernel_bench.json. Error % is 0 inside a measured range, else the distance to its nearest end.
+Measured: the fastest of `results/modal/delta_compile-h100-20261116-214809/`, `results/modal/delta_grid-h100-20261116-184347/`, `results/modal/delta_bf16_cd-h100-20261120-010911/` at each point (wins: compiled_graph 7, compiled_graph+cd 41 of 48). Predictions: `calibration_predictions_h100.json`, from loopcore_model.py v1.5 kernel-sum: results/modal/delta_kernel_bench-h100-20261118-123424/kernel_bench.json. Error % is 0 inside a measured range, else the distance to its nearest end.
 
 | quantity | measured (NVIDIA H100 80GB HBM3, best GPU) | source | model prediction | error % |
 |---|---|---|---|---|
@@ -71,10 +71,10 @@ Measured: the fastest of `results/modal/delta_compile-h100-20261116-214809/`, `r
 | KV cost per cached token | 0.0785 µs | M2 fit over the envelope | 0.0775 µs | -1.2 |
 | weight/KV crossover | 16,106–22,497 cached tokens | weight_ms / kv_us_per_token | 16,307 cached tokens | +0.0 |
 | best GPU step time, B=1, C=128 | 1.67 ms | envelope | 1.66 ms | -0.6 |
-| fixed cost δ (M2 fit) | 2.04 ms | M2 fit over the envelope | 1.94 ms | -4.8 |
+| fixed cost δ (M2 fit) | 2.04 ms | M2 fit over the envelope | 1.89 ms | -7.4 |
 | non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.406 ms | step − weight kernels of the fastest implementation | 0.396 ms | -2.6 |
 
-**Step time over the whole grid (48 points):** median |error| 10.8 %, max -34.9 % at B=64, C=128 (**fail**: needs median ≤ 10 %, max ≤ 20 %)
+**Step time over the whole grid (48 points):** median |error| 8.2 %, max -18.7 % at B=2, C=4096 (pass: needs median ≤ 10 %, max ≤ 20 %)
 
 **Model inputs:**
 
