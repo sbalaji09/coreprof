@@ -127,3 +127,52 @@ to best published (8.2 µs), i.e. 5.8–14.6× for Ouro as trained at 1x2048, an
 matrix-fill cycles) put a chip at the optimistic end.
 Next: (a) find per-stage cycle figures (Groq ISCA 2020 paper text, Groq 2022 ISCA multi-chip paper, Cerebras/SambaNova
 papers) to replace the swept values; (b) test the gap candidates against published small- vs large-model speeds.
+
+# 2026-11-23: chip-side LoopSpec (L4) and a weight-install term (L5) — pre-registered before computing
+Sources: `results/LATENCY_SOURCES.md` (copied today from `~/Documents/coreprof/LATENCY_SOURCES.md`, where it had been
+written; content unchanged). LoopSpec counters from the raw run files `loopspec-l40s-20261123-112959` and
+`loopspec_notinygemm-h100-20261123-120532` (results/NOTEBOOK_LOOPSPEC.md).
+
+## Measured LoopSpec statistics (raw files, both GPUs, 40 prompts, ~4,600 tokens each)
+| | passes of the block per token | first-proposal acceptance | second proposals accepted / rejected / skipped per token |
+|---|---|---|---|
+| "1" (L40S / H100) | 1.305 / 1.310 | 0.907 / 0.905 | – |
+| "1:2" (L40S / H100) | 1.191 / 1.189 | 0.903 / 0.901 | 0.064 / 0.011 / 0.023 (L40S); 0.067 / 0.010 / 0.022 (H100) |
+One LoopSpec "pipeline cycle" = one pass of the shared block over every live lane (`loopspec/pipeline.py`: "One cycle
+advances every live lane by K recurrent iterations", K = 1). Normal decoding = 4 passes per token, one lane each.
+
+## L4 - chip + LoopSpec (pre-registered)
+Model (laptop, current chip model `step_time`, config D sized, int8, LM head on chip):
+- chip + LoopSpec token time = c x step_time(B_eff rows, C, R = 4 loops) + LM-head readouts per token x LM-head time,
+  c = measured passes per token (1.19 for "1:2"). Per pass the per-layer latency is paid once (shared by all lanes);
+  weights are read once; KV is read once per lane (each lane attends over its own context).
+- B_eff (lanes per pass) is NOT logged. Bounds from the measured counters plus the pipeline structure: lower
+  4 / c (each committed token needs 4 lane-passes, no waste); upper (4 + 6 x first-reject rate + 3 x second-proposal
+  rate) / c (a rejected draft discards at most 3+2+1 lane-passes). "1:2": 3.36 .. 3.98 lanes.
+- Readouts per token: 1 final + 1 first proposal + second-proposal rate.
+- GPU + LoopSpec at 1x2048: NOT measured yet (task 1). Provisional = measured LoopSpec ms at C≈500 (H100, "1:2", 2.89 ms)
+  x (our bf16 4-loop step at 1x2048 / at 1x512), labelled provisional; replaced by task 1.
+- Rows at B=1, 1x2048: (a) chip without LoopSpec (early exit, depth 3.22) vs GPU int8 (old); (b) chip without
+  LoopSpec vs GPU + LoopSpec; (c) chip + LoopSpec (depth 4) vs GPU + LoopSpec.
+Hypotheses and predictions (written now):
+- H1 (full gain): chip + LoopSpec / chip ≈ the GPU's gain (2.3-2.6x). Expected to hold only where the chip's step is
+  latency-dominated and KV reads are cheap: **shared KV on-chip**.
+- H2 (verification adds per-lane work): with KV in HBM (Ouro as trained), each extra lane re-reads its 2048-token
+  context (~60 µs per pass at fp8, 3.35 TB/s) — comparable to the latency part — so the chip's gain is only
+  **~1.3-1.6x**. Expected to hold for Ouro as trained.
+- H3 (the draft costs the chip more than the GPU): a draft is an extra LM-head readout; on-chip LM head ≈ 1-2 µs vs a
+  token time of hundreds of µs. Expected **refuted** (negligible).
+- Predicted row (c), Ouro as trained, 1x2048, at the new install-based latency range (L5): **~6-10x**, i.e. between
+  (b) and (a). With shared KV on-chip: (c) ≈ (a), since both sides gain ~2.5x.
+
+## L5 - weight-install term (pre-registered)
+New variant, existing levels and LAYER_LATENCY untouched: matmul stage = move + installs x c_install + installs x (B−1)
++ beats(N); installs = ceil(weights in the stage / capacity), capacity 409,600 (int8; source A) or 204,800 (fp16;
+LATENCY_SOURCES assumption); c_install 20 (low) .. 40 (high) cycles (sources A, C: "<40 cycles", 20-cycle load);
+B−1 extra cycles per install for B rows (C, R); clock 900 MHz (A). Non-matmul stages: the "central" parameters at 900 MHz.
+Predicted per layer at B=1, C=2048: matmul installs int8 31+11+57+29 = 128 → 2.8-5.7 µs; fp16 253 → 5.6-11.2 µs; plus
+~0.7 µs of vector/attention stages: **int8 ~3.5-6.5 µs, fp16 ~6.5-12 µs per layer** (B=16 adds 15 x 128 cycles ≈ 2.1 µs
+int8). Against the published cross-checks (Groq BERT-base 8.9, WSE-2 Llama3-8B 11.6, CS-3 8B 17 µs/layer): the gap from
+the old bottom-up central (1.36 µs; 6.5-12.5x below) narrows to ~1.4-5x below.
+Then: speedup tables (as trained, shared KV on-chip; B=1, 16; C=2048) over {int8 install low/high} x {eff 1.0, 1.3} x
+{rows a, b, c at B=1}. Proposed numbers only; no write-up changed.
