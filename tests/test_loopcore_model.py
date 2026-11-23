@@ -230,3 +230,10 @@ def test_gpu_baseline_uses_measured_lm_head():
     l40s = lm.fit_gpu("l40s")
     assert lm.gpu_extras(M, l40s, "l40s", 1) - lm.per_token_extras(replace(M, lmhead_params=0), l40s, 1) == \
         pytest.approx(0.301e-3, abs=0.002e-3)
+
+
+def test_layer_latency_bottom_up_is_ordered_and_counts_11_stages():
+    assert len(lm.layer_stages(M, 2048, lm.LAYER_CYCLE_PARAMS["central"])) == 11
+    lo, mid, hi = (lm.layer_latency_bottom_up(M, 2048, k) for k in ("low", "central", "high"))
+    assert 0 < lo < mid < hi
+    assert lm.layer_latency_bottom_up(M, 8192) > lm.layer_latency_bottom_up(M, 128)   # deeper softmax/AV reductions

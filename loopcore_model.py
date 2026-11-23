@@ -63,6 +63,7 @@ class LoopedModel:
     n_kv_heads: int
     head_dim: int
     total_loops: int
+    d_ff: int = 5632     # MLP width (gate/up 2048 -> 5632, down 5632 -> 2048: the kernel-count shapes)
 
     @property
     def d_model(self):
@@ -434,6 +435,39 @@ HOP_LATENCY = 1e-6        # ASSUMPTION: per chip-to-chip hop
 LAYER_LATENCY = 1e-6      # ASSUMPTION (default): fixed pipeline latency per layer per loop step, covering the
                           # non-GEMM work (norms, rotary, activations, softmax) of a fused dataflow chip.
                           # For scale: the fused GPU spends (overhead_s / n_layers) ≈ 23 µs per layer (L40S).
+
+# Bottom-up per-layer latency for a fused weight-stationary dataflow chip (results/NOTEBOOK_LAYER_LATENCY.md, L3,
+# pre-registered 2026-11-22). 11 dependent stages per layer at B=1; cycles per stage from a vector width W and four
+# per-stage costs. W = 320 lanes (Groq TSP, ISC 2020 ML HW workshop slides). Clock 0.9 GHz = Groq TSP nominal; every other
+# value is an ASSUMPTION (no opened source gives per-stage cycles), so the three levels are a sweep, not a measurement.
+# Not included: chip-to-chip hops (Hardware.hop_latency_s), KV access latency if not prefetched, control/sync.
+VECTOR_WIDTH = 320
+LAYER_CYCLE_PARAMS = {
+    "low": dict(clock_hz=1.5e9, move=10, vec=5, mm=20, red=1),
+    "central": dict(clock_hz=1.0e9, move=50, vec=10, mm=100, red=2),
+    "high": dict(clock_hz=0.9e9, move=200, vec=30, mm=400, red=4),
+}
+
+
+def layer_stages(m, C, p, W=VECTOR_WIDTH):
+    """{stage: cycles} for one layer at B=1 with C cached tokens. Streaming the C cached keys/values is bandwidth (the
+    model's KV term), so attention stages count only their reduction depth."""
+    beats = lambda n: math.ceil(n / W)
+    red = lambda n: math.ceil(math.log2(n)) * p["red"]
+    ew = lambda n: p["move"] + p["vec"] + beats(n)
+    norm = lambda n: p["move"] + 2 * p["vec"] + beats(n) + red(n)
+    mm = lambda K, N: p["move"] + p["mm"] + beats(K) + math.ceil(math.log2(math.ceil(K / W))) * p["red"] + beats(N)
+    d, kv = m.d_model, m.n_kv_heads * m.head_dim
+    return {"rmsnorm 1": norm(d), "qkv matmul": mm(d, d + 2 * kv), "rotary + KV write": ew(d + kv),
+            "QK^T": p["move"] + p["vec"] + red(m.head_dim), "softmax": p["move"] + 2 * p["vec"] + 2 * red(C),
+            "AV": p["move"] + p["vec"] + red(C), "o_proj + residual": mm(d, d), "rmsnorm 2": norm(d),
+            "gate/up matmul": mm(d, 2 * m.d_ff), "SiLU*mul": ew(m.d_ff), "down + residual": mm(m.d_ff, d)}
+
+
+def layer_latency_bottom_up(m, C, level="central"):
+    """Seconds per layer per loop step (B=1) at one parameter level."""
+    p = LAYER_CYCLE_PARAMS[level]
+    return sum(layer_stages(m, C, p).values()) / p["clock_hz"]
 
 _core_4bit = OURO_1_4B.core_params * 0.5
 _chip = dict(weight_bw=SRAM_BW, ext_bw=EXT_BW, compute=COMPUTE_FP8, sram_bytes_per_chip=SRAM_MB,
