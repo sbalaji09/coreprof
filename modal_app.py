@@ -173,7 +173,8 @@ TASKS = {
     "loopspec": ["python loopspec_bench.py --out-dir $OUT"],
     # H100: FlashInfer TinyGEMM crashes CUDA-graph capture (2 of 2 runs); SGLang's linear kernels in all modes, as on L40S
     "loopspec_notinygemm": ["python loopspec_bench.py --no-tinygemm --out-dir $OUT"],
-    # context ~2048 (10-shot prompts, ~1,900 tokens + decode): normal decoding, LoopSpec "1:2", and a normal-decoding repeat (text-drift noise)
+    # context ~2048 (10-shot prompts, ~1,900 tokens + decode): normal decoding, LoopSpec "1:2", and a second
+    # normal-decoding server (text-drift noise)
     "loopspec_long": ["python loopspec_bench.py --shots 10 --modes baseline 1:2 baseline_repeat --out-dir $OUT"],
     "loopspec_long_notinygemm": ["python loopspec_bench.py --shots 10 --no-tinygemm --modes baseline 1:2 baseline_repeat "
                                  "--out-dir $OUT"],
