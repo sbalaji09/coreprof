@@ -411,3 +411,27 @@ Predictions and decision rules (written before the run):
 - F4: valid only if `kernel_matches_host` is true and latency at ≥ 256 MB is ≥ 2x the 1 MB latency on both GPUs.
   Expectation: L2 ~150-300 ns, DRAM ~400-700 ns.
 - F3: repeat of v1 (first graph ~0, later 0.2-0.6 µs per kernel).
+
+## FP2 - results (`fingerprint-l40s-20261122-233916`, `fingerprint-h100-20261122-233915`)
+GPUs: NVIDIA L40S 46068 MiB; NVIDIA H100 80GB HBM3 81559 MiB. Both ALL OK.
+| measurement | L40S | H100 | rule (FP2) | verdict |
+|---|---|---|---|---|
+| F1 kernels per read | 1 + 2/copies | same | = 1 | **literally tripped**: each graph replay adds 2 `FillFunctor<long>` kernels (not the probe). Bias on per-read busy ≤ ~0.4 µs at 8 copies; it can only lower the true t0. Verdicts below hold either way. |
+| F1 BW_read | 746 GB/s | **3179 GB/s** | 740-765 / 2800-3000 | L40S as predicted; H100 above range (the 1-kernel probe reads faster than torch.sum's 2982) |
+| F1 t0 vs weight-kernel fit (1.97 / 3.05 µs) | 1.51 µs (Δ 0.46) | 1.77 µs (Δ 1.28) | within 1 µs on both | **refuted** (holds on L40S, fails on H100) |
+| F2 BW_L2 vs implied (4.8 / 9.0 TB/s) | 5.54 TB/s (1.15x) | 7.32 TB/s (1.23x) | within 1.5x on both, H100 ≥ 6.0 | **o_proj = W / BW_L2 revived**; v1's 4.7-4.8 TB/s was the torch.sum probe's limit |
+| F4 pointer chase | 118-122 ns, 1 MB-4 GB | 141-146 ns | kernel = host, and ≥ 256 MB ≥ 2x 1 MB | **invalid again**. Kernel follows the chain correctly (matches host at every size), but each timed call repeats the same 20,000-step path (~2.5 MB of lines), which stays in L2 after the first call. Same flaw in v1. Fix: a path longer than L2 or a new start per call. |
+| F3 gap first / later graphs | −0.08 / 0.17-0.18 µs | −0.03 / 0.34-0.59 µs | repeat of v1 | as predicted; L40S later-graph level differs between runs (v1 0.24-0.27) |
+| F5 bf16 / fp32 TFLOPS | 246 / 43.6 | 798 / 52.2 | repeat | within 5 % of v1 |
+| K2 kernel lists | identical to v1 | identical to v1 | – | repeatable |
+Diagnostic on seen data (not a scored prediction; in-step cd kernels at 1x128, F0 numbers):
+fingerprint-only weight kernels `t = t0 + bytes / BW_read`: **L40S +1 % per layer** (each kernel −3…+4 %);
+**H100 −25 % per layer** (qkv −21, o −25, gate+up −16, down −40 %). The H100 cd reductions read at ~2.8 TB/s and pay
+~3 µs each, while a plain streaming kernel reads at 3.2 TB/s and pays 1.8 µs. So on H100 the weight kernels are limited by
+the kernels inductor generates, not by the hardware the fingerprint measures. That is a GPU-software term the generic
+fingerprint cannot see; at B=1 it is ~0.31 ms (~19 % of H100's 1.67 ms step).
+o_proj with `L + max(W / BW_read, B·W / BW_L2)`: L40S knee at B ≈ 7.4 (E5: flat to 8, then linear), B=16 −14 %, B=64
+−3 %; H100 B=16 +12 %.
+Decision needed (Sid): how the formula treats kernel efficiency below the hardware (H100 weight kernels). Options in the
+report of 2026-11-22. Any option chosen now is informed by H100 data, so H100 can no longer be called semi-blind for
+that term; the A100 stays the real test.

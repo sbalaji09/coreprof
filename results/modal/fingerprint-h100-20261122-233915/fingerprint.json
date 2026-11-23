@@ -1,0 +1,312 @@
+{
+ "version": 2,
+ "read_probe": "triton read_sum, BLOCK=4096",
+ "gpu": "NVIDIA H100 80GB HBM3",
+ "torch": "2.5.1+cu124",
+ "smi_start": "name, memory.total [MiB], clocks.max.sm [MHz], clocks.max.memory [MHz], power.limit [W], clocks.current.sm [MHz], clocks.current.memory [MHz]\nNVIDIA H100 80GB HBM3, 81559 MiB, 1980 MHz, 2619 MHz, 700.00 W, 345 MHz, 2619 MHz",
+ "tiny_chain": [
+  {
+   "slot_us": 1.0000000474974513,
+   "busy_us": 1.0311765624999985,
+   "kernels_per_op": 1.0078125,
+   "kernel_names": [
+    "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctorOnSelf_",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "position": "first",
+   "gap_us": -0.031176515002547145
+  },
+  {
+   "slot_us": 1.370375044643879,
+   "busy_us": 1.0341906250000015,
+   "kernels_per_op": 1.0078125,
+   "kernel_names": [
+    "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctorOnSelf_",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "position": "second",
+   "gap_us": 0.33618441964387746
+  },
+  {
+   "slot_us": 1.3757500564679503,
+   "busy_us": 1.034354687500003,
+   "kernels_per_op": 1.0078125,
+   "kernel_names": [
+    "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctorOnSelf_",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "position": "third",
+   "gap_us": 0.3413953689679474
+  },
+  {
+   "slot_us": 1.6236249939538538,
+   "busy_us": 1.0352179687499992,
+   "kernels_per_op": 1.0078125,
+   "kernel_names": [
+    "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctorOnSelf_",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "position": "last",
+   "gap_us": 0.5884070252038547
+  }
+ ],
+ "read_sweep": {
+  "65536": {
+   "slot_us": 2.225515665486455,
+   "busy_us": 1.5832296874999936,
+   "kernels_per_op": 1.00048828125,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 4096
+  },
+  "131072": {
+   "slot_us": 1.9411613854269187,
+   "busy_us": 1.5877130859374986,
+   "kernels_per_op": 1.0006510416666667,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 3072
+  },
+  "262144": {
+   "slot_us": 2.2612291698654494,
+   "busy_us": 1.625604557291676,
+   "kernels_per_op": 1.0013020833333333,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 1536
+  },
+  "524288": {
+   "slot_us": 2.349020835633079,
+   "busy_us": 1.7503447916666757,
+   "kernels_per_op": 1.0026041666666667,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 768
+  },
+  "1048576": {
+   "slot_us": 2.30429166307052,
+   "busy_us": 1.9426901041666598,
+   "kernels_per_op": 1.0052083333333333,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 384
+  },
+  "2097152": {
+   "slot_us": 2.923833361516396,
+   "busy_us": 2.288249999999994,
+   "kernels_per_op": 1.0104166666666667,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 192
+  },
+  "4194304": {
+   "slot_us": 3.7183334740499654,
+   "busy_us": 2.9821312500000077,
+   "kernels_per_op": 1.0208333333333333,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 96
+  },
+  "8388608": {
+   "slot_us": 5.242333437005679,
+   "busy_us": 4.318308333333326,
+   "kernels_per_op": 1.0416666666666667,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 48
+  },
+  "16777216": {
+   "slot_us": 8.342666861911615,
+   "busy_us": 7.112566666666665,
+   "kernels_per_op": 1.0833333333333333,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 24
+  },
+  "33554432": {
+   "slot_us": 14.503999923666319,
+   "busy_us": 12.539000000000001,
+   "kernels_per_op": 1.1666666666666667,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 12
+  },
+  "67108864": {
+   "slot_us": 25.894000194966793,
+   "busy_us": 23.235374999999983,
+   "kernels_per_op": 1.25,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 8
+  },
+  "134217728": {
+   "slot_us": 47.02799953520298,
+   "busy_us": 43.37119999999999,
+   "kernels_per_op": 1.25,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 8
+  },
+  "268435456": {
+   "slot_us": 89.14599940180779,
+   "busy_us": 86.40914999999993,
+   "kernels_per_op": 1.25,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 8
+  },
+  "536870912": {
+   "slot_us": 173.4279990196228,
+   "busy_us": 170.77342500000006,
+   "kernels_per_op": 1.25,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 8
+  }
+ },
+ "read_fit": {
+  "bw_gbps": 3179.0053549014965,
+  "t0_us": 1.7724220067049705,
+  "range": "4..256 MB, busy_us"
+ },
+ "l2_read": {
+  "1048576": {
+   "slot_us": 2.415749942883849,
+   "busy_us": 1.5618406249999968,
+   "kernels_per_op": 1.03125,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ]
+  },
+  "2097152": {
+   "slot_us": 2.529500052332878,
+   "busy_us": 1.6906562499999933,
+   "kernels_per_op": 1.03125,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ]
+  },
+  "4194304": {
+   "slot_us": 2.7844998985528946,
+   "busy_us": 2.0489031250000016,
+   "kernels_per_op": 1.03125,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ]
+  },
+  "8388608": {
+   "slot_us": 3.3505000174045563,
+   "busy_us": 2.6239000000000035,
+   "kernels_per_op": 1.03125,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ]
+  },
+  "16777216": {
+   "slot_us": 4.434000002220273,
+   "busy_us": 3.7210562499999953,
+   "kernels_per_op": 1.03125,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ]
+  }
+ },
+ "l2_fit": {
+  "bw_gbps": 7321.054255729785,
+  "t0_us": 1.4469229619565198,
+  "range": "2..16 MB, busy_us"
+ },
+ "pointer_chase": {
+  "1048576": {
+   "ns_per_load": 141.40160083770752,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 1786,
+   "k": 2000
+  },
+  "4194304": {
+   "ns_per_load": 141.29760265350342,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 1941,
+   "k": 2000
+  },
+  "16777216": {
+   "ns_per_load": 141.31200313568115,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 1983,
+   "k": 2000
+  },
+  "67108864": {
+   "ns_per_load": 141.2608027458191,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 1997,
+   "k": 2000
+  },
+  "268435456": {
+   "ns_per_load": 141.23680591583252,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 1997,
+   "k": 2000
+  },
+  "1073741824": {
+   "ns_per_load": 145.2672004699707,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 1999,
+   "k": 2000
+  },
+  "4294967296": {
+   "ns_per_load": 145.9872007369995,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 1999,
+   "k": 2000
+  }
+ },
+ "gemm_peak": {
+  "bf16_tensor_core": {
+   "tflops": 797.8391167650763
+  },
+  "fp32_cuda_core": {
+   "tflops": 52.19742603473602
+  }
+ },
+ "smi_end": "name, memory.total [MiB], clocks.max.sm [MHz], clocks.max.memory [MHz], power.limit [W], clocks.current.sm [MHz], clocks.current.memory [MHz]\nNVIDIA H100 80GB HBM3, 81559 MiB, 1980 MHz, 2619 MHz, 700.00 W, 1980 MHz, 2619 MHz"
+}

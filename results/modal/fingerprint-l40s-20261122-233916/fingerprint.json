@@ -1,0 +1,312 @@
+{
+ "version": 2,
+ "read_probe": "triton read_sum, BLOCK=4096",
+ "gpu": "NVIDIA L40S",
+ "torch": "2.5.1+cu124",
+ "smi_start": "name, memory.total [MiB], clocks.max.sm [MHz], clocks.max.memory [MHz], power.limit [W], clocks.current.sm [MHz], clocks.current.memory [MHz]\nNVIDIA L40S, 46068 MiB, 2520 MHz, 9001 MHz, 350.00 W, 555 MHz, 9001 MHz",
+ "tiny_chain": [
+  {
+   "slot_us": 0.8839999791234732,
+   "busy_us": 0.9601562499999918,
+   "kernels_per_op": 1.0078125,
+   "kernel_names": [
+    "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctorOnSelf_",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "position": "first",
+   "gap_us": -0.07615627087651866
+  },
+  {
+   "slot_us": 1.1449999874457717,
+   "busy_us": 0.9613382812499989,
+   "kernels_per_op": 1.0078125,
+   "kernel_names": [
+    "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctorOnSelf_",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "position": "second",
+   "gap_us": 0.18366170619577282
+  },
+  {
+   "slot_us": 1.143062487244606,
+   "busy_us": 0.9590781250000008,
+   "kernels_per_op": 1.0078125,
+   "kernel_names": [
+    "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctorOnSelf_",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "position": "third",
+   "gap_us": 0.18398436224460524
+  },
+  {
+   "slot_us": 1.1650000233203173,
+   "busy_us": 0.9905054687499957,
+   "kernels_per_op": 1.0078125,
+   "kernel_names": [
+    "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctorOnSelf_",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "position": "last",
+   "gap_us": 0.1744945545703216
+  }
+ ],
+ "read_sweep": {
+  "65536": {
+   "slot_us": 1.537097617983818,
+   "busy_us": 1.3715914550781383,
+   "kernels_per_op": 1.00048828125,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 4096
+  },
+  "131072": {
+   "slot_us": 1.6154687230785687,
+   "busy_us": 1.4499925130208213,
+   "kernels_per_op": 1.0006510416666667,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 3072
+  },
+  "262144": {
+   "slot_us": 1.832499944915374,
+   "busy_us": 1.624709505208329,
+   "kernels_per_op": 1.0013020833333333,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 1536
+  },
+  "524288": {
+   "slot_us": 2.1880625281482935,
+   "busy_us": 1.9896041666666655,
+   "kernels_per_op": 1.0026041666666667,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 768
+  },
+  "1048576": {
+   "slot_us": 2.923041582107544,
+   "busy_us": 2.687974999999993,
+   "kernels_per_op": 1.0052083333333333,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 384
+  },
+  "2097152": {
+   "slot_us": 4.345500065634648,
+   "busy_us": 4.054705208333331,
+   "kernels_per_op": 1.0104166666666667,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 192
+  },
+  "4194304": {
+   "slot_us": 7.272333527604739,
+   "busy_us": 6.868710416666666,
+   "kernels_per_op": 1.0208333333333333,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 96
+  },
+  "8388608": {
+   "slot_us": 13.263999794920286,
+   "busy_us": 12.576670833333338,
+   "kernels_per_op": 1.0416666666666667,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 48
+  },
+  "16777216": {
+   "slot_us": 25.06266658504804,
+   "busy_us": 23.930999999999997,
+   "kernels_per_op": 1.0833333333333333,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 24
+  },
+  "33554432": {
+   "slot_us": 48.67333173751831,
+   "busy_us": 46.54645,
+   "kernels_per_op": 1.1666666666666667,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 12
+  },
+  "67108864": {
+   "slot_us": 94.82000023126602,
+   "busy_us": 91.759375,
+   "kernels_per_op": 1.25,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 8
+  },
+  "134217728": {
+   "slot_us": 184.51600521802902,
+   "busy_us": 181.5307250000001,
+   "kernels_per_op": 1.25,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 8
+  },
+  "268435456": {
+   "slot_us": 364.097997546196,
+   "busy_us": 360.89502499999986,
+   "kernels_per_op": 1.25,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 8
+  },
+  "536870912": {
+   "slot_us": 722.6279973983765,
+   "busy_us": 719.546175,
+   "kernels_per_op": 1.25,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ],
+   "copies": 8
+  }
+ },
+ "read_fit": {
+  "bw_gbps": 746.5022334879237,
+  "t0_us": 1.506377394635968,
+  "range": "4..256 MB, busy_us"
+ },
+ "l2_read": {
+  "1048576": {
+   "slot_us": 1.971250050701201,
+   "busy_us": 1.4384968750000007,
+   "kernels_per_op": 1.03125,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ]
+  },
+  "2097152": {
+   "slot_us": 2.1669999696314335,
+   "busy_us": 1.6388437500000055,
+   "kernels_per_op": 1.03125,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ]
+  },
+  "4194304": {
+   "slot_us": 2.5457500014454126,
+   "busy_us": 2.008221875000003,
+   "kernels_per_op": 1.03125,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ]
+  },
+  "8388608": {
+   "slot_us": 3.3852499909698963,
+   "busy_us": 2.7963718749999984,
+   "kernels_per_op": 1.03125,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ]
+  },
+  "16777216": {
+   "slot_us": 4.813250154256821,
+   "busy_us": 4.2848343750000035,
+   "kernels_per_op": 1.03125,
+   "kernel_names": [
+    "read_sum",
+    "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>,"
+   ]
+  }
+ },
+ "l2_fit": {
+  "bw_gbps": 5537.356386950571,
+  "t0_us": 1.2618379076086979,
+  "range": "2..16 MB, busy_us"
+ },
+ "pointer_chase": {
+  "1048576": {
+   "ns_per_load": 118.01760196685791,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 1784,
+   "k": 2000
+  },
+  "4194304": {
+   "ns_per_load": 118.17439794540405,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 1938,
+   "k": 2000
+  },
+  "16777216": {
+   "ns_per_load": 118.01279783248901,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 1989,
+   "k": 2000
+  },
+  "67108864": {
+   "ns_per_load": 119.96159553527832,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 1998,
+   "k": 2000
+  },
+  "268435456": {
+   "ns_per_load": 121.4576005935669,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 1999,
+   "k": 2000
+  },
+  "1073741824": {
+   "ns_per_load": 121.82559967041016,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 2000,
+   "k": 2000
+  },
+  "4294967296": {
+   "ns_per_load": 121.99360132217407,
+   "steps": 20000,
+   "kernel_matches_host": true,
+   "distinct_128B_lines_in_first_k": 2000,
+   "k": 2000
+  }
+ },
+ "gemm_peak": {
+  "bf16_tensor_core": {
+   "tflops": 245.64603865211615
+  },
+  "fp32_cuda_core": {
+   "tflops": 43.57856561975914
+  }
+ },
+ "smi_end": "name, memory.total [MiB], clocks.max.sm [MHz], clocks.max.memory [MHz], power.limit [W], clocks.current.sm [MHz], clocks.current.memory [MHz]\nNVIDIA L40S, 46068 MiB, 2520 MHz, 9001 MHz, 350.00 W, 2490 MHz, 9001 MHz"
+}
