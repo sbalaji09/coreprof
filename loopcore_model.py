@@ -198,6 +198,15 @@ def per_token_extras(m, hw, B):
     return t_lmhead + t_kv_write
 
 
+def gpu_extras(m, hw, gpu, B):
+    """GPU baseline's per-token extras: the MEASURED LM head (fused run, CUDA graph, linear in B between measured
+    batches) + modelled KV writes. (Before 2026-11-22 the LM head came from the clock-transfer model: H100 0.066 ms
+    vs 0.101 ms measured.)"""
+    rows = json.load(open(ROOT / FUSED_RUN[gpu] / "delta_split.json"))["lm_head"]["rows"]
+    t_lm = _interp({str(r["B"]): {"ms": r["graph_ms"]} for r in rows}, B, "ms") * 1e-3
+    return t_lm + per_token_extras(replace(m, lmhead_params=0), hw, B)
+
+
 def token_time(m, hw, B, C, mean_depth):
     """Time for one decode step that finishes B tokens (assumes CDB keeps all B slots full)."""
     t_step, _ = step_time(m, hw, B, C)
@@ -488,7 +497,10 @@ def validate(m=OURO_1_4B, write=False):
     print("prediction (median 12.6 %), so it is not used; more variants tuned against H100 would overfit it.")
     have_bench = all((ROOT / KERNEL_BENCH_V12[g] / "kernel_bench.json").exists() for g in KERNEL_BENCH_V12)
     for version in ("v1.1", "v1.2", "v1.3", "v1.4", "v1.5"):
-        print(f"\n{version} kernel-sum model (microbenchmarks only; both GPUs are predictions):")
+        src = ("microbenchmarks only; both GPUs are predictions" if version in ("v1.1", "v1.2") else
+               "microbenchmarks + in-step kernel times from the target runs' own profiles: a decomposition check, "
+               "not an independent prediction")
+        print(f"\n{version} kernel-sum model ({src}):")
         for gpu in ("l40s", "h100"):
             env, _ = cal.envelope(gpu)
             e = {bc: 100 * (sum(kernel_sum(gpu, *bc, version=version)) / 1e3 - t) / t for bc, (t, _) in env.items()}
@@ -539,7 +551,7 @@ def compare(m, configs, combine, layer_latencies, q, Bs=(1, 8, 64), Cs=(128, 204
                     cells = []
                     for g, p in cols:
                         t = base[(g, p)].get((B, C))
-                        cells.append(f"{(depth * t * 1e-3 + per_token_extras(m, gpus[g], B)) / lc:8.1f}x" if t else "     n/a")
+                        cells.append(f"{(depth * t * 1e-3 + gpu_extras(m, gpus[g], g, B)) / lc:8.1f}x" if t else "     n/a")
                     _, bn = step_time(m, h, B, C)
                     print(f"  {B:>3} {C:>5}  " + "  ".join(cells) + f"   {lc * 1e3:10.3f}       {bn}")
         print()
@@ -568,7 +580,7 @@ def kv_levers(m, levers, q=0.5, layer_latency=5e-6, points=((1, 2048), (1, 8192)
     for label, kw in levers.items():
         for B, C in points:
             hw = sized(m, replace(base, **kw), B, C)
-            gpu_t = depth * gpu8[(B, C)] * 1e-3 + per_token_extras(m, h100, B)
+            gpu_t = depth * gpu8[(B, C)] * 1e-3 + gpu_extras(m, h100, "h100", B)
             lats = [max_layer_latency(m, hw, B, C, depth, gpu_t / n) for n in targets]
             print(f"{label:32s} {B:>3} {C:>5}  {gpu_t / token_time(m, hw, B, C, depth):6.1f}x {hw.n_chips:>5} "
                   f"{kv_footprint(m, hw, B, C) / 1e6:6.0f}   " +

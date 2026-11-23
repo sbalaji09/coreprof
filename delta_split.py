@@ -419,8 +419,12 @@ def noise_check(args):
 
 def step_profile(args):
     """Step time + full kernel breakdown of the fused step at each --profile-configs point (one container), with
-    SM clock and power sampled by nvidia-smi while the graph replays (tests clock throttling at large B)."""
+    SM clock and power sampled by nvidia-smi while the graph replays (tests clock throttling at large B).
+    Step time and breakdown come from the SAME compiled graph. A point may repeat (stored as "1x128#2", ...).
+    Suffix "f" (e.g. 1x128f) = fresh build: inductor's FX-graph and autotune caches off and a new cache dir, so the
+    compile re-tunes from scratch (tests build-to-build variation). Put "f" points last: caches stay off after them."""
     import subprocess
+    import tempfile
     import torch._inductor.config as ind
     ind.triton.unique_kernel_names = True
     if args.coord_descent:
@@ -431,25 +435,47 @@ def step_profile(args):
         model = harness.load_model(args.dtype)
         L = model.model.config.num_hidden_layers
         for cfg in args.profile_configs.split(","):
-            B, C = map(int, cfg.split("x"))
+            fresh = cfg.endswith("f")
+            B, C = map(int, cfg.rstrip("f").split("x"))
+            fresh_settings = {}
+            if fresh:
+                os.environ["TORCHINDUCTOR_CACHE_DIR"] = tempfile.mkdtemp(prefix="inductor_fresh_")
+                for flag in ("fx_graph_cache", "autotune_local_cache", "autotune_remote_cache", "fx_graph_remote_cache"):
+                    if hasattr(ind, flag):
+                        setattr(ind, flag, False)
+                        fresh_settings[flag] = False
+                fresh_settings["cache_dir"] = os.environ["TORCHINDUCTOR_CACHE_DIR"]
             step, cache, info = make_step(model, B, C, L, args, "default")
             g, _ = capture_graph(step)
             t = stats(gpu_times(g.replay, args.warmup, args.reps))
-            smi = subprocess.Popen(["nvidia-smi", "--query-gpu=clocks.sm,clocks.max.sm,power.draw",
-                                    "--format=csv,noheader,nounits", "-lms", "100"], stdout=subprocess.PIPE, text=True)
+            try:
+                smi = subprocess.Popen(["nvidia-smi", "--query-gpu=clocks.sm,clocks.max.sm,power.draw",
+                                        "--format=csv,noheader,nounits", "-lms", "100"],
+                                       stdout=subprocess.PIPE, text=True)
+            except OSError:
+                smi = None
             t_end = time.time() + 2.0
             while time.time() < t_end:
                 g.replay()
             torch.cuda.synchronize()
-            smi.terminate()
-            samples = [[float(x) for x in ln.split(",")] for ln in smi.communicate()[0].splitlines() if ln.strip()]
-            res["points"][cfg] = dict(step=t, breakdown=safe_breakdown(g.replay), smi_sm_mhz_max_mhz_watts=samples,
+            samples = []
+            if smi:
+                smi.terminate()
+                samples = [[float(x) for x in ln.split(",")] for ln in smi.communicate()[0].splitlines() if ln.strip()]
+            bd = safe_breakdown(g.replay) or {}
+            key, n = cfg, 2
+            while key in res["points"]:
+                key, n = f"{cfg}#{n}", n + 1
+            res["points"][key] = dict(step=t, breakdown=bd, smi_sm_mhz_max_mhz_watts=samples, fresh_build=fresh,
+                                      fresh_settings=fresh_settings,
+                                      non_weight_ms=t["median_ms"] - bd["gemm_ms"] if bd.get("gemm_ms") else None,
                                       **info)
             del g, step, cache
             torch.cuda.empty_cache()
             with open(path, "w") as f:
                 json.dump(res, f, indent=1, default=str)
-            print(cfg, f"{t['median_ms']:.3f} ms", samples[-1:] if samples else "no nvidia-smi samples")
+            print(key, f"{t['median_ms']:.3f} ms", f"compile {info.get('compile_s')} s",
+                  samples[-1:] if samples else "no nvidia-smi samples")
 
 
 def kernel_bench(args, copies=24, batches=(1, 2, 4, 8, 16, 32, 64)):

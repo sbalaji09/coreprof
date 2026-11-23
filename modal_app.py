@@ -89,6 +89,10 @@ TASKS = {
     # Calibration fix 3 test (2026-11-22): kernel breakdown + clocks of the cd step at B = 1..64, C=128 (~15 min).
     "delta_cd_profile": CHECK + ["python delta_split.py --coord-descent --profile-configs "
                                  "1x128,2x128,4x128,8x128,16x128,32x128,64x128 --out-dir $OUT"],
+    # Calibration noise floor (2026-11-22): per container, 3 cached + 2 fresh builds of the cd step at 1x128, plus
+    # B=2 and 8 (gaps at B >= 2 from a non-target run). Launch in 3 containers (~12 min each).
+    "delta_cd_repeat": CHECK + ["python delta_split.py --coord-descent --profile-configs "
+                                "1x128,1x128,1x128,2x128,8x128,1x128f,1x128f --out-dir $OUT"],
     # One sample of the B=1 fused step's weight / non-weight split (run in several fresh containers) (~4 min).
     "delta_noise": CHECK + ["python delta_split.py --noise-check --out-dir $OUT"],
     # Per-kernel microbenchmarks (weight GEMV/GEMM per shape and batch, small fused kernels, decode attention)

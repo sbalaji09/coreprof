@@ -215,3 +215,28 @@ Targets NOT changed with this run (would need Sid's approval).
 Next candidates (not run): v1.6 o_proj = max(memory floor, per-sequence compute cost) (roofline shape, fit on L40S
 only); per-kernel gap at B ≥ 2 from a non-target profile; repeat the cd B=1 point in 2–3 more containers to set the
 cd-step noise floor properly.
+
+## Clean-ups and E6 setup (2026-11-22; free tests done, paid run NOT yet launched)
+Clean-ups: (1) `--validate` no longer labels v1.3+ "microbenchmarks only; both GPUs are predictions" (they use in-step
+kernel times from the target runs). (2) GPU baseline in `--kv-levers` / `compare` uses the MEASURED LM head
+(`gpu_extras`: H100 0.101 ms, L40S 0.301 ms at B=1) instead of the clock-transfer model (H100 0.066 ms). Speedup
+table changes ≤ 0.1× (e.g. 1x8192 on-chip 14.9 → 15.0×, 16x2048 today 2.3 → 2.4×); write-ups not edited.
+(3) `watch_runs.py` shows step-profile runs instead of crashing.
+Run design: task `delta_cd_repeat`, per container 1x128 ×3 (normal, caches on), 2x128, 8x128, 1x128f ×2 (fresh builds:
+FX-graph + autotune caches off, new cache dir). Step and breakdown from the same graph. 3 containers, L40S.
+Free tests: pytest (model tests pass; 19 GPU-only scheduling/KV tests error on a laptop, untouched); calibrate
+selftest; check_delta_split_report; laptop dry run of step_profile with GPU calls faked (labels, fresh cache dirs,
+cache flags off only for fresh builds, cd on for every build). Torch 2.5.1 source checked: fx_graph_cache (default on),
+autotune_local_cache (default on), fx_graph_remote_cache / autotune_remote_cache all exist; cache_dir() re-reads
+TORCHINDUCTOR_CACHE_DIR on every call; cd best configs persist only through autotune_local_cache.
+**Correction to my 2026-11-22 "two builds" concern:** with default caches, the target run's second 1x128 compile most
+likely reused the first build, so build-to-build variation is a weaker explanation than I first said. The run tests it.
+Pre-registered decision rule (non-weight time at B=1, C=128; target run 0.333 ms, profile run 0.276 ms):
+- builds: spread of the 2 fresh vs 3 cached in a container > 10 % → build variation matters; propose measuring
+  target step and breakdown from one build (needs Sid's approval).
+- containers: if builds agree but the 3 new containers (+ profile run) spread > ±10 % → the row is too noisy for a
+  ±10 % rule; report, do not force a pass.
+- if most of the 5 container values (target, profile, 3 new) are within 0.27–0.30 ms → the target run was atypical;
+  propose the mean as target (approval). If most are ≥ 0.32 → the miss is real; needs a model fix.
+- My expectation, written now: builds agree within ~3 %; containers spread ~10–20 %; mean ~0.29–0.30 ms.
+Secondary (for the next fix, non-target data): step − busy gaps at B=2 and 8 per container (profile run: ~0.09 ms).

@@ -221,3 +221,12 @@ def test_v15_changes_only_oproj_at_b2_and_up():
         assert (s15, a15) == (s14, a14) and w15 > w14
         # the line passes through the measured B=1 and B=16 points and grows with B
         assert lm.oproj_instep_us(gpu, 1) < lm.oproj_instep_us(gpu, 16) < lm.oproj_instep_us(gpu, 64)
+
+
+def test_gpu_baseline_uses_measured_lm_head():
+    h100 = lm.predict_gpu(lm.fit_gpu("l40s"), "h100")
+    no_lm = lm.per_token_extras(replace(M, lmhead_params=0), h100, 1)
+    assert lm.gpu_extras(M, h100, "h100", 1) - no_lm == pytest.approx(0.101e-3, abs=0.002e-3)   # measured, graph, B=1
+    l40s = lm.fit_gpu("l40s")
+    assert lm.gpu_extras(M, l40s, "l40s", 1) - lm.per_token_extras(replace(M, lmhead_params=0), l40s, 1) == \
+        pytest.approx(0.301e-3, abs=0.002e-3)

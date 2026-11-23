@@ -51,6 +51,12 @@ def bar(done, total, width=30):
 
 def show(vol, rid):
     task, gpu = rid.split("-")[:2]
+    if (task, gpu) not in BASELINE:   # e.g. step-profile runs (step_profile.json): no grid to compare against
+        js = json.loads(read(vol, f"/results/{rid}/step_profile.json") or "{}")
+        pts = js.get("points") or {}
+        print(f"{rid}: {js.get('gpu', 'starting')}, {len(pts)} points done: "
+              + ", ".join(f"{k} {v['step']['median_ms']:.3f} ms" for k, v in pts.items()))
+        return
     base_dir = ROOT / "results/modal" / BASELINE[(task, gpu)]
     base_js = json.loads((base_dir / "delta_split.json").read_text())
     base = grid((base_dir / "graph_grid.csv").read_text())
