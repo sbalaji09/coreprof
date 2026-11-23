@@ -369,3 +369,30 @@ Read by a search subagent; key numbers re-checked by a second fetch (some table 
   baseline may have to include LoopSpec (or the LoopCore B=1 speedups must state they are vs non-speculative decoding).
   Decision for Sid. A fair test would run LoopSpec (SGLang) on Ouro-1.4B at B=1 and 16 on L40S/H100, with and without the
   exit gate, plus a check that outputs match. Not costed yet.
+
+## FP1 - fingerprint v1 on L40S and H100 (`fingerprint-{l40s,h100}-20261122-232848`; pre-registered in 68b3939)
+GPUs checked: NVIDIA L40S 46068 MiB; NVIDIA H100 80GB HBM3 81559 MiB (not an H200). Both ALL OK. Inputs only.
+| measurement | L40S | H100 | pre-registered expectation | verdict |
+|---|---|---|---|---|
+| F1 BW_read (slope 4-256 MB) | 754 GB/s | 2977 GB/s | 740-765 / 2800-3000 | **as predicted** |
+| F1 t0 (intercept) | 4.52 µs | 6.28 µs | 1-2.5 / 2-4 | **invalid probe** (below) |
+| F2 BW_L2 (slope 2-16 MB) | 4.71 TB/s | 4.82 TB/s | 4-6 / 7-11; > 1.5x off 4.8 / 9.0 refutes o_proj (c) | L40S as predicted; **H100 1.87x off → (c) refuted as measured** (caveat below) |
+| F3 gap per tiny kernel, first graph / later graphs | −0.09 / 0.24-0.27 µs | −0.05 / 0.34-0.60 µs | ~0 / > 0 | **as predicted** (E6's first-graph effect reproduced without the model) |
+| F3 tiny-kernel busy | 0.96-1.05 µs | 1.05-1.07 µs | – | – |
+| F4 pointer chase 1 MB / 1 GB | 117 / 121 ns | 144 / 149 ns | DRAM clearly slower than L2 | **invalid** (1 GB ≈ 1 MB is not plausible; cause unknown) |
+| F5 bf16 GEMM / fp32 GEMM (no TF32) | 235 / 43.8 TFLOPS | 808 / 52.2 TFLOPS | – | measured fp32 ratio H100/L40S 1.19; o_proj per call is 1.66x faster on H100, so measured fp32 does not explain o_proj either |
+Why F1's t0 is invalid: `torch.sum` launches 2 kernels per call from 256 KB up (kernels_per_op 2.0-2.25), and below 256 KB
+it is one kernel that runs nearly serially (128 KB: 10.8 µs L40S, 14.4 µs H100). The intercept is therefore the cost of a
+2-kernel reduction, not the ramp of one streaming kernel. Hypothesis "L = F1 intercept" is neither supported nor refuted.
+Caveat on F2: the same `torch.sum` probe gives 4.7-4.8 TB/s on two very different GPUs, which suggests the probe, not L2,
+sets that number. The pre-registered rule says refuted; recorded as refuted-as-measured, retest only with a new
+pre-registered probe.
+K2 kernel lists (names and counts, no durations): totals at 1x128 = 222 on both. B=2-8: L40S 341, **H100 437-438**;
+B=16-64 and 16x2048/8192: L40S 317 (B=32: 413), H100 413. So H100 runs ~96-97 more GEMM-category kernels than L40S at
+B ≥ 2 (cuBLAS split-K), except at B=32 where L40S switches to the same count. New hypothesis (untested): these extra kernels explain v1.5's
+H100 B=2-8 shortfall (−12…−15 %): ~100 x 1-3 µs ≈ 0.1-0.3 ms of ~2 ms. K1 (L40S list) will miss them by construction.
+(Category splits in kernel_list.json differ from the old breakdowns at 1x128 (gemm 98 vs 74, other 2 vs 26) with equal
+totals: kernel naming per compile; to be resolved from the stored names before the list is used.)
+Cost: two runs of ~10-15 min each (exact durations not recorded).
+Next (proposed, not run): fingerprint v2 with a single-kernel Triton streaming read for F1/F2 (one program per chunk,
+partial sums out) and a pointer-chase size sweep (1 MB-4 GB) to diagnose F4. Needs Sid's OK (~$1.2).

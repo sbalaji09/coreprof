@@ -1,0 +1,177 @@
+{
+ "gpu": "NVIDIA H100 80GB HBM3",
+ "torch": "2.5.1+cu124",
+ "smi_start": "name, memory.total [MiB], clocks.max.sm [MHz], clocks.max.memory [MHz], power.limit [W], clocks.current.sm [MHz], clocks.current.memory [MHz]\nNVIDIA H100 80GB HBM3, 81559 MiB, 1980 MHz, 2619 MHz, 700.00 W, 345 MHz, 2619 MHz",
+ "tiny_chain": [
+  {
+   "slot_us": 1.0190624743700027,
+   "busy_us": 1.0697343750000026,
+   "kernels_per_op": 1.0078125,
+   "position": "first",
+   "gap_us": -0.05067190062999982
+  },
+  {
+   "slot_us": 1.3969375286251307,
+   "busy_us": 1.0565234374999997,
+   "kernels_per_op": 1.0078125,
+   "position": "second",
+   "gap_us": 0.340414091125131
+  },
+  {
+   "slot_us": 1.3983125099912286,
+   "busy_us": 1.0555484375000013,
+   "kernels_per_op": 1.0078125,
+   "position": "third",
+   "gap_us": 0.3427640724912273
+  },
+  {
+   "slot_us": 1.6489374684169888,
+   "busy_us": 1.0536562499999884,
+   "kernels_per_op": 1.0078125,
+   "position": "last",
+   "gap_us": 0.5952812184170004
+  }
+ ],
+ "read_sweep": {
+  "65536": {
+   "slot_us": 8.473214693367481,
+   "busy_us": 8.209812353515558,
+   "kernels_per_op": 1.00048828125,
+   "copies": 4096
+  },
+  "131072": {
+   "slot_us": 15.047280738751093,
+   "busy_us": 14.438539388020905,
+   "kernels_per_op": 1.0006510416666667,
+   "copies": 3072
+  },
+  "262144": {
+   "slot_us": 8.224208528796831,
+   "busy_us": 6.666995442708377,
+   "kernels_per_op": 2.0013020833333335,
+   "copies": 1536
+  },
+  "524288": {
+   "slot_us": 8.345458346108595,
+   "busy_us": 6.7606317708333235,
+   "kernels_per_op": 2.0026041666666665,
+   "copies": 768
+  },
+  "1048576": {
+   "slot_us": 8.38412499676148,
+   "busy_us": 6.806525520833296,
+   "kernels_per_op": 2.0052083333333335,
+   "copies": 384
+  },
+  "2097152": {
+   "slot_us": 8.663833141326904,
+   "busy_us": 7.046781250000012,
+   "kernels_per_op": 2.0104166666666665,
+   "copies": 192
+  },
+  "4194304": {
+   "slot_us": 9.439833151797453,
+   "busy_us": 7.605612499999995,
+   "kernels_per_op": 2.0208333333333335,
+   "copies": 96
+  },
+  "8388608": {
+   "slot_us": 11.199332773685455,
+   "busy_us": 8.894016666666703,
+   "kernels_per_op": 2.0416666666666665,
+   "copies": 48
+  },
+  "16777216": {
+   "slot_us": 14.452000459035238,
+   "busy_us": 11.983716666666682,
+   "kernels_per_op": 2.0833333333333335,
+   "copies": 24
+  },
+  "33554432": {
+   "slot_us": 20.725333442290623,
+   "busy_us": 17.646633333333344,
+   "kernels_per_op": 2.1666666666666665,
+   "copies": 12
+  },
+  "67108864": {
+   "slot_us": 33.02999958395958,
+   "busy_us": 29.114275000000003,
+   "kernels_per_op": 2.25,
+   "copies": 8
+  },
+  "134217728": {
+   "slot_us": 55.173998698592186,
+   "busy_us": 51.24722499999998,
+   "kernels_per_op": 2.25,
+   "copies": 8
+  },
+  "268435456": {
+   "slot_us": 100.3200002014637,
+   "busy_us": 96.44915000000015,
+   "kernels_per_op": 2.25,
+   "copies": 8
+  },
+  "536870912": {
+   "slot_us": 189.40600007772446,
+   "busy_us": 185.68670000000003,
+   "kernels_per_op": 2.25,
+   "copies": 8
+  }
+ },
+ "read_fit": {
+  "bw_gbps": 2976.664341005045,
+  "t0_us": 6.284254454022969,
+  "range": "4..256 MB, busy_us"
+ },
+ "l2_read": {
+  "1048576": {
+   "slot_us": 7.777250139042735,
+   "busy_us": 5.8390406250000115,
+   "kernels_per_op": 2.03125
+  },
+  "2097152": {
+   "slot_us": 7.8027499839663506,
+   "busy_us": 5.916846874999981,
+   "kernels_per_op": 2.03125
+  },
+  "4194304": {
+   "slot_us": 8.009250275790691,
+   "busy_us": 6.192799999999999,
+   "kernels_per_op": 2.03125
+  },
+  "8388608": {
+   "slot_us": 9.49924997985363,
+   "busy_us": 7.640834374999983,
+   "kernels_per_op": 2.03125
+  },
+  "16777216": {
+   "slot_us": 10.785500053316355,
+   "busy_us": 8.874159374999966,
+   "kernels_per_op": 2.03125
+  }
+ },
+ "l2_fit": {
+  "bw_gbps": 4817.03060565359,
+  "t0_us": 5.523552717391299,
+  "range": "2..16 MB, busy_us"
+ },
+ "pointer_chase": {
+  "1048576": {
+   "ns_per_load": 144.410400390625,
+   "steps": 200000
+  },
+  "1073741824": {
+   "ns_per_load": 148.62591743469238,
+   "steps": 50000
+  }
+ },
+ "gemm_peak": {
+  "bf16_tensor_core": {
+   "tflops": 808.1601728352754
+  },
+  "fp32_cuda_core": {
+   "tflops": 52.184743519048546
+  }
+ },
+ "smi_end": "name, memory.total [MiB], clocks.max.sm [MHz], clocks.max.memory [MHz], power.limit [W], clocks.current.sm [MHz], clocks.current.memory [MHz]\nNVIDIA H100 80GB HBM3, 81559 MiB, 1980 MHz, 2619 MHz, 700.00 W, 1980 MHz, 2619 MHz"
+}

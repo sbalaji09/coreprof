@@ -1,0 +1,177 @@
+{
+ "gpu": "NVIDIA L40S",
+ "torch": "2.5.1+cu124",
+ "smi_start": "name, memory.total [MiB], clocks.max.sm [MHz], clocks.max.memory [MHz], power.limit [W], clocks.current.sm [MHz], clocks.current.memory [MHz]\nNVIDIA L40S, 46068 MiB, 2520 MHz, 9001 MHz, 350.00 W, 660 MHz, 9001 MHz",
+ "tiny_chain": [
+  {
+   "slot_us": 0.8677500009071082,
+   "busy_us": 0.9598328124999999,
+   "kernels_per_op": 1.0078125,
+   "position": "first",
+   "gap_us": -0.09208281159289167
+  },
+  {
+   "slot_us": 1.2346875155344605,
+   "busy_us": 0.9598062500000022,
+   "kernels_per_op": 1.0078125,
+   "position": "second",
+   "gap_us": 0.27488126553445835
+  },
+  {
+   "slot_us": 1.227000029757619,
+   "busy_us": 0.9597046875000043,
+   "kernels_per_op": 1.0078125,
+   "position": "third",
+   "gap_us": 0.26729534225761464
+  },
+  {
+   "slot_us": 1.2894999817945063,
+   "busy_us": 1.0463976562500057,
+   "kernels_per_op": 1.0078125,
+   "position": "last",
+   "gap_us": 0.24310232554450062
+  }
+ ],
+ "read_sweep": {
+  "65536": {
+   "slot_us": 6.54465239495039,
+   "busy_us": 6.238373583984375,
+   "kernels_per_op": 1.00048828125,
+   "copies": 4096
+  },
+  "131072": {
+   "slot_us": 11.166765665014585,
+   "busy_us": 10.772182617187475,
+   "kernels_per_op": 1.0006510416666667,
+   "copies": 3072
+  },
+  "262144": {
+   "slot_us": 6.421823054552078,
+   "busy_us": 5.4276593749999735,
+   "kernels_per_op": 2.0013020833333335,
+   "copies": 1536
+  },
+  "524288": {
+   "slot_us": 6.530250112215678,
+   "busy_us": 5.54076510416672,
+   "kernels_per_op": 2.0026041666666665,
+   "copies": 768
+  },
+  "1048576": {
+   "slot_us": 7.006708222130935,
+   "busy_us": 5.978738541666689,
+   "kernels_per_op": 2.0052083333333335,
+   "copies": 384
+  },
+  "2097152": {
+   "slot_us": 8.362666703760624,
+   "busy_us": 7.302643750000018,
+   "kernels_per_op": 2.0104166666666665,
+   "copies": 192
+  },
+  "4194304": {
+   "slot_us": 11.188500250379244,
+   "busy_us": 10.05388125000001,
+   "kernels_per_op": 2.0208333333333335,
+   "copies": 96
+  },
+  "8388608": {
+   "slot_us": 17.25899986922741,
+   "busy_us": 15.973074999999989,
+   "kernels_per_op": 2.0416666666666665,
+   "copies": 48
+  },
+  "16777216": {
+   "slot_us": 28.453999509414036,
+   "busy_us": 26.906491666666636,
+   "kernels_per_op": 2.0833333333333335,
+   "copies": 24
+  },
+  "33554432": {
+   "slot_us": 51.085333029429115,
+   "busy_us": 48.856649999999995,
+   "kernels_per_op": 2.1666666666666665,
+   "copies": 12
+  },
+  "67108864": {
+   "slot_us": 95.6059992313385,
+   "busy_us": 92.66872499999995,
+   "kernels_per_op": 2.25,
+   "copies": 8
+  },
+  "134217728": {
+   "slot_us": 186.03799492120743,
+   "busy_us": 183.11065000000002,
+   "kernels_per_op": 2.25,
+   "copies": 8
+  },
+  "268435456": {
+   "slot_us": 363.2019907236099,
+   "busy_us": 360.2799999999999,
+   "kernels_per_op": 2.25,
+   "copies": 8
+  },
+  "536870912": {
+   "slot_us": 721.4320003986359,
+   "busy_us": 718.46165,
+   "kernels_per_op": 2.25,
+   "copies": 8
+  }
+ },
+ "read_fit": {
+  "bw_gbps": 754.2931683518593,
+  "t0_us": 4.522343318965433,
+  "range": "4..256 MB, busy_us"
+ },
+ "l2_read": {
+  "1048576": {
+   "slot_us": 5.38849993608892,
+   "busy_us": 4.264703125000009,
+   "kernels_per_op": 2.03125
+  },
+  "2097152": {
+   "slot_us": 5.369249964132905,
+   "busy_us": 4.204265624999998,
+   "kernels_per_op": 2.03125
+  },
+  "4194304": {
+   "slot_us": 5.858750082552433,
+   "busy_us": 4.684718750000011,
+   "kernels_per_op": 2.03125
+  },
+  "8388608": {
+   "slot_us": 7.057000184431672,
+   "busy_us": 5.889334375000006,
+   "kernels_per_op": 2.03125
+  },
+  "16777216": {
+   "slot_us": 8.47924966365099,
+   "busy_us": 7.314015624999982,
+   "kernels_per_op": 2.03125
+  }
+ },
+ "l2_fit": {
+  "bw_gbps": 4711.536761768784,
+  "t0_us": 3.853921195652182,
+  "range": "2..16 MB, busy_us"
+ },
+ "pointer_chase": {
+  "1048576": {
+   "ns_per_load": 116.84896469116211,
+   "steps": 200000
+  },
+  "1073741824": {
+   "ns_per_load": 120.92032432556152,
+   "steps": 50000
+  }
+ },
+ "gemm_peak": {
+  "bf16_tensor_core": {
+   "tflops": 235.42775614861483
+  },
+  "fp32_cuda_core": {
+   "tflops": 43.754369268255964
+  }
+ },
+ "smi_end": "name, memory.total [MiB], clocks.max.sm [MHz], clocks.max.memory [MHz], power.limit [W], clocks.current.sm [MHz], clocks.current.memory [MHz]\nNVIDIA L40S, 46068 MiB, 2520 MHz, 9001 MHz, 350.00 W, 2265 MHz, 9001 MHz"
+}
