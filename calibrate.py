@@ -33,6 +33,10 @@ RUNS = {
     "h100": ("NVIDIA H100 80GB HBM3", "calibration_predictions_h100.json",
              ["results/modal/delta_compile-h100-20261116-214809", "results/modal/delta_grid-h100-20261116-184347",
               "results/modal/delta_bf16_cd-h100-20261120-010911"]),
+    # third GPU, blind test of the unified formula (predictions committed in b115f06 before these were downloaded)
+    "a100": ("NVIDIA A100-SXM4-80GB", "calibration_predictions_a100.json",
+             ["results/modal/delta_compile-a100-80gb-20261123-000904",
+              "results/modal/delta_bf16_cd-a100-80gb-20261123-000836"]),
 }
 markers = lambda gpu: (f"<!-- calibration:{gpu}:begin -->", f"<!-- calibration:{gpu}:end -->")
 
@@ -129,7 +133,10 @@ def measured(gpu="l40s"):
 PROTOCOL_RUNS = {"l40s": ["results/modal/delta_cd_profile-l40s-20261122-202020",
                           "results/modal/delta_cd_repeat-l40s-20261122-205226",
                           "results/modal/delta_cd_repeat-l40s-20261122-205241",
-                          "results/modal/delta_cd_repeat-l40s-20261122-205256"]}
+                          "results/modal/delta_cd_repeat-l40s-20261122-205256"],
+                 # delta_cd_repeat-a100-80gb-20261123-001001 excluded: it ran on an A100 80GB PCIe, not the SXM4
+                 "a100": ["results/modal/delta_cd_repeat-a100-80gb-20261123-000933",
+                          "results/modal/delta_cd_repeat-a100-80gb-20261123-001029"]}
 
 
 def protocol_non_weight(gpu):

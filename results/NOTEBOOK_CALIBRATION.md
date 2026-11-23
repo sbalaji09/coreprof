@@ -587,3 +587,37 @@ first-graph .. later-graphs range from the three repeat runs, as for L40S. Same 
 after the data is downloaded (the files above are the predictions).
 My expectation (written now): A100 lands between L40S and H100; step 1x128 −5…−20 %; overall FAIL more likely than PASS
 (~60/40).
+
+## U4 - A100 blind test: results (targets downloaded after b115f06; scored 2026-11-23)
+Targets: `delta_bf16_cd-a100-80gb-20261123-000836`, `delta_compile-a100-80gb-20261123-000904` (both NVIDIA
+A100-SXM4-80GB, selfcheck OK; 48 points, cd wins 36, fused 12); protocol runs `delta_cd_repeat-...-000933` and `-001029`
+(SXM4). **Excluded:** `delta_cd_repeat-a100-80gb-20261123-001001` ran on an **NVIDIA A100 80GB PCIe** (a different board).
+Integrity note: during the runs `watch_runs.py` printed some repeat-run step times (2.3-2.8 ms at 1x128). That was after
+the predictions were committed (b115f06); nothing was changed afterwards. The frozen prediction files are unmodified;
+scoring used scratch copies with the one unmeasured point (64x8192) dropped (δ in the files was fitted over all 49).
+| row | measured | (a) K1 primary | (a) K2 | (b) K1 | (b) K2 |
+|---|---|---|---|---|---|
+| weight | 2.01-3.02 ms | 1.76 (−12.6 % ✗) | same | 1.82 (−9.6 %) | same |
+| KV per token | 0.125 µs | 0.112 (−10.2 % ✗) | same | same | same |
+| crossover | 16,121-24,245 | 15,696 (−2.6 %) | same | 16,236 (0) | same |
+| step 1x128 | 2.86 ms | 2.18 (**−23.8 %** ✗) | −23.7 % ✗ | −21.6 % ✗ | −21.6 % ✗ |
+| δ | 3.07 ms | −23.8 % ✗ | −20.3 % ✗ | −23.0 % ✗ | −19.4 % ✗ |
+| non-weight 1x128 | 0.578-0.703 ms | 0.424 (−26.7 % ✗) | −26.3 % ✗ | −26.7 % ✗ | −26.3 % ✗ |
+| grid median / max | – | 16.6 % / −25.8 % | 14.2 / −24.8 | 16.1 / −25.4 | 14.0 / −23.3 |
+| verdict | | **FAIL** | FAIL | FAIL | FAIL |
+Against my pre-registered expectation (step −5…−20 %, FAIL ~60 %): fail as expected, step miss slightly larger.
+Grid pattern (a)/K1: under-predicted everywhere, −20…−25 % at B=1 and B=16, −6…−26 % elsewhere; smallest at large C (the
+KV term, −10 %, is closest).
+Target spread on A100 (found while scoring; does not change the verdict): the 1x128 step in the grid container is 2.86 ms
+(weights 2.01, busy 2.45, so 0.41 ms of gaps), while the two SXM4 repeat containers give 2.29-2.53 ms (cached builds) and
+2.33-2.80 ms (fresh builds), weights 1.79-2.01 ms. Against the repeat containers' B=1 steps the prediction is −5…−22 %.
+A100 has more container/build variation than L40S (weights ±6 %, gaps 0-0.4 ms per step).
+**Conclusion (evidence: three GPUs, the third blind).** The unified formula with GPU inputs from the datasheet and a generic
+fingerprint passes on L40S (the design GPU) and fails on H100 (semi-blind) and A100 (blind), under-predicting by ~20-30 %
+at B=1 and ~10-25 % elsewhere. In every failure the real kernels of the compiled step (weight reductions, attention, norms,
+small-M tensor-core GEMMs) are slower than generic kernels doing the same bytes, and the KV read rate is 10-19 % below
+the read probe on both non-design GPUs. The structure "sum of stages = latency + bytes/BW" holds when per-kernel costs are
+right (v1.5 decomposition on both GPUs; L40S here), but a hardware-only fingerprint does not supply those costs.
+For the chip: the GPU calibration supports the formula's form, not its absolute level; real software sat 0-30 % above
+the hardware floor on these GPUs. Reporting LoopCore numbers as "if the chip's software reaches X % of the floor" is the
+honest use.

@@ -1,0 +1,1200 @@
+{
+ "gpu": "NVIDIA A100-SXM4-80GB",
+ "torch": "2.5.1+cu124",
+ "coord_descent": true,
+ "points": {
+  "1x128": {
+   "step": {
+    "median_ms": 2.2938400506973267,
+    "p10_ms": 2.2874016761779785,
+    "p90_ms": 2.301289677619934,
+    "iqr_ms": 0.007064104080200195,
+    "n": 50
+   },
+   "breakdown": {
+    "other_ms": 0.003300600000000395,
+    "copy_ms": 0.15043479999999781,
+    "gemm_ms": 1.786117999999999,
+    "attention_ms": 0.27238600000000146,
+    "other_kernels": 2.0,
+    "copy_kernels": 50.0,
+    "gemm_kernels": 98.0,
+    "attention_kernels": 72.0,
+    "busy_ms": 2.2122393999999987,
+    "kernels": 222.0,
+    "kernel_cats_version": 2,
+    "top_kernels_ms": {
+     "triton_red_fused_mm_5": 0.7064701999999983,
+     "triton_red_fused_copy_mm_1": 0.4606366000000001,
+     "triton_red_fused_mm_6": 0.4389802000000015,
+     "triton_red_fused_bmm_3": 0.17541159999999928,
+     "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.16671540000000096,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_4": 0.07716979999999776,
+     "void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, 4, 1, true>(pytorch_flash::Flash_fwd_params)": 0.06593560000000044,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_8": 0.06307960000000049,
+     "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.039735000000000034,
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detail::Array<char*, 1> >(int, at::native::FillFunctor<long>, at::detail::Array<char*, 1>)": 0.003300600000000395,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.0032376000000002023,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_7": 0.0028393999999997504
+    }
+   },
+   "smi_sm_mhz_max_mhz_watts": [
+    [
+     1275.0,
+     1410.0,
+     259.56
+    ],
+    [
+     1410.0,
+     1410.0,
+     286.48
+    ],
+    [
+     1410.0,
+     1410.0,
+     329.1
+    ],
+    [
+     1410.0,
+     1410.0,
+     329.63
+    ],
+    [
+     1410.0,
+     1410.0,
+     330.3
+    ],
+    [
+     1410.0,
+     1410.0,
+     331.17
+    ],
+    [
+     1410.0,
+     1410.0,
+     331.17
+    ],
+    [
+     1410.0,
+     1410.0,
+     331.17
+    ],
+    [
+     1410.0,
+     1410.0,
+     315.78
+    ],
+    [
+     1410.0,
+     1410.0,
+     318.71
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.05
+    ],
+    [
+     1410.0,
+     1410.0,
+     318.77
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.05
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.58
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.05
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.64
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.64
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.64
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.58
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.58
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.58
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     320.24
+    ],
+    [
+     1410.0,
+     1410.0,
+     320.24
+    ],
+    [
+     1410.0,
+     1410.0,
+     320.51
+    ],
+    [
+     1410.0,
+     1410.0,
+     320.51
+    ],
+    [
+     1410.0,
+     1410.0,
+     320.24
+    ]
+   ],
+   "fresh_build": false,
+   "fresh_settings": {},
+   "non_weight_ms": 0.5077220506973277,
+   "compile_s": 37.5,
+   "graph_breaks": 0
+  },
+  "1x128#2": {
+   "step": {
+    "median_ms": 2.5066720247268677,
+    "p10_ms": 2.497532773017883,
+    "p90_ms": 2.51551992893219,
+    "iqr_ms": 0.006231904029846191,
+    "n": 50
+   },
+   "breakdown": {
+    "other_ms": 0.0034438000000003737,
+    "copy_ms": 0.15213580000000154,
+    "gemm_ms": 1.7963249999999988,
+    "attention_ms": 0.2741705999999995,
+    "other_kernels": 2.0,
+    "copy_kernels": 50.0,
+    "gemm_kernels": 98.0,
+    "attention_kernels": 72.0,
+    "busy_ms": 2.2260752000000004,
+    "kernels": 222.0,
+    "kernel_cats_version": 2,
+    "top_kernels_ms": {
+     "triton_red_fused_mm_5": 0.7069632000000006,
+     "triton_red_fused_copy_mm_1": 0.46332899999999916,
+     "triton_red_fused_mm_6": 0.4447093999999996,
+     "triton_red_fused_bmm_3": 0.17679759999999936,
+     "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.16743380000000133,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_4": 0.07914560000000101,
+     "void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, 4, 1, true>(pytorch_flash::Flash_fwd_params)": 0.06690499999999827,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_8": 0.06291940000000026,
+     "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.03983179999999991,
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detail::Array<char*, 1> >(int, at::native::FillFunctor<long>, at::detail::Array<char*, 1>)": 0.0034438000000003737,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.003214800000000196,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_7": 0.0028327999999999518
+    }
+   },
+   "smi_sm_mhz_max_mhz_watts": [
+    [
+     1155.0,
+     1410.0,
+     220.43
+    ],
+    [
+     1410.0,
+     1410.0,
+     282.37
+    ],
+    [
+     1410.0,
+     1410.0,
+     329.1
+    ],
+    [
+     1410.0,
+     1410.0,
+     330.3
+    ],
+    [
+     1410.0,
+     1410.0,
+     330.3
+    ],
+    [
+     1410.0,
+     1410.0,
+     330.3
+    ],
+    [
+     1410.0,
+     1410.0,
+     331.17
+    ],
+    [
+     1410.0,
+     1410.0,
+     331.76
+    ],
+    [
+     1410.0,
+     1410.0,
+     331.76
+    ],
+    [
+     1410.0,
+     1410.0,
+     315.78
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.05
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.32
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.32
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.32
+    ],
+    [
+     1410.0,
+     1410.0,
+     320.24
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.64
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     320.24
+    ],
+    [
+     1410.0,
+     1410.0,
+     320.83
+    ]
+   ],
+   "fresh_build": false,
+   "fresh_settings": {},
+   "non_weight_ms": 0.7103470247268688,
+   "compile_s": 10.9,
+   "graph_breaks": 0
+  },
+  "1x128#3": {
+   "step": {
+    "median_ms": 2.50545597076416,
+    "p10_ms": 2.4952096939086914,
+    "p90_ms": 2.51188805103302,
+    "iqr_ms": 0.007384121417999268,
+    "n": 50
+   },
+   "breakdown": {
+    "other_ms": 0.0034644000000000233,
+    "copy_ms": 0.1523364000000001,
+    "gemm_ms": 1.8045334000000008,
+    "attention_ms": 0.2753694000000022,
+    "other_kernels": 2.0,
+    "copy_kernels": 50.0,
+    "gemm_kernels": 98.0,
+    "attention_kernels": 72.0,
+    "busy_ms": 2.2357036000000035,
+    "kernels": 222.0,
+    "kernel_cats_version": 2,
+    "top_kernels_ms": {
+     "triton_red_fused_mm_5": 0.7104513999999993,
+     "triton_red_fused_copy_mm_1": 0.46518220000000077,
+     "triton_red_fused_mm_6": 0.4467078000000005,
+     "triton_red_fused_bmm_3": 0.1775300000000006,
+     "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.16848200000000027,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_4": 0.07816059999999997,
+     "void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, 4, 1, true>(pytorch_flash::Flash_fwd_params)": 0.06669040000000105,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_8": 0.06389760000000015,
+     "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.04019700000000084,
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detail::Array<char*, 1> >(int, at::native::FillFunctor<long>, at::detail::Array<char*, 1>)": 0.0034644000000000233,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.0032529999999998836,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_7": 0.0029137999999999465
+    }
+   },
+   "smi_sm_mhz_max_mhz_watts": [
+    [
+     1155.0,
+     1410.0,
+     219.27
+    ],
+    [
+     1155.0,
+     1410.0,
+     222.54
+    ],
+    [
+     1410.0,
+     1410.0,
+     283.54
+    ],
+    [
+     1410.0,
+     1410.0,
+     329.1
+    ],
+    [
+     1410.0,
+     1410.0,
+     329.63
+    ],
+    [
+     1410.0,
+     1410.0,
+     330.9
+    ],
+    [
+     1410.0,
+     1410.0,
+     331.17
+    ],
+    [
+     1410.0,
+     1410.0,
+     331.49
+    ],
+    [
+     1410.0,
+     1410.0,
+     331.76
+    ],
+    [
+     1410.0,
+     1410.0,
+     315.51
+    ],
+    [
+     1410.0,
+     1410.0,
+     318.77
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.32
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.32
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.05
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.32
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.97
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.32
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.58
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     319.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     320.24
+    ],
+    [
+     1410.0,
+     1410.0,
+     320.24
+    ]
+   ],
+   "fresh_build": false,
+   "fresh_settings": {},
+   "non_weight_ms": 0.7009225707641593,
+   "compile_s": 11.1,
+   "graph_breaks": 0
+  },
+  "2x128": {
+   "step": {
+    "median_ms": 3.1880319118499756,
+    "p10_ms": 3.174169588088989,
+    "p90_ms": 3.54245126247406,
+    "iqr_ms": 0.3618241548538208,
+    "n": 50
+   },
+   "breakdown": {
+    "other_ms": 0.04615000000000337,
+    "copy_ms": 0.21535920000000314,
+    "gemm_ms": 2.5762250000000124,
+    "attention_ms": 0.2912353999999997,
+    "other_kernels": 26.0,
+    "copy_kernels": 74.0,
+    "gemm_kernels": 266.0,
+    "attention_kernels": 72.0,
+    "busy_ms": 3.128969600000019,
+    "kernels": 438.0,
+    "kernel_cats_version": 2,
+    "top_kernels_ms": {
+     "void cutlass::Kernel2<cutlass_80_tensorop_s16816gemm_bf16_64x64_64x6_tn_align8>(cutlass_80_tensorop_s16816gemm_bf16_64x64_64x6_tn_align8::Params)": 1.0441216000000062,
+     "ampere_bf16_s16816gemm_bf16_64x64_sliced1x2_ldg8_f2f_stages_64x6_tn": 0.854278800000004,
+     "triton_red_fused_bmm_3": 0.4563801999999987,
+     "void cublasLt::splitKreduce_kernel<32, 16, int, float, __nv_bfloat16, float, __nv_bfloat16, true, false, false>(cublasLt::cublasSplitKParams<float>, float const*, __nv_bfloat16 const*, __nv_bfloat16*, float const*, float const*, __nv_bfloat16 const*, float const*, __nv_bfloat16*, void*, long, float*, int*)": 0.21852600000000377,
+     "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.18154260000000114,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_4": 0.08321100000000178,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_7": 0.08068739999999908,
+     "void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, 4, 1, true>(pytorch_flash::Flash_fwd_params)": 0.06602620000000042,
+     "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_1": 0.043666599999998106,
+     "triton_poi_fused_mul_silu_5": 0.04271320000000314,
+     "triton_poi_fused_copy_2": 0.038629400000001535,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_8": 0.0036992000000003827
+    }
+   },
+   "smi_sm_mhz_max_mhz_watts": [
+    [
+     1410.0,
+     1410.0,
+     247.36
+    ],
+    [
+     1410.0,
+     1410.0,
+     256.3
+    ],
+    [
+     1410.0,
+     1410.0,
+     257.16
+    ],
+    [
+     1410.0,
+     1410.0,
+     257.17
+    ],
+    [
+     1410.0,
+     1410.0,
+     257.17
+    ],
+    [
+     1410.0,
+     1410.0,
+     257.76
+    ],
+    [
+     1410.0,
+     1410.0,
+     257.76
+    ],
+    [
+     1410.0,
+     1410.0,
+     257.76
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.03
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.03
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.03
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.37
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.36
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.03
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.37
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.36
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.03
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.36
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.64
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.36
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.36
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.91
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.64
+    ],
+    [
+     1410.0,
+     1410.0,
+     258.37
+    ]
+   ],
+   "fresh_build": false,
+   "fresh_settings": {},
+   "non_weight_ms": 0.6118069118499632,
+   "compile_s": 32.2,
+   "graph_breaks": 0
+  },
+  "8x128": {
+   "step": {
+    "median_ms": 3.5922240018844604,
+    "p10_ms": 3.585075116157532,
+    "p90_ms": 3.9499521017074586,
+    "iqr_ms": 0.2745121121406555,
+    "n": 50
+   },
+   "breakdown": {
+    "other_ms": 0.051585399999997936,
+    "copy_ms": 0.21699999999999653,
+    "gemm_ms": 2.696487399999999,
+    "attention_ms": 0.4902662000000025,
+    "other_kernels": 26.0,
+    "copy_kernels": 74.0,
+    "gemm_kernels": 266.0,
+    "attention_kernels": 48.0,
+    "busy_ms": 3.4553389999999964,
+    "kernels": 414.0,
+    "kernel_cats_version": 2,
+    "top_kernels_ms": {
+     "void cutlass::Kernel2<cutlass_80_tensorop_s16816gemm_bf16_64x64_64x6_tn_align8>(cutlass_80_tensorop_s16816gemm_bf16_64x64_64x6_tn_align8::Params)": 1.0623623999999967,
+     "ampere_bf16_s16816gemm_bf16_64x64_ldg8_f2f_stages_64x5_tn": 0.8996992000000009,
+     "triton_red_fused_bmm_3": 0.5089798000000001,
+     "void pytorch_flash::flash_fwd_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false>(pytorch_flash::Flash_fwd_params)": 0.44263079999999855,
+     "void cublasLt::splitKreduce_kernel<32, 16, int, float, __nv_bfloat16, float, __nv_bfloat16, true, false, false>(cublasLt::cublasSplitKParams<float>, float const*, __nv_bfloat16 const*, __nv_bfloat16*, float const*, float const*, __nv_bfloat16 const*, float const*, __nv_bfloat16*, void*, long, float*, int*)": 0.22070360000000136,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_4": 0.08085180000000146,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_7": 0.07988560000000043,
+     "triton_poi_fused_mul_silu_5": 0.04815479999999798,
+     "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_1": 0.04763540000000394,
+     "triton_poi_fused_copy_2": 0.04341159999999691,
+     "triton_red_fused__to_copy_add_mean_mul_pow_rsqrt_0": 0.0037823999999998703,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_8": 0.0036157999999990352
+    }
+   },
+   "smi_sm_mhz_max_mhz_watts": [
+    [
+     1350.0,
+     1410.0,
+     237.9
+    ],
+    [
+     1350.0,
+     1410.0,
+     249.76
+    ],
+    [
+     1410.0,
+     1410.0,
+     279.95
+    ],
+    [
+     1410.0,
+     1410.0,
+     286.48
+    ],
+    [
+     1410.0,
+     1410.0,
+     286.8
+    ],
+    [
+     1410.0,
+     1410.0,
+     287.37
+    ],
+    [
+     1410.0,
+     1410.0,
+     287.4
+    ],
+    [
+     1410.0,
+     1410.0,
+     287.67
+    ],
+    [
+     1410.0,
+     1410.0,
+     287.97
+    ],
+    [
+     1410.0,
+     1410.0,
+     288.24
+    ],
+    [
+     1410.0,
+     1410.0,
+     287.97
+    ],
+    [
+     1410.0,
+     1410.0,
+     287.94
+    ],
+    [
+     1410.0,
+     1410.0,
+     288.57
+    ],
+    [
+     1410.0,
+     1410.0,
+     287.94
+    ],
+    [
+     1410.0,
+     1410.0,
+     288.24
+    ],
+    [
+     1410.0,
+     1410.0,
+     288.57
+    ],
+    [
+     1410.0,
+     1410.0,
+     288.54
+    ],
+    [
+     1410.0,
+     1410.0,
+     288.57
+    ],
+    [
+     1410.0,
+     1410.0,
+     288.57
+    ],
+    [
+     1410.0,
+     1410.0,
+     288.57
+    ],
+    [
+     1410.0,
+     1410.0,
+     288.57
+    ],
+    [
+     1410.0,
+     1410.0,
+     288.54
+    ],
+    [
+     1410.0,
+     1410.0,
+     288.87
+    ],
+    [
+     1410.0,
+     1410.0,
+     289.17
+    ],
+    [
+     1410.0,
+     1410.0,
+     278.21
+    ]
+   ],
+   "fresh_build": false,
+   "fresh_settings": {},
+   "non_weight_ms": 0.8957366018844612,
+   "compile_s": 31.6,
+   "graph_breaks": 0
+  },
+  "1x128f": {
+   "step": {
+    "median_ms": 2.397152066230774,
+    "p10_ms": 2.394070339202881,
+    "p90_ms": 2.4033151865005493,
+    "iqr_ms": 0.0035920143127441406,
+    "n": 50
+   },
+   "breakdown": {
+    "other_ms": 0.002821200000000135,
+    "copy_ms": 0.14841659999999965,
+    "gemm_ms": 1.948204400000005,
+    "attention_ms": 0.267064599999998,
+    "other_kernels": 2.0,
+    "copy_kernels": 50.0,
+    "gemm_kernels": 98.0,
+    "attention_kernels": 72.0,
+    "busy_ms": 2.3665068000000025,
+    "kernels": 222.0,
+    "kernel_cats_version": 2,
+    "top_kernels_ms": {
+     "triton_red_fused_mm_5": 0.7746920000000005,
+     "triton_red_fused_mm_6": 0.48942540000000073,
+     "triton_red_fused_copy_mm_1": 0.4482596000000027,
+     "triton_red_fused_bmm_3": 0.2313968000000005,
+     "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.16295499999999954,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_4": 0.07783119999999925,
+     "void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, 4, 1, true>(pytorch_flash::Flash_fwd_params)": 0.06513479999999837,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_8": 0.061040800000000034,
+     "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.03897480000000005,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.0030821999999996476,
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detail::Array<char*, 1> >(int, at::native::FillFunctor<long>, at::detail::Array<char*, 1>)": 0.002821200000000135,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_7": 0.002678200000000379
+    }
+   },
+   "smi_sm_mhz_max_mhz_watts": [
+    [
+     1410.0,
+     1410.0,
+     329.77
+    ],
+    [
+     1410.0,
+     1410.0,
+     341.58
+    ],
+    [
+     1410.0,
+     1410.0,
+     345.09
+    ],
+    [
+     1410.0,
+     1410.0,
+     344.81
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.36
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.36
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.96
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.96
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.63
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.96
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.24
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.96
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.96
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.56
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.56
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.83
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.83
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.83
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.56
+    ],
+    [
+     1410.0,
+     1410.0,
+     334.43
+    ],
+    [
+     1410.0,
+     1410.0,
+     334.18
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.83
+    ],
+    [
+     1410.0,
+     1410.0,
+     334.43
+    ],
+    [
+     1410.0,
+     1410.0,
+     334.16
+    ],
+    [
+     1410.0,
+     1410.0,
+     334.16
+    ]
+   ],
+   "fresh_build": true,
+   "fresh_settings": {
+    "fx_graph_cache": false,
+    "autotune_local_cache": false,
+    "autotune_remote_cache": false,
+    "fx_graph_remote_cache": false,
+    "cache_dir": "/tmp/inductor_fresh_x9qrhc7d"
+   },
+   "non_weight_ms": 0.448947666230769,
+   "compile_s": 25.9,
+   "graph_breaks": 0
+  },
+  "1x128f#2": {
+   "step": {
+    "median_ms": 2.803647994995117,
+    "p10_ms": 2.79290885925293,
+    "p90_ms": 2.8099648714065553,
+    "iqr_ms": 0.0107840895652771,
+    "n": 50
+   },
+   "breakdown": {
+    "other_ms": 0.002963199999999051,
+    "copy_ms": 0.1536403999999966,
+    "gemm_ms": 2.0069749999999984,
+    "attention_ms": 0.2751314000000002,
+    "other_kernels": 2.0,
+    "copy_kernels": 50.0,
+    "gemm_kernels": 98.0,
+    "attention_kernels": 72.0,
+    "busy_ms": 2.4387099999999946,
+    "kernels": 222.0,
+    "kernel_cats_version": 2,
+    "top_kernels_ms": {
+     "triton_red_fused_mm_5": 0.7975560000000012,
+     "triton_red_fused_mm_6": 0.5043567999999983,
+     "triton_red_fused_copy_mm_1": 0.4620011999999964,
+     "triton_red_fused_bmm_3": 0.23842740000000248,
+     "void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, true, true, false>(pytorch_flash::Flash_fwd_params)": 0.1676564000000006,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_4": 0.08055759999999627,
+     "void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128, 64, 128, 4, false, false, cutlass::bfloat16_t, pytorch_flash::Flash_kernel_traits<128, 64, 128, 4, cutlass::bfloat16_t> >, 4, 1, true>(pytorch_flash::Flash_fwd_params)": 0.06709159999999738,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_8": 0.06286799999999984,
+     "triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2": 0.040383400000002255,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_9": 0.003315400000000591,
+     "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<long>, at::detail::Array<char*, 1> >(int, at::native::FillFunctor<long>, at::detail::Array<char*, 1>)": 0.002963199999999051,
+     "triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_7": 0.0028224000000001983
+    }
+   },
+   "smi_sm_mhz_max_mhz_watts": [
+    [
+     1155.0,
+     1410.0,
+     205.03
+    ],
+    [
+     1410.0,
+     1410.0,
+     215.97
+    ],
+    [
+     1410.0,
+     1410.0,
+     317.24
+    ],
+    [
+     1410.0,
+     1410.0,
+     330.64
+    ],
+    [
+     1410.0,
+     1410.0,
+     330.57
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.09
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.09
+    ],
+    [
+     1410.0,
+     1410.0,
+     331.76
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.96
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.09
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.09
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.24
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.96
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.36
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.96
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.24
+    ],
+    [
+     1410.0,
+     1410.0,
+     332.96
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.56
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.56
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.56
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.56
+    ],
+    [
+     1410.0,
+     1410.0,
+     334.16
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.24
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.24
+    ],
+    [
+     1410.0,
+     1410.0,
+     333.83
+    ]
+   ],
+   "fresh_build": true,
+   "fresh_settings": {
+    "fx_graph_cache": false,
+    "autotune_local_cache": false,
+    "autotune_remote_cache": false,
+    "fx_graph_remote_cache": false,
+    "cache_dir": "/tmp/inductor_fresh_s_2g0mpg"
+   },
+   "non_weight_ms": 0.7966729949951188,
+   "compile_s": 21.2,
+   "graph_breaks": 0
+  }
+ }
+}

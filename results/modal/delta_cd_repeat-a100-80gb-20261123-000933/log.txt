@@ -1,0 +1,33 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=delta_cd_repeat-a100-80gb-20261123-000933
+git=8b2766f-dirty
+Mon Nov 23 08:09:37 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA A100-SXM4-80GB, GPU-0814c54b-b18a-4cbe-0797-1a1a19a90352, 81920 MiB, 620.70.06
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python delta_split.py --coord-descent --profile-configs 1x128,1x128,1x128,2x128,8x128,1x128f,1x128f --out-dir $OUT
+1x128 2.294 ms compile 37.5 s [[1410.0, 1410.0, 320.24]]
+1x128#2 2.507 ms compile 10.9 s [[1410.0, 1410.0, 320.83]]
+1x128#3 2.505 ms compile 11.1 s [[1410.0, 1410.0, 320.24]]
+2x128 3.188 ms compile 32.2 s [[1410.0, 1410.0, 258.37]]
+8x128 3.592 ms compile 31.6 s [[1410.0, 1410.0, 278.21]]
+1x128f 2.397 ms compile 25.9 s [[1410.0, 1410.0, 334.16]]
+1x128f#2 2.804 ms compile 21.2 s [[1410.0, 1410.0, 333.83]]
+[exit 0]
