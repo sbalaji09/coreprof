@@ -144,3 +144,23 @@ Learned: once the right weight kernels are used, the remaining B=1 error is ~0.1
 it in the non-weight part, consistent with the ~0.1 ms of launch gaps charged per weight kernel (fix 2).
 Chip relevance: none directly. This was GPU kernel choice. It does show that, with good kernels, L40S weight time is
 within 3 % of bytes / measured read peak (the chip model's form); H100 is 52 % above it (per-kernel ramp, O3).
+
+## E3 - v1.4: busy time + one in-graph gap per kernel (fix 2; pre-registered ca3ca0b)
+Change (one thing): kernels cost busy time + g per kernel; g from the non-target delta_noise runs
+(L40S −0.03 µs, H100 0.27 µs; H200 run excluded) instead of microbenchmark slot gaps (0.2–1.2 µs).
+Prediction: step L40S ~3.70 (−1 %), H100 ~1.66 (−1 %); non-weight H100 ~0.40 (pass), L40S ~0.29 (~−13 %, fail);
+B ≥ 2 lower by ~0.2 / ~0.15 ms; grid max ~−26 % / ~−36 %. Median not predicted.
+Result: step **3.70 (−1.2 %)** / **1.66 (−0.6 %)**. Non-weight L40S **0.289 (−13.2 % ✗)**, H100 **0.396 (−2.6 %, pass)**.
+δ +0.4 % / −4.8 %. Grid L40S median 3.0 %, max −26.0 %; H100 median **10.8 % (✗, was 6.2 %)**, max −34.9 %.
+B=2–8 rows: L40S −0.7…−3.7 %; H100 −16.2…+11.6 % (mostly −10…−16 % at C ≤ 1024).
+Verdict: supported on every predicted number; one unpredicted regression (H100 median now fails, 10.8 %).
+Why: the microbenchmark gaps (~0.15 ms per step on H100) were hiding a real H100 deficit at B=2–8. Same pattern as E1:
+two errors cancelling. Candidates for that deficit (not tested): o_proj's Triton reduction growing with B (O5:
+~0.02 ms per sequence on H100) and the cublasLt splitKreduce kernels H100 adds at B ≥ 2 (0.17 ms at B=16), which the
+model does not count. Both belong to fix 3.
+L40S non-weight: the cd step has ~0.24 µs/kernel of gaps in its own profile vs ~0 in the non-cd noise runs. Not
+tuned (the only source for the cd value is the target run). Open question: why do Triton reduction kernels leave
+gaps that cuBLAS kernels do not?
+Not changed after seeing the result. v1.4 is the recorded model; fix 3 builds on it.
+Chip relevance: the in-graph gap per kernel is a GPU software cost (0–0.5 µs). It has no chip counterpart in a fused
+dataflow design; it is excluded from the chip's per-layer latency anchor.
