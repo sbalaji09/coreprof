@@ -184,3 +184,34 @@ Caveats (strong):
 Chip relevance: o_proj's slowdown is GPU software (compiler lowering). It inflates the GPU baseline at B ≥ 16 (L40S
 16x128: 0.36 ms of 5.37 ms over a tensor-core o_proj). LoopCore speedups at B ≥ 16 should be reported both against
 the measured baseline and against the baseline with that excess removed.
+
+## E5 - L40S step profile at B = 1..64, C=128 (`delta_cd_profile-l40s-20261122-202020`; predictions in a4b6e21)
+Run: cd step, one container, NVIDIA L40S, selfcheck ALL OK, ~$0.5.
+| B | step ms | gap (step − busy) | o_proj µs/call (v1.5 line) | other weights vs microbench | SM clock, power |
+|---|---|---|---|---|---|
+| 1 | 3.649 | 0.001 | 12.2 (12.2) | – | 2520, 284 W |
+| 2 | 4.415 | 0.093 | 12.6 (13.4) | 3.632 vs 3.624 | 2520 |
+| 4 | 4.498 | 0.099 | 12.9 (15.8) | 3.641 vs 3.627 | 2520 |
+| 8 | 4.723 | 0.094 | 14.6 (20.5) | 3.660 vs 3.628 | 2520 |
+| 16 | 5.385 | 0.084 | 29.6 (30.0) | 3.743 vs 3.630 | 2520 |
+| 32 | 6.634 | 0.093 | 54.2 (48.9) | 3.810 vs 3.653 (+4 %) | 2520, 314 W |
+| 64 | 8.994 | 0.079 | 101.4 (86.7) | 3.907 vs 3.707 (+5 %) | 2460–2520, 350 W |
+Against the pre-registered criteria:
+- o_proj at B=64 101.4 µs, inside 65–108 → mechanism **supported**; still `triton_red_fused_bmm_3` at B=32/64. It is
+  the largest single kernel at B=64 (2.43 ms/step), more than all other weight GEMMs (2.07 + 1.83 ms).
+- The straight line is the wrong shape: flat (~12–15 µs, memory-bound) up to B=8, then ~∝ B (≈1.6 µs per sequence,
+  ~5 TFLOPS: CUDA cores, no tensor cores). The line overestimates B=2–8 by up to 6 µs/call (0.14 ms/step at B=8) and
+  underestimates B=64 by 15 µs/call (0.35 ms/step). Not re-tuned.
+- Clock throttling (H3e) **refuted** as a cause: −2.4 % at most at B=64 (at the 350 W power limit).
+- Other weight kernels in-step vs microbenchmark (H3c): +4 % / +5 % at B=32/64 → **minor**, within the predicted 10 %.
+- Container check: B=16 step +0.3 % ✓. B=1 step 3.649 vs 3.747 ms (−2.6 %, just outside the predicted 2 %).
+  **Surprise:** at B=1 this container has ~0 gap (step − busy 0.001 ms) and non-weight 0.276 ms, vs 0.053 ms and
+  0.333 ms in the target run. The L40S non-weight target varies ~17 % between containers for the cd step (the
+  "tight" 0.315–0.318 ms noise runs were the non-cd step). v1.5's 0.289 ms is −13.2 % vs the target run and +4.7 % vs
+  this run: the remaining L40S miss is within the cd step's container-to-container spread (n=2, so only indicative).
+- New: L40S gaps between kernels rise from ~0 at B=1 to ~0.09 ms at B ≥ 2 (more kernels, cutlass + splitK). The same
+  effect, larger, is the leading candidate for H100's B=2–8 shortfall (−12…−15 %).
+Targets NOT changed with this run (would need Sid's approval).
+Next candidates (not run): v1.6 o_proj = max(memory floor, per-sequence compute cost) (roofline shape, fit on L40S
+only); per-kernel gap at B ≥ 2 from a non-target profile; repeat the cd B=1 point in 2–3 more containers to set the
+cd-step noise floor properly.
