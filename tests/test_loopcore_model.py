@@ -191,3 +191,14 @@ def test_kv_levers_reproduce_handoff_exploration():
         got = [gpu_t / lm.token_time(M, lm.sized(M, replace(base, **kw), B, C), B, C, depth)
                for kw in lm.KV_LEVERS.values()]
         assert got == pytest.approx(want, abs=0.05)
+
+
+def test_v13_changes_only_the_b1_weight_term():
+    for gpu in ("l40s", "h100"):
+        for B in (2, 16, 64):
+            assert lm.kernel_sum(gpu, B, 512, version="v1.3") == lm.kernel_sum(gpu, B, 512, version="v1.2")
+        w13, s13, a13 = lm.kernel_sum(gpu, 1, 128, version="v1.3")
+        w12, s12, a12 = lm.kernel_sum(gpu, 1, 128, version="v1.2")
+        assert (s13, a13) == (s12, a12) and w13 != w12
+        # busy part = the in-step weight kernels (o_proj included); the slot adds a positive launch gap
+        assert lm.kernel_sum(gpu, 1, 128, "busy_us", version="v1.3")[0] < w13
