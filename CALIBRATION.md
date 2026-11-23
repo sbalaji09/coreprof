@@ -35,7 +35,7 @@ cost is a PyTorch artifact LoopCore will not have, so reproducing it would not t
 ### L40S
 
 <!-- calibration:l40s:begin -->
-**Status:** Calibrated on NVIDIA L40S: **no** (6/6 summary predictions, 46/46 grid points).
+**Status:** Calibrated on NVIDIA L40S: 2026-11-22 (summary within ±10 %, grid passes).
 
 Measured: the fastest of `results/modal/delta_compile-l40s-20261116-214809/`, `results/modal/delta_grid-l40s-20261116-184352/`, `results/modal/delta_bf16_cd-l40s-20261120-010859/` at each point (wins: compiled_graph 1, compiled_graph+cd 45 of 46). Predictions: `calibration_predictions.json`, from loopcore_model.py v1.5 kernel-sum: results/modal/delta_kernel_bench-l40s-20261118-123411/kernel_bench.json. Error % is 0 inside a measured range, else the distance to its nearest end.
 
@@ -46,11 +46,11 @@ Measured: the fastest of `results/modal/delta_compile-l40s-20261116-214809/`, `r
 | weight/KV crossover | 13,023–15,173 cached tokens | weight_ms / kv_us_per_token | 13,000 cached tokens | -0.2 |
 | best GPU step time, B=1, C=128 | 3.75 ms | envelope | 3.7 ms | -1.2 |
 | fixed cost δ (M2 fit) | 4.07 ms | M2 fit over the envelope | 4.01 ms | -1.4 |
-| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.333 ms | step − weight kernels of the fastest implementation | 0.289 ms | -13.2 ✗ |
+| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.272–0.402 ms | step − weight kernels of the fastest implementation (L40S: range first graph .. later graphs, same-graph profiles, see note below the table) | 0.289 ms | +0.0 |
 
 **Step time over the whole grid (46 points):** median |error| 1.7 %, max -6.7 % at B=64, C=128 (pass: needs median ≤ 10 %, max ≤ 20 %)
 
-**B=1 non-weight time by measurement protocol** (informational; not in pass/fail until a protocol is chosen; step and weight kernels from the same graph, `PROTOCOL_RUNS`): first graph 0.272 ms (median of 4), model 0.289 ms, +6.2 %; later graphs 0.402 ms (median of 12), model 0.289 ms, -28.0 %
+**B=1 non-weight time by measurement protocol** (target = the range between the two, Sid 2026-11-22; error is 0 inside it, so this row is a weaker test than the others: the range is about ±19 % around its midpoint; step and weight kernels from the same graph, `PROTOCOL_RUNS`): first graph 0.272 ms (median of 4), model 0.289 ms, +6.2 %; later graphs 0.402 ms (median of 12), model 0.289 ms, -28.0 %
 
 **Model inputs:**
 
@@ -74,7 +74,7 @@ Measured: the fastest of `results/modal/delta_compile-h100-20261116-214809/`, `r
 | weight/KV crossover | 16,106–22,497 cached tokens | weight_ms / kv_us_per_token | 16,307 cached tokens | +0.0 |
 | best GPU step time, B=1, C=128 | 1.67 ms | envelope | 1.66 ms | -0.6 |
 | fixed cost δ (M2 fit) | 2.04 ms | M2 fit over the envelope | 1.89 ms | -7.4 |
-| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.406 ms | step − weight kernels of the fastest implementation | 0.396 ms | -2.6 |
+| non-weight GPU time (attention + small kernels + gaps), B=1, C=128 | 0.406 ms | step − weight kernels of the fastest implementation (L40S: range first graph .. later graphs, same-graph profiles, see note below the table) | 0.396 ms | -2.6 |
 
 **Step time over the whole grid (48 points):** median |error| 8.2 %, max -18.7 % at B=2, C=4096 (pass: needs median ≤ 10 %, max ≤ 20 %)
 

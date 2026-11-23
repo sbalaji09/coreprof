@@ -45,7 +45,8 @@ ROWS = {
     "step_ms_b1_c128": ("best GPU step time, B=1, C=128", "ms", "envelope"),
     "delta_ms": ("fixed cost δ (M2 fit)", "ms", "M2 fit over the envelope"),
     "overhead_ms": ("non-weight GPU time (attention + small kernels + gaps), B=1, C=128", "ms",
-                    "step − weight kernels of the fastest implementation"),
+                    "step − weight kernels of the fastest implementation (L40S: range first graph .. later graphs, "
+                    "same-graph profiles, see note below the table)"),
 }
 
 
@@ -117,7 +118,9 @@ def measured(gpu="l40s"):
         "crossover_tokens": (min(w1, w16) / alpha, max(w1, w16) / alpha),
         "step_ms_b1_c128": (step,) * 2,
         "delta_ms": (delta,) * 2,
-        "overhead_ms": (step - weights[win]["1x128"],) * 2,
+        # Sid 2026-11-22: where protocol data exists, the target is the range first graph .. later graphs (E6)
+        "overhead_ms": ((proto["first graph"][0], proto["later graphs"][0]) if (proto := protocol_non_weight(gpu))
+                        else (step - weights[win]["1x128"],) * 2),
     }, env
 
 
@@ -205,8 +208,9 @@ def report(meas, env, pred, tol, gpu="l40s"):
     proto = protocol_non_weight(gpu)
     p_nw = (pred.get("predictions") or {}).get("overhead_ms")
     if proto and p_nw is not None:
-        grid_line += ("\n\n**B=1 non-weight time by measurement protocol** (informational; not in pass/fail until a "
-                      "protocol is chosen; step and weight kernels from the same graph, `PROTOCOL_RUNS`): " +
+        grid_line += ("\n\n**B=1 non-weight time by measurement protocol** (target = the range between the two, Sid "
+                      "2026-11-22; error is 0 inside it, so this row is a weaker test than the others: the range is about "
+                      "±19 % around its midpoint; step and weight kernels from the same graph, `PROTOCOL_RUNS`): " +
                       "; ".join(f"{name} {v:.3f} ms (median of {n}), model {p_nw:.3f} ms, {100 * (p_nw - v) / v:+.1f} %"
                                 for name, (v, n) in proto.items()))
     inputs = pred.get("inputs") or {}

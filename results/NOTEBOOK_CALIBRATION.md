@@ -283,3 +283,12 @@ The L40S scorecard now also shows the B=1 non-weight time under both protocols, 
 (`calibrate.PROTOCOL_RUNS`): first graph 0.272 ms (median of 4 containers) → v1.5 +6.2 %; later graphs 0.402 ms (median
 of 12) → v1.5 −28.0 %. Informational only: the official row and the pass/fail rule are unchanged until Sid picks which
 protocol counts. H100 has no such data yet.
+
+## Decision (Sid, 2026-11-22): the L40S non-weight target is the range first graph .. later graphs
+Target 0.272–0.402 ms (error 0 inside, the scorecard's existing convention for ranges). v1.5 0.289 ms → inside →
+**L40S now passes the rule** (all 6 summary rows; grid median 1.7 %, max −6.7 %). H100 unchanged (passes; no protocol
+data, single target 0.406 ms).
+Caveats recorded with the result: (1) the range is wide (±19 % around its midpoint 0.337 ms; vs the midpoint v1.5 would be
+−14 %, a fail), so this row is a weaker test than the others; (2) v1.3+ use in-step kernel times from the target runs'
+own profiles: both passes show the step is the sum of its measured parts, not an independent prediction of an unseen GPU;
+(3) the H100 grid max (−18.7 %) is within noise of the 20 % limit. An independent confirmation needs a third GPU.
