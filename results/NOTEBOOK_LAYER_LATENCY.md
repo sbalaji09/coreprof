@@ -239,3 +239,23 @@ H100 + LoopSpec "1:2" = 3.74 ms/token (measured; provisional was 3.54). Counters
 Robustness table changes with the measured value: none of the verdicts flip. "Ouro as trained reaches 10x at B=1" stays
 **no** at sourced latencies (max 9.9x in row c at 3.83 µs, eff 1.0). "Shared on-chip KV ≥ 10x at B=1": row (c) yes
 (12.6-25.7x), row (b) 5.1-10.7x (no at the high-latency end).
+
+## Superseded numbers (2026-11-23, approved by Sid; CALIBRATION.md edited in the same commit)
+Basis: H100 B=1 baseline = LoopSpec "1:2" measured at 1×2048, 3.74 ms/token (`loopspec_long_notinygemm-h100-20261123-141351`;
+accuracy-equivalent on GSM8K, n=1319, `loopspec_gsm8k_notinygemm-h100-20261123-143543`); per-layer latency = install
+variants (L5); chip software efficiency 1.0-1.3 (S1). LoopSpec = arXiv 2609.17184 ("LoopSpec: Pipelined
+Self-Speculative Decoding for Looped Transformers", v1 15 Sep 2026; abs page opened 2026-11-23; same title as the
+README of the repository run, commit 41aa710; the abs page itself shows no code link, the HTML version's abstract did per
+an earlier page summary).
+| quantity (Ouro as trained, int8, fp8 KV, 4 caches in HBM, vs H100) | old | new |
+|---|---|---|
+| B=1, 1×2048, **chip without LoopSpec vs GPU + LoopSpec** (row b) | 5.8-14.6x vs GPU int8 (L3 band, assumed 1.36-8.2 µs) | **3.8-7.0x** |
+| B=1, 1×2048, **chip + LoopSpec vs GPU + LoopSpec** (row c) | – | **5.7-9.9x** |
+| B=1, 1×2048, CALIBRATION.md figure | 8.0x (vs GPU int8, assumed 5 µs/layer) | 6.0x at the same 5 µs vs GPU + LoopSpec; replaced by the two rows above |
+| 10x at B=1, **row (b): chip without LoopSpec vs GPU + LoopSpec** | t_L < ~3-4 µs (vs GPU int8, L3) | t_L < **1.8 µs** (eff 1.0), < 0.6 µs (eff 1.3): below the sourced range (3.8-6.7 µs) → **out of reach** |
+| 10x at B=1, **row (c): both with LoopSpec** | – | per-pass t_L < **2.5-4.0 µs** (eff 1.0; range from the unlogged lanes per pass, 4.05-3.49), < 0.9 µs (eff 1.3). Sourced t_L at those lane counts: 4.2-7.1 µs (install latency grows ~1 cycle per row per install) → **just out of reach** (best case 4.19 vs 3.99 µs) |
+| B=16, 16×2048 / 16×8192 | 4.3x / 3.0x (5 µs) | 3.1-4.3x / 2.3-3.0x (LoopSpec n/a at B ≥ 2) |
+| shared KV on-chip, B=1, 1×2048, row (b) / row (c) | 7.3-31.9x (vs GPU int8, L3) | 5.1-10.7x / 12.6-25.7x |
+| shared KV on-chip, 10x at B=1 | – | row (b): t_L < 4.2 µs (eff 1.0) / 3.1 µs (1.3); row (c): per-pass t_L < 12.4 µs / 9.3 µs → reachable across the sourced range |
+Note on the brief's "~3.7 µs": my calculation gives 2.5-4.0 µs depending on lanes per pass (not logged by LoopSpec);
+~3.7 µs sits inside that range.

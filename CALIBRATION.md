@@ -212,6 +212,13 @@ the existing kernel for any shape, so H100 int8 at B=2–16 remains a lower boun
    calibrated against this envelope over the whole B × C grid on both GPUs. Before any final
    LoopCore claim, the GPU baseline must also include **int8 weight-only** GEMMs, matching
    LoopCore's int8 weights (decision 2); otherwise LoopCore gets ≈ 2× on weight bytes for free.
+   **Amended 2026-11-23:** at B=1 on H100 the fastest measured GPU implementation is LoopSpec (bf16
+   self-speculative decoding, arXiv 2609.17184): 3.74 ms/token against 5.01 ms for int8 with early exit at
+   1×2048. It is accuracy-equivalent on GSM8K (−0.53 pts, 95 % CI −1.53 to +0.47, n = 1319) but not
+   token-identical to normal decoding (70 % identical text). B ≥ 2 is unchanged: LoopSpec runs at B=1 only.
+   On L40S at long context it is only 1.09× faster than int8. Caveats: on H100 it runs only with FlashInfer
+   TinyGEMM off (TinyGEMM crashes CUDA-graph capture); no int8 LoopSpec exists. Details:
+   `results/NOTEBOOK_LOOPSPEC.md`.
 
 ## Open questions
 
@@ -289,7 +296,11 @@ mean exit depth 3.23. GPU sanity check ALL OK; no fp8 values clipped in any run.
   int4 KV narrowly fails the rule; int4 weights (rounded, group 128, no quantization-aware training) fail
   clearly.
 - **For LoopCore claims on Ouro as trained:** use int8 weights, fp8 KV and 4 caches. In `--kv-levers` terms that
-  is the "+ fp8 KV" row with the KV cache in HBM (8.0× at 1×2048 down to 3.0× at 16×8192, 3 chips, 5 µs/layer).
+  is the "+ fp8 KV" row with the KV cache in HBM, 3 chips. **Updated 2026-11-23** (was 8.0× at 1×2048 down to
+  3.0× at 16×8192, vs H100 int8 at an assumed 5 µs/layer): at 1×2048 vs the H100 B=1 baseline, now LoopSpec at
+  3.74 ms/token (decision 4 amendment), with the sourced per-layer latency 3.8–6.7 µs and a chip software
+  efficiency of 1.0–1.3: **3.8–7.0×** if only the GPU runs LoopSpec, **5.7–9.9×** if the chip runs it too; at
+  16×8192 vs H100 int8: **2.3–3.0×** (`results/NOTEBOOK_LAYER_LATENCY.md`, L4-L5).
   The GPU can use fp8 KV too. Keeping 4 caches on-chip needs 106 chips at 16×8192. Shared on-chip KV needs a
   model trained for it (Week 6b).
 
