@@ -98,6 +98,11 @@ TASKS = {
     # Per-kernel microbenchmarks (weight GEMV/GEMM per shape and batch, small fused kernels, decode attention)
     # for loopcore_model's kernel-sum GPU model (~10 min). No model weights or step timings involved.
     "delta_kernel_bench": CHECK + ["python delta_split.py --kernel-bench --out-dir $OUT"],
+    # Unified formula (2026-11-22): GPU fingerprint = the formula's per-GPU inputs from generic microbenchmarks (no
+    # model, no step timings), then the cd step's kernel list (names and counts only, option K2) (~10-15 min).
+    # Input run only: never in the same container as a target run.
+    "fingerprint": CHECK + ["python fingerprint.py --out-dir $OUT",
+                            "python fingerprint.py --kernel-list --out-dir $OUT"],
     # Which int8 path reads int8 bytes? inductor settings vs a Triton int8 kernel, 3 points (~15 min).
     "int8_probe": CHECK + ["python int8_kernel.py | tee $OUT/int8_kernel_check.txt",
                            "python delta_split.py --int8-probe --out-dir $OUT"],

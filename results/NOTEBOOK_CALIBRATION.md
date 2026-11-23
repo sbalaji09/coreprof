@@ -292,3 +292,80 @@ Caveats recorded with the result: (1) the range is wide (±19 % around its midpo
 −14 %, a fail), so this row is a weaker test than the others; (2) v1.3+ use in-step kernel times from the target runs'
 own profiles: both passes show the step is the sum of its measured parts, not an independent prediction of an unseen GPU;
 (3) the H100 grid max (−18.7 %) is within noise of the 20 % limit. An independent confirmation needs a third GPU.
+
+# Unified formula (started 2026-11-22, after Sid's brief of the same day)
+
+## Frame
+- **Question.** Can ONE formula, used for both GPUs and the chip, predict the best measured decode step on a GPU it
+  has never seen, when its GPU inputs come only from the datasheet and a short generic fingerprint run (no step
+  timings, no profiles of the target runs)?
+- **Formula (proposed, to be frozen on L40S before scoring):**
+  `t_step = Σ_s [ L_s + max(bytes_s / BW_s, flops_s / Thr_s) ] + N_stages · g`.
+  GPU: a stage is a kernel; BW_s = DRAM read peak, or L2 bandwidth for weight re-reads per sequence (o_proj);
+  L_s = per-kernel latency from the fingerprint; g = in-graph gap. Chip: stages = `layer_stages` (11 per layer) x 24 +
+  hops; L_s = cycles/clock; BW = SRAM / KV bandwidth; g = 0.
+- **Kernel list (Sid, 2026-11-22):** K1 = taken from L40S profiles (counts and kinds only), used for every GPU; primary
+  prediction. K2 = counts-only profile on the target GPU (`fingerprint.py --kernel-list`, durations discarded in the
+  container), a pre-registered secondary prediction.
+- **Metric / rule.** Unchanged `calibrate.py` rule. Design and freeze on L40S; apply once to H100 (semi-blind: H100 data
+  was looked at again in F0 below); real test = A100-80GB, predictions committed before its targets are downloaded.
+  Inputs and targets from separate containers. GPU name and memory size checked on every run.
+- **Chip relevance per term:** bytes/BW and the stage latency chain carry over (form, not values); o_proj's L2 re-reads,
+  g, and the kernel list are GPU-only.
+
+## F0 - diagnostics on existing data (free; seen data, NOT model inputs)
+Command: `python3 fingerprint.py --existing-checks` (cd target runs' 1x128 profiles, v1.2 microbenchmarks).
+- Weight kernels, least squares `t = t0 + bytes/BW` over qkv, o, gate+up: **L40S BW 763 GB/s, t0 1.97 µs**, all 4 kernels
+  within −4…+6 % (down +2 %). **H100 BW 2819 GB/s, t0 3.05 µs**; qkv/o/gate+up within 2 %, **down −26 %** (line 11.2 vs
+  15.1 µs). Fitted BW ≈ measured read peak (745 / 2982 GB/s). Correction to my report to Sid: I had said L40S t0 ≈ 1.2 µs
+  (a 2-point estimate); the 3-point fit gives 2.0 µs.
+  → per-kernel latency ≠ tiny-kernel busy time (1.0–1.4 µs on both GPUs): refuted for streaming kernels on both GPUs.
+- o_proj (Triton reduction, no tensor cores) per call: L40S 12.2 → 30.0 µs, H100 5.9 → 18.0 µs (B = 1 → 16). H100 is
+  1.7x faster per call at B=16; datasheet FP32 (from memory, not checked: L40S 91.6, H100 67 TFLOPS) predicts 1.4x
+  SLOWER → CUDA-core FLOPs refuted as the o_proj input; SM count x clock also points the wrong way. Implied weight re-read
+  rate at B=16: L40S 4.8 TB/s, H100 9.0 TB/s (plausible L2 bandwidths; not checked against a source).
+- Lone 2048x2048 GEMM is flat in B (L40S 14.7 → 14.5 µs, B = 2 → 64; H100 7.9 → 8.5): adding flops/datasheet would add
+  1.5 µs (+10 %) at B=64 on L40S → per-stage **max**, not sum, supported.
+- Attention 1x128 per layer in-step (3 flash kernels): L40S 7.5 µs, H100 8.6 µs; KV bytes / read peak only 1.4 / 0.35 µs.
+  → attention is latency-dominated, more than 3 tiny kernels.
+- Kernel counts: 222 on both GPUs at 1x128; at 16x2048 L40S 317 vs H100 413 (gemm 145 vs 241: cuBLAS split-K). The kernel
+  list is GPU-dependent at B ≥ 2 (K1 will miss these on H100).
+
+## Hypotheses per GPU input (cheap kill tests; F = fingerprint measurement)
+| input | hypotheses | kill test | status after F0 |
+|---|---|---|---|
+| BW_read | (a) datasheet (b) copy peak (c) read peak (d) F1 slope | weight-kernel fit, α′ | (a) out (L40S −25 %, CALIBRATION.md); (b) out for L40S weights; (c)/(d) fit weights; open: H100 KV at 87 % of read peak |
+| L (streaming kernel) | (a) tiny-kernel busy (b) F1 intercept t0 (c) launch + k x DRAM latency (F4) (d) clock-scaled constant | fitted t0 2.0 / 3.05 µs | (a) out; (d) failed in v1; (b) leading; (c) open |
+| o_proj per sequence | (a) datasheet FP32 (b) SMs x clock (c) W / BW_L2 (F2) (d) benchmark of the same kernel | H100/L40S ratio; L40S knee at B≈7-8 (E5) | (a), (b) out; (c) leading; (d) fallback (not a fingerprint) |
+| compute term | (a) sum (b) per-stage max | GEMM flat in B | (b) supported |
+| attention latency | (a) kernels x L_tiny + KV/BW (b) + DRAM round trips x F4 latency (c) attention microbenchmark | in-step 1x128 | (a) out; (b) open; (c) fallback |
+| g | (a) 0 (b) F3 first graph / later graphs (c) delta_noise runs | E6 range 0.272-0.402 ms | (c) not allowed (step timings); (b) to test |
+| kernel list | K1 / K2 | H100 B ≥ 2 | Sid chose K1 primary, K2 secondary |
+
+## Fingerprint task (written 2026-11-22, not run; needs Sid's OK + billing check)
+`fingerprint.py` + Modal task `fingerprint` (~10-15 min): F3 tiny-kernel chain (first graph of the process, then later
+graphs), F1 DRAM read sweep 64 KB-512 MB (≥ 384 MB of distinct buffers per point), F2 L2 re-read 1-16 MB, F4 pointer
+chase (1 MB, 1 GB; L1 bypassed), F5 bf16 / fp32 GEMM peaks, nvidia-smi name/memory/clocks/power; then K2 kernel list.
+Pre-registered fits: BW_read, t0 = least squares of busy time on bytes over 4-256 MB; BW_L2 = slope over 2-16 MB.
+Expected (written now, before any run): L40S BW ~740-765 GB/s, t0 ~1-2.5 µs; H100 BW ~2.8-3.0 TB/s, t0 ~2-4 µs (if
+t0(H100) < 2 µs, F1's intercept does not explain the weight-kernel latency and (b) is refuted); BW_L2 L40S ~4-6 TB/s,
+H100 ~7-11 TB/s (if BW_L2 is > 1.5x off the implied 4.8 / 9.0 TB/s on either GPU, o_proj hypothesis (c) is refuted);
+g first graph ~0, later > 0 (if the tiny chain shows no first/later difference, F3 cannot reproduce E6's gap states).
+Laptop checks only: `py_compile`, `--existing-checks`. The GPU code has not run yet.
+
+## Decision 4 check: self-speculative decoding for looped LMs (desk only, 2026-11-22)
+Read by a search subagent; key numbers re-checked by a second fetch (some table rows from page summaries, not verbatim).
+- **LoopSpec** (arXiv 2609.17184, code https://github.com/kaist-flexml-lab/loopspec, SGLang): loop 1 drafts, full depth
+  verifies; claimed lossless. Ouro-1.4B greedy 2.64-3.17x (Table 1), batch 1 only, RTX PRO 6000 Blackwell, bf16.
+  Baseline = SGLang autoregressive; whether it uses CUDA graphs is not stated.
+- **WaveFront** (arXiv 2609.23033): diagonal wavefront of (position, depth) states. Ouro-2.6B only (not 1.4B), RTX A6000,
+  B=1; vs a CUDA-graph baseline 16.72 → 38.51 tok/s (2.30x, Table 8, from summary). Speedup falls monotonically with
+  batch (App. B.1). bf16 outputs differ slightly from normal decoding.
+- **LoopAhead** (arXiv 2610.21594): separately trained 11.1M drafter; Ouro-1.4B 2.82-7.82x vs a PyTorch backend of
+  unstated type; batch 1; no code found.
+- All three run Ouro at a fixed 4 loops (exit gate unused). Our baseline runs mean depth 3.22 (q=0.5), so their
+  speedups overstate the gain over our baseline; none is measured against early exit. No data at B=16.
+- **Implication:** at B=1 a lossless ~2-3x GPU speedup is plausible and has public code. Under decision 4 the B=1 GPU
+  baseline may have to include LoopSpec (or the LoopCore B=1 speedups must state they are vs non-speculative decoding).
+  Decision for Sid. A fair test would run LoopSpec (SGLang) on Ouro-1.4B at B=1 and 16 on L40S/H100, with and without the
+  exit gate, plus a check that outputs match. Not costed yet.
