@@ -237,3 +237,17 @@ def test_layer_latency_bottom_up_is_ordered_and_counts_11_stages():
     lo, mid, hi = (lm.layer_latency_bottom_up(M, 2048, k) for k in ("low", "central", "high"))
     assert 0 < lo < mid < hi
     assert lm.layer_latency_bottom_up(M, 8192) > lm.layer_latency_bottom_up(M, 128)   # deeper softmax/AV reductions
+
+
+def test_unified_kernel_classes_l40s_list():
+    import loopcore_model as lm
+    assert lm.kernel_class("triton_red_fused_copy_mm_1") == "weight_red"
+    assert lm.kernel_class("triton_red_fused_bmm_3") == "o_proj"
+    assert lm.kernel_class("triton_red_fused__to_copy_add_bmm_mean_mul_pow_rsqrt_4") == "reduction"
+    assert lm.kernel_class("triton_poi_fused__scaled_dot_product_flash_attention_add_cat_copy_mul_2") == "pointwise"
+    assert lm.kernel_class("void pytorch_flash::flash_fwd_splitkv_combine_kernel<pytorch_flash::Flash_fwd_kernel_traits<128>>") == "reduction"
+    assert lm.kernel_class("void pytorch_flash::flash_fwd_splitkv_kernel<pytorch_flash::Flash_fwd_kernel_traits<128>>") == "attention"
+    assert lm.kernel_class("void cublasLt::splitKreduce_kernel<32, 16>") == "pointwise"
+    n = lm.kernel_list("l40s", 1, 128)
+    assert (n["weight_red"], n["o_proj"], n["attention"], sum(n.values())) == (72, 24, 24, 222)
+    assert lm.kernel_list("l40s", 3, 512) == lm.kernel_list("l40s", 2, 128)

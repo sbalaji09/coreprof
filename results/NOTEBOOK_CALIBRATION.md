@@ -477,3 +477,22 @@ configs; that is specific to Ouro's compiled step and cannot come from a generic
 Status of the formula's GPU inputs: BW_read (F1), BW_L2 (F2), L_tiny and g (F3), DRAM/L2 latency (F4), peaks (F5),
 compiled-GEMV efficiency (F6, for (b)) all measured and valid. Remaining run-to-run spread: g (later graphs).
 Next: freeze the formula on L40S (free), apply once to H100, then A100.
+
+## U1 - unified formula v2.0 in `loopcore_model.py`: pre-registered before computing any prediction (2026-11-23)
+Code: `kernel_class`, `fingerprint_inputs`, `kernel_list`, `gpu_step_unified`, `unified_predictions`, `chip_step_unified`;
+`python3 loopcore_model.py --unified <gpu>` writes `results/unified/<gpu>_{a,b}_{K1,K2}.json`, scored with
+`calibrate.py --pred` (no --write: CALIBRATION.md is not changed without Sid).
+Stage terms per kernel class (header comment in the code). Per-GPU inputs: fingerprint only. Grid and step use the
+later-graph gap g (target grids run many graphs per process); the non-weight row is also reported with the first-graph g.
+Simplifications fixed now: kernel list at the exact (B, C) if listed, else the listed C=128 config with the largest
+B ≤ B; pointwise kernels' activation bytes ignored (≤ ~1 % at B=64); F4 (DRAM latency) not used, since no count of
+dependent DRAM trips per kernel could be justified without fitting it.
+Order: L40S scored first (design GPU); any change after that is a new pre-registered version; then frozen and applied
+once to H100 (semi-blind; H100 fingerprint already seen; variant (b) designed after seeing H100's gap).
+Expected on L40S (hand estimate from the fingerprint, written before running), variant (a), K1 (= L40S's own list):
+- weight 3.45 ms (inside 3.41-3.98 → 0 %); step 1x128 ~3.70 ms (~−1.5 %); KV per token 0.263 µs (+0.5 %);
+  crossover ~13,100 (inside); δ within ±5 %.
+- non-weight ~0.25 ms with later-graph g (−5…−10 % vs the range's low end 0.272: borderline), ~0.19 ms with first-graph g.
+- grid: median ~3-6 %, max ~−10…−15 % at B=64 (64x128 ~8.0 vs 8.99 ms: in-step tensor-core GEMMs read slower than F1).
+- overall: pass likely, non-weight row borderline.
+Variant (b): weight ~3.33 ms (~−2 %), step ~−4…−5 %; rest as (a).

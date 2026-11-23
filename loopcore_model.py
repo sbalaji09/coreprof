@@ -622,6 +622,128 @@ def kv_levers(m, levers, q=0.5, layer_latency=5e-6, points=((1, 2048), (1, 8192)
         print()
 
 
+# ---------------------------------------------------------------- unified formula (v2.0)
+#
+# Pre-registered 2026-11-23 (results/NOTEBOOK_CALIBRATION.md, "Unified formula", U1). One formula for GPU and chip:
+#   t_step = sum over stages s of [ L_s + max(bytes_s / BW_s, flops_s / Thr_s) ] + N_stages * g
+# GPU: a stage is a kernel of the compiled coordinate-descent step. Which kernels exist comes from a kernel list (names
+# and counts only; K1 = the L40S list for every GPU, K2 = the GPU's own). Every per-GPU number comes from that GPU's
+# fingerprint (fingerprint.py), none from step timings or target profiles:
+#   L_read, BW_read = F1 intercept and slope; BW_L2 = F2 slope; L_tiny = F3 busy; g = F3 gap (first or later graphs);
+#   Thr = F5 bf16 GEMM peak. Variant (a): Triton weight reductions use L_read, BW_read. Variant (b): they use F6's
+#   compiled-GEMV fit (t0_eff, BW_eff) instead.
+# Kernel classes and their stage terms (per kernel):
+#   weight_red  Triton GEMV reduction (B=1)       L_w + max(W / BW_w, flops / Thr); W = non-o_proj weights / count
+#   weight_tc   tensor-core GEMM (B >= 2)          L_read + max(W / BW_read, flops / Thr)
+#   o_proj      Triton bmm reduction, re-reads its weight per sequence: L_w + max(W_o / BW_w, B * W_o / BW_L2)
+#   attention   flash kernel                       L_read + max(KV bytes / BW_read, attention flops / Thr)
+#   reduction   norms, split-KV combine, exit gate L_read
+#   pointwise   rotary/copy/SiLU/split-K reduce    L_tiny
+# The chip side (chip_step_unified) uses the same sum over layer_stages with cycle-count latencies and g = 0.
+FINGERPRINT = {"l40s": "results/modal/fingerprint-l40s-20261122-234738",
+               "h100": "results/modal/fingerprint-h100-20261122-234738"}
+K1_GPU = "l40s"
+
+
+def kernel_class(name):
+    n = name.lower()
+    if "triton_red_fused_bmm_" in n:
+        return "o_proj"
+    if "flash_fwd_kernel<" in n or "flash_fwd_splitkv_kernel<" in n:   # not "flash_fwd_kernel_traits" (template args)
+        return "attention"
+    if "splitkreduce" in n:
+        return "pointwise"
+    if n.startswith("triton_red"):
+        return "weight_red" if "_mm_" in n else "reduction"
+    if any(k in n for k in ("cutlass", "xmma", "ampere_", "sm80_", "sm89_", "sm90_")) and "flash" not in n:
+        return "weight_tc"
+    if n.startswith("triton_poi") or any(k in n for k in ("copy", "memcpy", "fill", "elementwise")):
+        return "pointwise"
+    return "reduction"
+
+
+def fingerprint_inputs(gpu, variant="a", graph="later"):
+    f = json.load(open(ROOT / FINGERPRINT[gpu] / "fingerprint.json"))
+    later = [r for r in f["tiny_chain"] if r["position"] != "first"]
+    weights = f["read_fit"] if variant == "a" else f["compiled_gemv_fit"]
+    return dict(L_read=f["read_fit"]["t0_us"] * 1e-6, BW_read=f["read_fit"]["bw_gbps"] * 1e9,
+                L_w=weights["t0_us"] * 1e-6, BW_w=weights["bw_gbps"] * 1e9, BW_L2=f["l2_fit"]["bw_gbps"] * 1e9,
+                L_tiny=statistics.median(r["busy_us"] for r in f["tiny_chain"]) * 1e-6,
+                g=(f["tiny_chain"][0]["gap_us"] if graph == "first" else statistics.median(r["gap_us"] for r in later)) * 1e-6,
+                Thr=f["gemm_peak"]["bf16_tensor_core"]["tflops"] * 1e12)
+
+
+def kernel_list(list_gpu, B, C):
+    """{class: count} for the step at (B, C): the exact config if listed, else the listed config at C=128 with the
+    largest B <= this B."""
+    pts = json.load(open(ROOT / FINGERPRINT[list_gpu] / "kernel_list.json"))["points"]
+    key = f"{B}x{C}" if f"{B}x{C}" in pts else f"{max(b for b in (int(k.split('x')[0]) for k in pts if k.endswith('x128')) if b <= B)}x128"
+    counts = {}
+    for name, n in pts[key]["kernels"].items():
+        counts[kernel_class(name)] = counts.get(kernel_class(name), 0) + n
+    return counts
+
+
+def gpu_step_unified(gpu, B, C, variant="a", klist="K1", graph="later", m=OURO_1_4B):
+    """(weight kernels busy, other kernels busy, gaps) in seconds for one loop step."""
+    p = fingerprint_inputs(gpu, variant, graph)
+    n = kernel_list(K1_GPU if klist == "K1" else gpu, B, C)
+    d, kv = m.d_model, m.n_kv_heads * m.head_dim
+    w_o = d * d * 2
+    w_rest = m.core_params * 2 - m.n_layers * w_o
+    n_w = n.get("weight_red", 0) + n.get("weight_tc", 0)
+    red_share = n.get("weight_red", 0) / n_w if n_w else 0
+    weights = 0.0
+    for cls, L, bw in (("weight_red", p["L_w"], p["BW_w"]), ("weight_tc", p["L_read"], p["BW_read"])):
+        k = n.get(cls, 0)
+        if k:
+            share = red_share if cls == "weight_red" else 1 - red_share
+            weights += k * L + max(share * w_rest / bw, share * 2 * B * w_rest / 2 / p["Thr"])
+    weights += n.get("o_proj", 0) * (p["L_w"] + max(w_o / p["BW_w"], B * w_o / p["BW_L2"]))
+    kv_bytes = m.n_layers * B * (C + 1) * 2 * kv * 2
+    att_flops = m.attn_flops_per_cached_token() * B * C
+    other = (n.get("attention", 0) * p["L_read"] + max(kv_bytes / p["BW_read"], att_flops / p["Thr"])
+             + n.get("reduction", 0) * p["L_read"] + n.get("pointwise", 0) * p["L_tiny"])
+    return weights, other, sum(n.values()) * p["g"]
+
+
+def unified_predictions(gpu, variant="a", klist="K1"):
+    """calibrate.py predictions from the unified formula (grid and step with later-graph gaps)."""
+    env, _ = cal.envelope(gpu)
+    grid = {f"{B}x{C}": sum(gpu_step_unified(gpu, B, C, variant, klist)) * 1e3 for (B, C) in env}
+    delta, _, _, _ = cal.fit_m2([{"B": B, "C": C, "t": grid[f"{B}x{C}"]} for (B, C) in env])
+    w = gpu_step_unified(gpu, 1, 128, variant, klist)[0] * 1e3
+    p = fingerprint_inputs(gpu, variant)
+    kv = OURO_1_4B.kv_elems_per_token_per_loop() * 2 / p["BW_read"] * 1e6
+    nw = {g: sum(gpu_step_unified(gpu, 1, 128, variant, klist, g)[1:]) * 1e3 for g in ("first", "later")}
+    return {"date": __import__("time").strftime("%Y-%m-%d"),
+            "source": f"loopcore_model.py unified v2.0, variant ({variant}), kernel list {klist}: {FINGERPRINT[gpu]}",
+            "inputs": {"fingerprint": FINGERPRINT[gpu], "kernel_list": FINGERPRINT[K1_GPU if klist == 'K1' else gpu],
+                       "non_weight_ms_first_graph": nw["first"], "non_weight_ms_later_graphs": nw["later"]},
+            "predictions": {"weight_ms": w, "kv_us_per_token": kv, "crossover_tokens": w * 1e3 / kv,
+                            "step_ms_b1_c128": grid["1x128"], "delta_ms": delta, "overhead_ms": grid["1x128"] - w},
+            "grid": grid}
+
+
+def chip_step_unified(m, hw, B, C, level="central"):
+    """Chip side of the same formula: layer_stages with cycle latencies, each stage's bytes at SRAM / KV bandwidth and its
+    FLOPs at chip compute (max per stage), g = 0; plus chip-to-chip hops as in step_terms. All-resident configs only."""
+    p = LAYER_CYCLE_PARAMS[level]
+    d, kv = m.d_model, m.n_kv_heads * m.head_dim
+    mats = {"qkv matmul": d * (d + 2 * kv), "o_proj + residual": d * d, "gate/up matmul": d * 2 * m.d_ff,
+            "down + residual": m.d_ff * d}
+    t = 0.0
+    for stage, cycles in layer_stages(m, C, p).items():
+        if stage in mats:
+            work = max(mats[stage] * hw.weight_bytes / hw.weight_bw, 2 * B * mats[stage] / hw.compute)
+        elif stage in ("QK^T", "AV"):
+            work = max(B * C * kv * hw.kv_bytes / kv_bw(hw), 2 * B * C * m.n_q_heads * m.head_dim / hw.compute)
+        else:
+            work = 0.0
+        t += cycles / p["clock_hz"] + work
+    return m.n_layers * t + step_terms(m, hw, B, C)["link"]
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--validate", action="store_true", help="L40S fit (in-sample) and H100 prediction")
@@ -630,8 +752,17 @@ def main():
     ap.add_argument("--layer-latency-us", type=float, nargs="+", default=[LAYER_LATENCY * 1e6])
     ap.add_argument("--q", type=float, choices=sorted(MEAN_DEPTH), default=0.5)
     ap.add_argument("--kv-levers", action="store_true", help="KV design options on config D vs measured H100 int8")
+    ap.add_argument("--unified", metavar="GPU", help="write results/unified/<gpu>_<variant>_<klist>.json (unified formula)")
     args = ap.parse_args()
-    if args.kv_levers:
+    if args.unified:
+        out = ROOT / "results" / "unified"
+        out.mkdir(exist_ok=True)
+        for variant in ("a", "b"):
+            for klist in ("K1", "K2"):
+                p = out / f"{args.unified}_{variant}_{klist}.json"
+                p.write_text(json.dumps(unified_predictions(args.unified, variant, klist), indent=2) + "\n")
+                print("wrote", p.relative_to(ROOT))
+    elif args.kv_levers:
         for lat in args.layer_latency_us if args.layer_latency_us != [LAYER_LATENCY * 1e6] else [5.0]:
             kv_levers(OURO_1_4B, KV_LEVERS, args.q, lat * 1e-6)
     elif args.validate:
