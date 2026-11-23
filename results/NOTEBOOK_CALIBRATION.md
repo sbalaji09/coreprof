@@ -240,3 +240,40 @@ Pre-registered decision rule (non-weight time at B=1, C=128; target run 0.333 ms
   propose the mean as target (approval). If most are ≥ 0.32 → the miss is real; needs a model fix.
 - My expectation, written now: builds agree within ~3 %; containers spread ~10–20 %; mean ~0.29–0.30 ms.
 Secondary (for the next fix, non-target data): step − busy gaps at B=2 and 8 per container (profile run: ~0.09 ms).
+
+## E6 - L40S repeat runs: what moves the B=1 non-weight time? (3 containers, `delta_cd_repeat-l40s-20261122-2052{26,41,56}`)
+All three: NVIDIA L40S, selfcheck ALL OK, ~$1.2. Non-weight = step − weight kernels, same graph.
+| position in container | c1 | c2 | c3 |
+|---|---|---|---|
+| 1st 1x128 (cached build... first compile) | 0.278 | 0.270 | 0.269 |
+| 2nd 1x128 (cached build) | 0.355 | 0.409 | 0.401 |
+| 3rd 1x128 (cached build) | 0.356 | 0.346 | 0.400 |
+| 1st fresh build | 0.343 | 0.402 | 0.404 |
+| 2nd fresh build | 0.403 | 0.403 | 0.403 |
+Weight kernels 3.375–3.423 ms in every case; attention/copy busy identical; SM clock 2520 MHz everywhere; fresh builds
+really were fresh (compile 17–22 s vs 8.6 s cached; cache flags recorded off).
+Finding: **the only thing that changes is the gap between kernels** (step − busy): ≈ 0 for the first graph captured in a
+process, then one of two levels, ≈ 0.07 ms or ≈ 0.127 ms, for every later graph, cached or fresh. Same at B ≥ 2: 0.11 or
+0.20 ms (2x128 and 8x128). Yesterday's profile run (1x128 first: 0.276, gap 0.001) fits the pattern; the target run timed
+its 1x128 grid point after four other graphs (gap 0.053).
+Against the pre-registered rule:
+- Build variation: **not the cause**. Fresh vs cached builds at the same position agree (c3: 0.401/0.400 vs 0.404/0.403).
+  The literal rule ("fresh vs cached spread > 10 %") is tripped only because the first cached point is special; the rule
+  did not anticipate a position effect. Reported both ways.
+- Container variation: **small** at a given position (first graph 0.269–0.278, ±2 %; plus profile run 0.276).
+- The row depends on **measurement order** (first graph vs later: 0.27 vs 0.34–0.41 ms, up to +50 %). With the 5 container
+  values taken as each run's first graph, 4/5 are in 0.27–0.30 (target run is the exception, and it was not a first graph).
+  Taking all repeats, the spread is ±20 %: too sensitive for a ±10 % rule as currently measured.
+- My prediction (builds within ~3 %: yes; containers 10–20 %: no, ±2 %; mean ~0.29–0.30: depends on position) was
+  partly wrong: I did not foresee the position effect.
+Mechanism: unknown. Not clocks, not kernel time, not builds. Candidates (untested): GPU memory placement of later
+graphs (allocator/graph mempool fragmentation), graph-launch work queue state. Quantized levels suggest a discrete state.
+What it means:
+- v1.5's L40S non-weight (0.289 ms) is +5 % vs first-graph measurements and −20…−29 % vs later ones. The calibration
+  verdict on this row is decided by a GPU software state, not by the model. No target changed (needs Sid).
+- Proposal for Sid: fix a measurement protocol for this row (e.g. same graph for step and breakdown, and either the first
+  graph in a fresh process or the median over N graphs), and report the gap sensitivity alongside it.
+- Chip relevance: none for the gaps (GPU scheduling). The genuine non-weight work at B=1 is the busy time of attention +
+  small kernels: 0.276 ms = 11.5 µs per layer on L40S; gaps add 0–5 µs per layer depending on state. Use 11.5 µs (busy) as
+  the GPU anchor for chip per-layer latency, not the step-minus-weights number.
+- For the B ≥ 2 pause fix: non-target L40S gaps are 0.11–0.20 ms per step, state-dependent.
