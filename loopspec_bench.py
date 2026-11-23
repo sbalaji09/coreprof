@@ -7,6 +7,7 @@ tokens after the first, host-side seconds). Writes loopspec_bench.json with per-
 """
 import argparse
 import json
+import math
 import os
 import re
 import signal
@@ -46,10 +47,62 @@ def gsm8k(split):
         return [json.loads(line) for line in r.read().decode().splitlines() if line.strip()]
 
 
-def prompts(n, shots=3):
+def prompts(n, shots=3, strip=False):
+    """(prompt texts, gold answer strings). strip: remove <<...>> calculator annotations from the shots, as
+    quality_check.py (Week 6) does."""
     train, test = gsm8k("train"), gsm8k("test")
-    head = "".join(f"Question: {e['question']}\nAnswer: {e['answer']}\n\n" for e in train[:shots])
-    return [f"{head}Question: {e['question']}\nAnswer:" for e in test[:n]]
+    clean = (lambda a: re.sub(r"<<.*?>>", "", a)) if strip else (lambda a: a)
+    head = "".join(f"Question: {e['question']}\nAnswer: {clean(e['answer'])}\n\n" for e in train[:shots])
+    return ([f"{head}Question: {e['question']}\nAnswer:" for e in test[:n]],
+            [e["answer"].split("####")[-1].strip() for e in test[:n]])
+
+
+# Answer extraction and paired statistics copied from quality_check.py (Week 6); that module imports torch and the
+# batching engine, which this image and the laptop do not have.
+NUM = re.compile(r"-?\d[\d,]*\.?\d*")
+
+
+def to_number(s):
+    s = s.replace(",", "").rstrip(".")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def extract(text):
+    text = text.split("Question:")[0]
+    m = re.search(r"####\s*(" + NUM.pattern + ")", text)
+    if m:
+        return to_number(m.group(1))
+    nums = NUM.findall(text)
+    return to_number(nums[-1]) if nums else None
+
+
+def mcnemar_p(b, c):
+    n = b + c
+    return 1.0 if n == 0 else min(1.0, 2 * sum(math.comb(n, i) for i in range(min(b, c) + 1)) / 2 ** n)
+
+
+def grade(path, ref="baseline"):
+    """Accuracy per mode and the paired change vs ref (Week 6 rule 1: keeps accuracy if the 95 % CI's lower end > −2 pts)."""
+    res = json.load(open(path))
+    ok = {}
+    for mode, r in res["modes"].items():
+        ok[mode] = [(p := extract(x["text"])) is not None and abs(p - to_number(x["gold"])) < 1e-6 for x in r["rows"]]
+        print(f"{mode}: {sum(ok[mode])}/{len(ok[mode])} = {100 * sum(ok[mode]) / len(ok[mode]):.1f} %")
+    for mode in ok:
+        if mode == ref:
+            continue
+        a, b = ok[ref], ok[mode]
+        only_ref, only_var = sum(x and not y for x, y in zip(a, b)), sum(y and not x for x, y in zip(a, b))
+        n, diff = len(a), (only_var - only_ref) / len(a)
+        se = math.sqrt(max(0.0, only_ref + only_var - n * diff * diff)) / n
+        same = sum(extract(x["text"]) == extract(y["text"]) for x, y in zip(res["modes"][mode]["rows"], res["modes"][ref]["rows"]))
+        lo = 100 * (diff - 1.96 * se)
+        print(f"{mode} vs {ref}: {100 * diff:+.2f} pts (95 % CI {lo:+.2f} to {100 * (diff + 1.96 * se):+.2f}); only {ref} right "
+              f"{only_ref}, only {mode} right {only_var}, McNemar p={mcnemar_p(only_ref, only_var):.3f}; same answer {same}/{n}; "
+              f"rule (lower end > -2): {'PASS' if lo > -2 else 'FAIL'}")
 
 
 def post(path, body, timeout=600):
@@ -72,7 +125,7 @@ def wait_ready(proc, log_path, limit_s=900):
     raise TimeoutError(f"server not ready after {limit_s} s; see {log_path}")
 
 
-def run_mode(mode, texts, warmup, max_new, out_dir, no_tinygemm):
+def run_mode(mode, texts, golds, warmup, max_new, out_dir, no_tinygemm):
     log_path = os.path.join(out_dir, f"server_{mode.replace(':', '-')}.log")
     site = os.path.join(out_dir, "_site")
     os.makedirs(site, exist_ok=True)
@@ -93,7 +146,8 @@ def run_mode(mode, texts, warmup, max_new, out_dir, no_tinygemm):
         for text in texts[:warmup] + texts:
             r = post("/generate", {"text": text, "sampling_params": {
                 "temperature": 0, "max_new_tokens": max_new, "stop": ["Question:"]}})
-            outs.append(dict(text=r["text"], prompt_tokens=r["meta_info"].get("prompt_tokens"),
+            outs.append(dict(text=r["text"], gold=golds[i] if (i := len(outs) - warmup) >= 0 else None,
+                             prompt_tokens=r["meta_info"].get("prompt_tokens"),
                              completion_tokens=r["meta_info"].get("completion_tokens")))
         time.sleep(2)   # let the scheduler flush its last metrics line
     finally:
@@ -118,25 +172,30 @@ def run_mode(mode, texts, warmup, max_new, out_dir, no_tinygemm):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out-dir", required=True)
+    ap.add_argument("--out-dir")
     ap.add_argument("--n", type=int, default=40)
     ap.add_argument("--shots", type=int, default=3, help="GSM8K examples before each question (sets the context)")
+    ap.add_argument("--strip-annotations", action="store_true", help="remove <<...>> from the shots (Week 6 format)")
+    ap.add_argument("--grade", metavar="JSON", help="laptop: accuracy and paired comparison from a loopspec_bench.json")
     ap.add_argument("--warmup", type=int, default=2)
     ap.add_argument("--max-new-tokens", type=int, default=256)
     ap.add_argument("--modes", nargs="+", default=list(MODES))
     ap.add_argument("--no-tinygemm", action="store_true", help="keep SGLang's linear kernels in every mode")
     a = ap.parse_args()
+    if a.grade:
+        return grade(a.grade)
     if not os.path.exists(os.path.join(MODEL_DIR, "config.json")):
         from huggingface_hub import snapshot_download
         snapshot_download("ByteDance/Ouro-1.4B", revision=REVISION, local_dir=MODEL_DIR)
     import torch
-    texts = prompts(a.n, a.shots)
+    texts, golds = prompts(a.n, a.shots, a.strip_annotations)
     res = dict(gpu=torch.cuda.get_device_name(), torch=torch.__version__, model_revision=REVISION,
                loopspec_commit=open(os.path.join(LOOPSPEC_DIR, "COMMIT")).read().strip(), n=a.n, warmup=a.warmup,
-               max_new_tokens=a.max_new_tokens, shots=a.shots, no_tinygemm=a.no_tinygemm, modes={})
+               max_new_tokens=a.max_new_tokens, shots=a.shots, strip_annotations=a.strip_annotations,
+               no_tinygemm=a.no_tinygemm, modes={})
     path = os.path.join(a.out_dir, "loopspec_bench.json")
     for mode in a.modes:   # warm-up = the first `warmup` measured prompts, sent once before the measured set
-        rows, summary = run_mode(mode, texts, a.warmup, a.max_new_tokens, a.out_dir, a.no_tinygemm)
+        rows, summary = run_mode(mode, texts, golds, a.warmup, a.max_new_tokens, a.out_dir, a.no_tinygemm)
         res["modes"][mode] = dict(summary=summary, rows=rows)
         if "baseline" in res["modes"] and mode != "baseline":
             base = res["modes"]["baseline"]

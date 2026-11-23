@@ -176,6 +176,10 @@ TASKS = {
     # context ~2048 (10-shot prompts, ~1,900 tokens + decode): normal decoding, LoopSpec "1:2", and a second
     # normal-decoding server (text-drift noise)
     "loopspec_long": ["python loopspec_bench.py --shots 10 --modes baseline 1:2 baseline_repeat --out-dir $OUT"],
+    # Accuracy check (Sid, 2026-11-23): all 1319 GSM8K test questions, Week 6 prompt format (4-shot, annotations stripped),
+    # normal decoding vs LoopSpec "1:2" in one H100 container (TinyGEMM off) (~30-35 min)
+    "loopspec_gsm8k_notinygemm": ["python loopspec_bench.py --n 1319 --shots 4 --strip-annotations --no-tinygemm "
+                                  "--modes baseline 1:2 --out-dir $OUT"],
     "loopspec_long_notinygemm": ["python loopspec_bench.py --shots 10 --no-tinygemm --modes baseline 1:2 baseline_repeat "
                                  "--out-dir $OUT"],
     "bench_q03": CHECK + [

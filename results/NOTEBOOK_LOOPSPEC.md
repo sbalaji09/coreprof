@@ -152,3 +152,18 @@ Against the pre-registration:
 Decision (per the pre-registered rule): on H100, LoopSpec beats the best B=1 implementation by more than 10 % at both
 contexts → it is the B=1 GPU baseline on H100 (bf16; no int8 LoopSpec exists). On L40S at long context it does not
 clearly beat the int8 baseline (1.09x).
+
+# Accuracy check on all 1319 GSM8K questions (approved by Sid 2026-11-23; pre-registered before the run)
+Run: `loopspec_gsm8k_notinygemm` on H100 (TinyGEMM off, as in every H100 LoopSpec result), one container, normal decoding
+then LoopSpec "1:2". Week 6 protocol (quality_check.py): all 1319 test questions, 4-shot (first 4 train examples,
+`<<...>>` annotations stripped), greedy, ≤ 256 new tokens, answer = number after "####" before the next "Question:", else
+the last number; extraction and statistics copied into `loopspec_bench.py --grade` (verified on the 40-question C≈2048
+run: same counts as the earlier hand check, 30 and 28). Data: GSM8K from openai/grade-school-math (GitHub), not the
+HF parquet at GSM8K_REVISION used in Week 6 (same dataset; not byte-checked).
+Rule (Week 6 rule 1, unchanged): LoopSpec keeps accuracy if the lower end of the 95 % CI on its paired accuracy change vs
+normal decoding (same container) is above −2 points. Exact McNemar p and same-final-answer count reported.
+Expectation: change within ±1 pt, CI about ±1.5 pts → PASS; same final answer for ~90-93 % of questions (40-question
+runs: 35-37/40). Reference, not comparable (different decoder): Week 6 bf16 with early exit q=0.5: 77.8 %.
+If FAIL: LoopSpec as run here is not accuracy-preserving at the Week 6 bar, so it cannot be the B=1 baseline without a
+caveat; the write-up would report it as "faster but changes outputs".
+After the run: a table of every write-up number affected, old → new, shown to Sid BEFORE any write-up is edited.
