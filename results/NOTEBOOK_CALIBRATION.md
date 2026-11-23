@@ -526,3 +526,39 @@ Expected (from FP2/FP3 and the kernel lists, written before running):
 - KV per token: BW_read 3100 GB/s vs α′-implied 2594 → ~−16 % (✗) in all variants (H100 KV reads at 87 % of the read rate).
 - K2 vs K1 at B ≥ 2: + ~96 split-K kernels x (L_tiny + g ≈ 1.3 µs) ≈ +0.13 ms per step, i.e. K2 ~+5-8 % at small C.
 - grid with K1: B ≥ 2 ~−15…−30 %; max beyond −20 % likely (✗).
+
+## U2 - results on H100 (frozen v2.0, applied once; `results/unified/h100_*.json`)
+| row | (a) K1 | (a) K2 | (b) K1 | (b) K2 | expected |
+|---|---|---|---|---|---|
+| weight | 0.945 (−25.3 % ✗) | same | 1.07 (−15.3 % ✗) | same | −25 / −15 % |
+| KV per token | 0.0634 µs (−19.2 % ✗) | same | same | same | ~−16 % |
+| step 1x128 | 1.19 ms (**−28.6 %** ✗) | same | 1.32 (−21.1 % ✗) | same | ~−20 / ~−12 % |
+| δ | −37.3 % ✗ | −32.9 % ✗ | −34.7 % ✗ | −30.3 % ✗ | – |
+| non-weight 1x128 | 0.248 ms (**−39.1 %** ✗) | −38.9 % | −39.1 % | −38.9 % | not predicted |
+| grid median / max | 30.1 % / −43.0 % | 27.6 / −39.2 | 26.7 / −42.1 | 24.8 / −38.3 | max beyond −20 % |
+| verdict | FAIL | FAIL | FAIL | FAIL | FAIL |
+Worse than predicted: I did not foresee the non-weight miss (−39 %), and the step miss is larger than estimated.
+K2 helps by ~2-3 points of median (split-K kernels), as predicted in direction.
+Where the time goes (diagnostic, seen data: cd target runs' 1x128 profiles, top-12 kernels, per step):
+| class | L40S measured / formula | H100 measured / formula |
+|---|---|---|
+| weight reductions + o_proj | 3.41 / 3.45 ms | 1.26 / 0.95 ms |
+| attention (24 flash kernels) | 115 / 70 µs (4.8 µs per kernel vs L_read 1.51 + KV) | 125 / 45 µs (5.2 vs 1.56 + KV) |
+| reductions (norms, combine, ...) | 137 / 112 µs (1.84 vs 1.51 per kernel) | 163 / 115 µs (2.20 vs 1.56) |
+| pointwise | 29 / 28 µs | 28 / 28 µs |
+So: pointwise kernels match the tiny-kernel probe on both GPUs; everything that reads memory or reduces costs more per
+kernel in the real step than the generic probes say, slightly on L40S and a lot on H100. On L40S the non-weight row
+passed partly because the formula adds later-graph gaps (62 µs) that offset a 25 % shortfall in busy time.
+Attention as a latency chain (not in v2.0): (in-step − L_read − KV/BW) / F4 DRAM latency = ~7 trips (L40S), ~9 (H100).
+Conclusion (evidence level: measured on 2 GPUs, the second semi-blind): **the unified formula with generic fingerprint
+inputs reproduces L40S but not H100.** On H100 the real kernels of the compiled step are 25-40 % slower than the
+hardware the fingerprint measures. That gap is GPU software (kernel generation and tuning), so it does not by itself
+say the chip formula is wrong; it does mean the GPU check validates the formula's form only where the software
+reaches the hardware (L40S).
+
+## Chip side: same formula vs the current chip model (config D, sized; not applied to defaults or write-ups)
+`chip_step_unified` (layer_stages latencies, per-stage max) vs `step_time` with overhead = 24 x bottom-up t_L:
+- Ouro as shipped (bf16 KV in HBM): −0.4 … −1.7 % at 1x2048, 16x2048, 16x8192, all three cycle levels.
+- One shared fp8 KV cache on-chip: −5 % (1x2048, central), −12 % (16x2048), −14 % (16x8192); up to −16 % at the low
+  level. The difference is the per-stage max: the current model adds weight-read time and compute time; when both are
+  small and comparable (on-chip KV, B=16) that double-counts.
