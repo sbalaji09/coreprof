@@ -456,3 +456,24 @@ Predictions and rules:
   time per layer within ±10 % on both GPUs (L40S 142.0 µs, H100 52.5 µs; prediction (a) gave +1 % / −25 %).
   Held-out long reduction 1024x16384: no number predicted; reported to judge H100's down_proj (−26 % vs the line).
 - F4 valid if kernel = host and latency at 1 GB ≥ 2x latency at 1 MB on both GPUs. Expected DRAM 400-700 ns.
+
+## FP3 - results (`fingerprint-l40s-20261122-234738`, `fingerprint-h100-20261122-234738`)
+GPUs: NVIDIA L40S 46068 MiB; NVIDIA H100 80GB HBM3 81559 MiB. Both ALL OK.
+| item | L40S | H100 | rule (FP3) | verdict |
+|---|---|---|---|---|
+| F6 kernels | `triton_red_fused_mm_0` | same | Triton reductions | **valid** |
+| F6 fit BW_eff / t0_eff | 756 GB/s / 0.27 µs | 3082 GB/s / 2.82 µs | 730-770 / 1.5-2.5; 2600-3000 / 2.5-4 | L40S BW yes, t0 below range; H100 t0 yes, BW slightly above range |
+| Ouro weight time per layer, 1x128, prediction (a) | 143.7 vs 142.0 µs (**+1.2 %**) | 39.4 vs 52.5 µs (**−25.0 %**) | – | as in FP2 |
+| same, prediction (b) | 137.0 (**−3.5 %**) | 44.6 (**−15.0 %**) | ±10 % on both | **refuted**: (b) closes 10 of H100's 25 points, not all |
+| held-out long reduction 1024x16384 | 46.1 meas vs 44.6 fit | 13.1 vs 13.7 | reported only | the generic fit holds for long K, so H100's in-step down_proj excess (−26 %) is not a generic long-reduction effect |
+| F4 pointer chase | 118 ns (≤ 16 MB) → 249-260 ns (≥ 256 MB), 2.2x | 142 ns → 340-351 ns, 2.5x | kernel = host, ≥ 2x | **valid**. DRAM latency ~260 / ~350 ns, below my 400-700 expectation |
+| F3 later-graph gap | – | 0.26-0.27 µs (v1 0.34-0.60, v2 0.34-0.59) | – | varies run to run on both GPUs |
+Measurement caveat (all versions): each graph replay includes 2 `FillFunctor<long>` kernels of unknown origin, so per-op
+busy times carry + (fill time x 2 / copies). Largest at few copies (F6 4096x16384: 4 copies). This lowers fitted
+intercepts somewhat (likely part of L40S's t0_eff 0.27 µs). Not corrected; the fill time was not stored separately.
+What remains of the H100 gap after (b): in the step, weight kernels read at ~2.8 TB/s; the same kind of kernel alone on
+generic shapes reads at 3.08 TB/s. The in-step kernels are fused with other work (copy, bmm) and get their own tuned
+configs; that is specific to Ouro's compiled step and cannot come from a generic fingerprint. L40S shows no such gap.
+Status of the formula's GPU inputs: BW_read (F1), BW_L2 (F2), L_tiny and g (F3), DRAM/L2 latency (F4), peaks (F5),
+compiled-GEMV efficiency (F6, for (b)) all measured and valid. Remaining run-to-run spread: g (later graphs).
+Next: freeze the formula on L40S (free), apply once to H100, then A100.
