@@ -7,7 +7,8 @@ no step timings. It writes fingerprint.json:
   F3 tiny-kernel chain in a CUDA graph, as the FIRST graph of this process and as later graphs: L_tiny, g
   F1 DRAM read sweep 64 KB .. 512 MB (distinct buffers, no L2 reuse): BW_read (slope), t0 (intercept)
   F2 L2-resident re-read of one buffer: BW_L2
-  F4 pointer chase (dependent loads, L1 bypassed): L2 and DRAM latency
+     v2: F1 and F2 use read_sum, ONE Triton kernel per read (v1 used torch.sum, which is 2 kernels from 256 KB up)
+  F4 pointer chase (dependent loads, L1 bypassed), 1 MB .. 4 GB, checked against the same chain followed on the host
   F5 dense bf16 GEMM (tensor cores) and fp32 GEMM with TF32 off (CUDA cores): Thr_tc, Thr_fp32
 Fits pre-registered in the notebook: BW_read, t0 = least squares of busy time on bytes over 4..256 MB;
 BW_L2 = slope over 2..16 MB.
@@ -36,8 +37,18 @@ try:   # GPU container only; the laptop has no torch/triton (--existing-checks d
         for _ in range(steps):
             i = tl.load(p + i, cache_modifier=".cg")
         tl.store(out, i)
+
+    @triton.jit
+    def read_sum(x, out, n, BLOCK: tl.constexpr):
+        """Streaming read: each program reads BLOCK elements once and writes one fp32 partial sum."""
+        pid = tl.program_id(0)
+        offs = pid.to(tl.int64) * BLOCK + tl.arange(0, BLOCK)
+        v = tl.load(x + offs, mask=offs < n, other=0.0)
+        tl.store(out + pid, tl.sum(v.to(tl.float32), axis=0))
 except ImportError:
-    chase = None
+    chase = read_sum = None
+
+READ_BLOCK = 4096   # bf16 elements per program (8 KB)
 
 
 def smi():
@@ -55,7 +66,8 @@ def fingerprint(out_dir):
     import delta_split as ds
 
     bf = torch.bfloat16
-    res = dict(gpu=torch.cuda.get_device_name(), torch=torch.__version__, smi_start=smi())
+    res = dict(version=2, read_probe=f"triton read_sum, BLOCK={READ_BLOCK}", gpu=torch.cuda.get_device_name(),
+               torch=torch.__version__, smi_start=smi())
     path = os.path.join(out_dir, "fingerprint.json")
 
     def save():
@@ -70,7 +82,12 @@ def fingerprint(out_dir):
         bd = ds.safe_breakdown(g.replay) or {}
         del g
         return dict(slot_us=slot, busy_us=bd["busy_ms"] * 1e3 / n if bd else None,
-                    kernels_per_op=bd["kernels"] / n if bd else None)
+                    kernels_per_op=bd["kernels"] / n if bd else None,
+                    kernel_names=[k[:80] for k in bd.get("top_kernels_ms", {})][:3])
+
+    def reader(b):
+        out = torch.empty(triton.cdiv(b.numel(), READ_BLOCK), dtype=torch.float32, device="cuda")
+        return lambda: read_sum[(out.numel(),)](b, out, b.numel(), BLOCK=READ_BLOCK)
 
     with torch.inference_mode():
         # F3 must run first: E6 found the first CUDA graph of a process has ~0 gap and later graphs do not.
@@ -84,13 +101,13 @@ def fingerprint(out_dir):
             print("F3", r)
         save()
 
-        # F1: one torch.sum per buffer. Enough distinct buffers per graph that the set is >= 384 MB (beyond any L2).
+        # F1: one read_sum per buffer. Enough distinct buffers per graph that the set is >= 384 MB (beyond any L2).
         res["read_sweep"] = {}
         for k in range(16, 30):
             nbytes = 1 << k
             n = min(4096, max(8, (384 * MB) // nbytes))
             bufs = [torch.ones(nbytes // 2, dtype=bf, device="cuda") for _ in range(n)]
-            r = per_op([lambda b=b: torch.sum(b) for b in bufs])
+            r = per_op([reader(b) for b in bufs])
             r["copies"] = n
             res["read_sweep"][str(nbytes)] = r
             del bufs
@@ -105,7 +122,7 @@ def fingerprint(out_dir):
         res["l2_read"] = {}
         for nbytes in (1 * MB, 2 * MB, 4 * MB, 8 * MB, 16 * MB):
             b = torch.ones(nbytes // 2, dtype=bf, device="cuda")
-            res["l2_read"][str(nbytes)] = per_op([lambda: torch.sum(b)] * 64)
+            res["l2_read"][str(nbytes)] = per_op([reader(b)] * 64)
             del b
         pts = [(int(b), r["busy_us"]) for b, r in res["l2_read"].items() if int(b) >= 2 * MB]
         slope, t0 = np.polyfit([b for b, _ in pts], [t for _, t in pts], 1)
@@ -113,17 +130,27 @@ def fingerprint(out_dir):
         print("F2", res["l2_read"], res["l2_fit"])
         save()
 
-        # F4: pointer chase over 1 MB (L2) and 1 GB (DRAM)
+        # F4: pointer chase, size sweep. Check: after k steps the kernel must hold the index the host reaches by
+        # following the same chain (v1 gave 1 GB as fast as 1 MB, so v1's chase is not trusted).
         res["pointer_chase"] = {}
-        for nbytes, steps in ((1 * MB, 200_000), (1 << 30, 50_000)):
+        steps, k = 20_000, 2_000
+        for nbytes in (1 * MB, 4 * MB, 16 * MB, 64 * MB, 256 * MB, 1 << 30, 4 << 30):
             n = nbytes // 8
             perm = torch.randperm(n, device="cuda")
             nxt = torch.empty(n, dtype=torch.int64, device="cuda")
             nxt[perm] = perm.roll(-1)
             del perm
             out = torch.empty(1, dtype=torch.int64, device="cuda")
+            i, lines = nxt[0].item(), set()
+            for _ in range(k):
+                lines.add(i // 16)
+                i = nxt[i].item()
+            chase[(1,)](nxt, out, k)
+            matches = out.item() == i
             t = ds.stats(ds.gpu_times(lambda: chase[(1,)](nxt, out, steps), 2, 5))["median_ms"]
-            res["pointer_chase"][str(nbytes)] = dict(ns_per_load=t * 1e6 / steps, steps=steps)
+            res["pointer_chase"][str(nbytes)] = dict(ns_per_load=t * 1e6 / steps, steps=steps,
+                                                     kernel_matches_host=matches,
+                                                     distinct_128B_lines_in_first_k=len(lines), k=k)
             del nxt
             torch.cuda.empty_cache()
         print("F4", res["pointer_chase"])

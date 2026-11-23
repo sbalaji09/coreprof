@@ -396,3 +396,18 @@ totals: kernel naming per compile; to be resolved from the stored names before t
 Cost: two runs of ~10-15 min each (exact durations not recorded).
 Next (proposed, not run): fingerprint v2 with a single-kernel Triton streaming read for F1/F2 (one program per chunk,
 partial sums out) and a pointer-chase size sweep (1 MB-4 GB) to diagnose F4. Needs Sid's OK (~$1.2).
+
+## FP2 - fingerprint v2: pre-registered before running (Sid approved 2026-11-22)
+Change: F1 and F2 use `read_sum` (one Triton kernel per read; each program reads 8 KB once, writes one fp32 partial)
+instead of `torch.sum`; F4 sweeps 1 MB-4 GB and checks the kernel against the same chain followed on the host;
+kernel names stored per probe. F3, F5 and the K2 kernel list unchanged (the list doubles as a repeat).
+Predictions and decision rules (written before the run):
+- F1: kernels_per_op = 1 at every size (else the probe is invalid again). BW L40S 740-765 GB/s, H100 2.8-3.0 TB/s.
+  Hypothesis "per-kernel latency L = F1 intercept t0" is **supported** if t0 is within 1 µs of the weight-kernel fit
+  (F0: L40S 1.97, H100 3.05 µs) on both GPUs, **refuted** otherwise.
+- F2: o_proj = W / BW_L2 is **revived** if BW_L2 is within 1.5x of the implied rate on both GPUs (L40S 4.8, H100
+  9.0 TB/s, i.e. H100 ≥ 6.0 TB/s), and **refuted for good** if H100 stays below 6.0 TB/s with a 1-kernel probe.
+  My expectation: H100 6-9 TB/s (i.e. v1's 4.8 was probe-limited), confidence low.
+- F4: valid only if `kernel_matches_host` is true and latency at ≥ 256 MB is ≥ 2x the 1 MB latency on both GPUs.
+  Expectation: L2 ~150-300 ns, DRAM ~400-700 ns.
+- F3: repeat of v1 (first graph ~0, later 0.2-0.6 µs per kernel).
