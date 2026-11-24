@@ -3,6 +3,7 @@
 Usage:
   .venv/bin/python watch_w6b.py          # once
   .venv/bin/python watch_w6b.py -w 60    # refresh every 60 s (Ctrl-C to stop)
+  .venv/bin/python watch_w6b.py -w 120 --guard   # also stop a main run that breaks a pre-registered spending check
 
 The bar moves at each eval: every 100 steps in the lr probe, every 250 in the main runs. The volume's log.jsonl
 can't be used live: the trainer holds it open, and Modal's background commits skip open files.
@@ -37,15 +38,28 @@ def runs(app_id):
             name = r["variant"] + (f" s{a['seed']}" if a["seed"] else "")
             if "w6b_lr" in a["out_dir"]:
                 name = f"probe lr {a['lr']:g} {name}"
-            out.append(dict(name=name, steps=r["steps"], smoke="smoke" in a["out_dir"], last=None, final=None))
+            out.append(dict(name=name, steps=r["steps"], smoke="smoke" in a["out_dir"], probe="w6b_lr" in a["out_dir"],
+                            evals=[], last=None, final=None))
         elif out and "step" in r:
             out[-1]["last"] = r
+            out[-1]["evals"].append(r)
         elif out and "final_val_loss" in r:
             out[-1]["final"] = r
     return out
 
 
-def show():
+def broken(r):
+    """CALIBRATION.md Week 6b spending checks (a698ff0): val > 6.5 at step 500, or a rise of > 0.5 nats between evals."""
+    ev = r["evals"]
+    for prev, cur in zip([None] + ev, ev):
+        if cur["step"] == 500 and cur["val_loss"] > 6.5:
+            return f"val {cur['val_loss']:.3f} > 6.5 at step 500"
+        if prev and cur["val_loss"] - prev["val_loss"] > 0.5:
+            return f"val rose {prev['val_loss']:.3f} -> {cur['val_loss']:.3f} (steps {prev['step']}->{cur['step']})"
+    return None
+
+
+def show(guard=False):
     apps = json.loads(modal("app", "list", "--json") or "[]")
     print(time.strftime("%H:%M:%S"), "Week 6b runs (Modal apps listed:", len(apps), ")")
     shown = 0
@@ -66,6 +80,13 @@ def show():
             else:
                 tail, done = ("compiling / first steps" if live else "STOPPED before first eval"), 0
             print(f"  {r['name']:<28} {bar(done, n)}  {tail}")
+            why = broken(r)
+            if why and not r["probe"] and not r["final"]:
+                print(f"  ALERT {r['name']} ({app['app_id']}): {why}")
+                if guard and live:
+                    p = subprocess.run([MODAL, "app", "stop", "-y", app["app_id"]], capture_output=True, text=True)
+                    print(f"  STOPPED {app['app_id']}; its last checkpoint stays on the volume (resumable)" if
+                          p.returncode == 0 else f"  STOP FAILED for {app['app_id']}: {p.stderr.strip()[-300:]}")
     if not shown:
         print("  no Week 6b runs in the recent Modal apps")
 
@@ -73,11 +94,12 @@ def show():
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-w", "--watch", type=int, metavar="SECONDS", help="refresh every SECONDS")
+    ap.add_argument("--guard", action="store_true", help="stop a main run that breaks a spending check")
     a = ap.parse_args()
     while True:
         if a.watch:
             print("\033[2J\033[H", end="")
-        show()
+        show(a.guard)
         if not a.watch:
             break
         time.sleep(a.watch)
