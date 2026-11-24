@@ -224,3 +224,41 @@ Proposed numbers only; no write-up changed.
   non-final-loop KV read as final hurts, and decode-only sharing on the chip would need all 4 loops for KV (losing early
   exit's savings) or a different rule. Both fail → decode-only sharing is not usable on Ouro as trained.
 - No variant is re-tuned or re-run on failure without a new entry here.
+
+# P1 - KV placement term (approved by Sid 2026-11-24; pre-registered, committed before any table is run)
+**Why.** The model reads on-chip KV at per-chip SRAM bandwidth wherever it sits (`step_terms`), so per-loop caches on 5
+chips looked as fast as one shared cache on 4. But with the weights packed on the fewest chips (3 chips, 1334 MB, 166 MB
+spare), ~80 % of per-loop KV at 1x2048 sits on chips holding no layer. The old per-loop on-chip numbers (Step 1.4 and the
+sweep above) are withdrawn until this term is in; they are not to be quoted.
+
+**Change (new option, defaults unchanged; `--loopspec-table`, `--kv-levers` and the default report print identical output
+before and after).** `Hardware.kv_placement`: "aggregate" (default, old behaviour), "stream", "near".
+`kv_remote_fraction` r = KV not fitting in the weight chips' spare SRAM / total KV.
+- stream: + r x (this step's cache bytes) / link_bw per loop step (prefetched: bandwidth-bound, latency hidden).
+- near: + ceil(r x 24) remote layers x 2 hops x (hop latency + B x 2048 x 2 B / link_bw) per loop step.
+
+**Link parameters (results/LATENCY_SOURCES.md, Groq rows), applied to every design in the new table, including the
+existing per-chip pipeline hops:** hop latency 0.30 µs (F, LPU v1, vendor) .. 0.722 µs (B, TSP v1); 1 µs (current
+assumption) as a sensitivity row. Link bandwidth 235 GB/s (F, LPU v1, 11 ports aggregate) .. 1.344 TB/s (G, Groq 3,
+96 x 112 Gbps; Derived, raw line rate, all links to one peer: optimistic for a point-to-point stream). Pairing for the
+range: (0.30 µs, 1.344 TB/s) = optimistic, (0.722 µs, 235 GB/s) = pessimistic.
+
+**Predictions (hand arithmetic, t_L 3.83 µs, eff 1.0, row b = chip without LoopSpec vs GPU + LoopSpec).**
+- r: per-loop 1x2048 0.79 (20 of 24 layers remote); shared 1x2048 0.17 (5 layers); 16x2048 per-loop 0.99, shared 0.95
+  (23-24 layers).
+- per-loop, stream, B=1: +119 .. 681 µs per loop step (on ~108) → row b ~4.5x .. ~1.5x, **below per-loop in HBM (7.0x)**
+  at every sourced bandwidth (no link here beats the assumed 3.35 TB/s HBM).
+- per-loop, near, B=1: +12 .. 29 µs per step (+40 µs at 1 µs hops) → row b ~9-10x optimistic, ~8x pessimistic, ~7.5-8x at
+  1 µs: a 10-30 % loss vs shared.
+- shared, near, B=1: +3 .. 7 µs per step → within ~5 % of the aggregate number. shared, stream, B=1: +26 .. 149 µs →
+  ~8x .. ~4x.
+- B=16 (vs H100 int8): stream collapses for both designs (≥ 2 ms per step; below the HBM design's 4.3x). near: both lose
+  ~10-20 %; per-loop also pays 29 vs 10 chips of pipeline hops; per-chip ordering unchanged (shared ≫ HBM > per-loop).
+- Expected headline: "stream" is never viable with sourced links; "near" costs per-loop at B=1 about 10-30 % and shared
+  about 5 %, so at B=1 per-loop on-chip stays well above HBM but clearly below shared.
+
+**Caveat I'll report with the table (layout, not a free parameter).** r assumes the weights packed on the fewest chips
+with KV-only chips beside them (decision 3's separate KV unit). A different layout spreads the layers over all chips and
+keeps each layer's KV beside its weights (r = 0; "aggregate" numbers become real), possible only where one layer's
+weights + KV fit one chip: 1x2048 per-loop 51 + 34 MB (fits), 16x2048 per-loop 51 + 537 MB (does not), 16x2048 shared
+51 + 134 MB (fits). The table will show this co-located row where it fits.

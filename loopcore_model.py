@@ -100,6 +100,11 @@ class Hardware:
     kv_caches: int = 0            # distinct KV caches across loops: 0 = one per loop (Ouro as shipped),
                                   # 1 = one cache shared by all loops, 2 = one per pair of loops, ...
     kv_on_chip: bool = False      # KV cache held in SRAM (read/written at weight_bw) instead of external memory
+    kv_placement: str = "aggregate"  # with kv_on_chip, where KV sits (results/NOTEBOOK_KV_SHARING.md, P1):
+                                  # "aggregate" = anywhere in the chips' SRAM, read at weight_bw, no link cost (the
+                                  # original model); "stream" = KV that does not fit in the weight chips' spare SRAM
+                                  # lives on KV-only chips and is streamed to the layer's chip over one link per step;
+                                  # "near" = attention for those layers runs on the KV chip: q out, output back
     sram_bytes_per_chip: float = float("inf")
     n_chips: int = 1
     link_bw: float = float("inf")  # chip-to-chip B/s
@@ -147,6 +152,33 @@ def sized(m, hw, B, C):
     return replace(hw, n_chips=max(1, math.ceil(need / hw.sram_bytes_per_chip)))
 
 
+def kv_remote_fraction(m, hw, B, C):
+    """Fraction of the KV cache on KV-only chips: what doesn't fit in the spare SRAM of the fewest chips holding the
+    weights (+ LM head). 0 unless kv_on_chip."""
+    if not hw.kv_on_chip:
+        return 0.0
+    w, _, _ = fit_check(m, replace(hw, kv_on_chip=False, n_chips=1))
+    spare = math.ceil(w / hw.sram_bytes_per_chip) * hw.sram_bytes_per_chip - w
+    kv = kv_footprint(m, hw, B, C)
+    return max(0.0, kv - spare) / kv if kv else 0.0
+
+
+def kv_placement_s(m, hw, B, C):
+    """Extra seconds per loop step for remote KV (kv_placement "stream" or "near"; 0 for "aggregate").
+    stream: the remote share of this step's cache read crosses one chip-to-chip link at link_bw (prefetched, so
+            bandwidth-bound; hop latency hidden).
+    near:   whole layers' KV are remote (ceil(fraction x layers) of them); each such layer sends q to its KV chip and
+            gets the attention output back (2 hops, not overlappable: o_proj waits for it)."""
+    r = kv_remote_fraction(m, hw, B, C)
+    if hw.kv_placement == "aggregate" or r == 0:
+        return 0.0
+    if hw.kv_placement == "stream":
+        return r * B * C * m.kv_elems_per_token_per_loop() * hw.kv_bytes / hw.link_bw
+    if hw.kv_placement == "near":
+        return math.ceil(r * m.n_layers) * 2 * (hw.hop_latency_s + B * m.d_model * hw.act_bytes / hw.link_bw)
+    raise ValueError(f"kv_placement must be aggregate, stream or near, got {hw.kv_placement!r}")
+
+
 def step_terms(m, hw, B, C):
     """Per-loop-step terms in seconds, for B sequences each with C cached tokens.
 
@@ -164,7 +196,7 @@ def step_terms(m, hw, B, C):
                    + hw.per_seq_overhead_s * B,
         # each executed loop reads one cache of C tokens, whether caches are per loop or shared
         "kv": B * C * m.kv_elems_per_token_per_loop() * hw.kv_bytes / kv_bw(hw),
-        "link": hops * (hw.hop_latency_s + B * m.d_model * hw.act_bytes / hw.link_bw),
+        "link": hops * (hw.hop_latency_s + B * m.d_model * hw.act_bytes / hw.link_bw) + kv_placement_s(m, hw, B, C),
     }
     # resources: terms on the same one queue behind each other even when overlapped
     t["_by_resource"] = {
