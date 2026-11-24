@@ -322,3 +322,45 @@ t_L, eff and links), the right ranges are:
 Sourced range: per-loop 6-22 % (b and c); shared 1-6 % (b), 6-20 % (c). With LoopSpec on the chip the shared cost is
 larger because each extra lane's pass pays the remote layers' round trips too. Decision 3's amendment (CALIBRATION.md,
 2026-11-24) uses these corrected ranges, not the 7-15 % / 3-6 % Sid approved; flagged to him.
+
+# R1 - fresh-eyes check of the kv_placement code (7c54f6b + kv_decode_only.py), 2026-11-24
+A subagent that did not write the code got only loopcore_model.py, kv_decode_only.py, tests/ and LATENCY_SOURCES.md
+(no notebook, handoff or CALIBRATION.md). It confirmed defaults unchanged (108 configs hashed old vs new: identical).
+Findings, each re-checked by me with the model before acting:
+
+Clear bugs (confirmed):
+1. `chip_token_time_loopspec` passes LoopSpec's lanes (3.49-4.05) as B, so `kv_remote_fraction` sizes the cache as 3.5-4
+   sequences: shared B=1 r = 0.764 instead of 0.175 (checked). Affects row (c) near/stream only.
+2. Under "near"/"stream" the pipeline still charges `hops = n_chips`, including KV-only chips the token never visits
+   (per-loop B=16: 29 hops instead of the 3 weight chips; checked). "near" already charges its own 2 hops per remote layer.
+3. `colocated_fits` checks one layer + its KV against one chip, not that whole layers pack into the chip count: shared
+   16x2048 is 186 MB per layer → 2 per chip → 12 chips, the table used 10 (checked; LM head fits on a 2-layer chip).
+   Per-loop 1x2048 (5 chips) and shared 1x2048 (4 chips, the LM head needs the 4th) are right.
+
+Modelling choices (recorded, not changed):
+4. Link bandwidth is the chip's aggregate I/O (Groq 3: 96 x 112 Gbps; LPU v1: 235 GB/s over 11 ports), not one link
+   (14 GB/s); the kv_placement_s docstring's "over one link" is wrong wording. This only makes "stream" look better; it
+   already never pays. The optimistic set mixes LPU v1 latency (300 ns) with Groq 3 bandwidth; 722 ns is a per-hop figure
+   from a pipelined all-reduce, not point-to-point.
+5. Spare SRAM on the weight chips is pooled (166 MB over 3 chips); per chip ~55 MB, so per-loop B=1 has one more remote
+   layer than counted (~0.7 µs per step, < 1 %).
+6. Writing the new token's K/V to remote chips is not charged (≤ ~1 µs per step at B=16).
+7. A per-loop B=16 layer's KV (537 MB) spans 2 KV chips. If split by heads (as I assume) no softmax combine is needed;
+   split by sequence it would be. Whole-layer packing of shared B=16 "near" KV would need 11 chips instead of 10;
+   splitting a layer's KV by heads across KV chips keeps 10.
+Nits: an invalid kv_placement only raises when r > 0; no tests for kv_remote_fraction / kv_placement_s.
+
+## Pre-registration: fixes F1-F3 (committed before the code change and before re-running the table)
+- F1 (model): new optional `seqs` argument in step_time / step_terms (default = B, so defaults unchanged); the remote
+  fraction uses `seqs`; `chip_token_time_loopspec` passes seqs = 1. Stream bytes stay lanes x C (each lane reads its
+  context, as the existing KV term does).
+- F2 (model): with kv_on_chip and kv_placement "near"/"stream", pipeline hops = weight chips only (the fewest chips
+  holding weights + LM head).
+- F3 (script): co-located chip count = chips needed to pack whole layers (each with its KV) plus the LM head.
+- Tests: add checks for kv_remote_fraction, the seqs argument and the near/stream hop count to tests/test_loopcore_model.py.
+- Predicted effects (from the check's estimates): F1 raises row (c) for shared stream ~2.4x (optimistic links), shared
+  near ~+7 %, per-loop stream ~+13 %, per-loop near ~+1 %; rows (b) and B=16 unchanged. F2 raises near/stream: per-loop
+  B=16 +4 % (optimistic) to +10 % (pessimistic, 1 µs), shared B=16 +1-3 %, B=1 +0.5-1.4 %. F3: shared co-located B=16
+  chips 10 → 12, per chip / 1.2 (1.30-2.28 → ~1.07-1.89), speedup −< 1 %. Default reports must stay byte-identical.
+- Consequences flagged for Sid, not edited: decision 3 (72eeeaf) says shared B=16 "10 chips" (becomes 12) and quotes the
+  separate-KV-unit cost from near rows that F1/F2 change.
