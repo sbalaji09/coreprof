@@ -135,9 +135,12 @@ def batch(data, rng, bsz, ctx, device):
 
 @torch.no_grad()
 def evaluate(model, val, n_batches, bsz, ctx):
-    rng, tot = np.random.default_rng(12345), 0.0      # the same held-out windows for every variant and every eval
-    for _ in range(n_batches):
-        x, y = batch(val, rng, bsz, ctx, "cuda")
+    tot = 0.0      # consecutive non-overlapping held-out windows from the start of val: the same for every variant
+    assert (n_batches * bsz + 1) * ctx < len(val), "val.bin too small for this many eval batches"
+    for j in range(n_batches):
+        ix = (np.arange(bsz) + j * bsz) * ctx
+        b = torch.from_numpy(np.stack([val[i:i + ctx + 1] for i in ix]).astype(np.int64)).cuda()
+        x, y = b[:, :-1], b[:, 1:]
         with torch.autocast("cuda", torch.bfloat16):
             tot += F.cross_entropy(model(x).float().view(-1, VOCAB), y.reshape(-1)).item()
     return tot / n_batches
@@ -156,7 +159,7 @@ def main():
     ap.add_argument("--warmup", type=int, default=200)
     ap.add_argument("--eval-every", type=int, default=250)
     ap.add_argument("--eval-batches", type=int, default=50)
-    ap.add_argument("--final-eval-batches", type=int, default=400)   # 13M held-out tokens
+    ap.add_argument("--final-eval-batches", type=int, default=400)   # 13.1M distinct held-out tokens
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no-compile", action="store_true")
     args = ap.parse_args()
@@ -195,19 +198,22 @@ def main():
         rng = np.random.default_rng([args.seed, step])
         for g in opt.param_groups:
             g["lr"] = lr_at(step)
-        tot = 0.0
+        tot, ts = 0.0, time.time()
         for _ in range(args.accum):
             x, y = batch(train, rng, args.micro_bsz, args.ctx, "cuda")
             with torch.autocast("cuda", torch.bfloat16):
                 loss = F.cross_entropy(fwd(x).float().view(-1, VOCAB), y.reshape(-1)) / args.accum
             loss.backward()
-            tot += loss.item()
+            tot += loss.detach()                  # no host sync per micro-batch
         gn = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0).item()
         opt.step()
         opt.zero_grad(set_to_none=True)
+        tot = tot.item()
         if not math.isfinite(tot):
             raise SystemExit(f"non-finite loss at step {step}")
-        rec = dict(step=step + 1, train_loss=tot, grad_norm=gn, lr=lr_at(step))
+        # sec: wall time of this step alone (includes compile on the first step), so steady throughput can be read
+        # from short smoke runs; tok_per_s below averages over the whole run
+        rec = dict(step=step + 1, train_loss=tot, grad_norm=gn, lr=lr_at(step), sec=round(time.time() - ts, 3))
         if (step + 1) % args.eval_every == 0 or step + 1 == steps:
             model.eval()
             rec["val_loss"] = evaluate(fwd, val, args.eval_batches, args.micro_bsz, args.ctx)

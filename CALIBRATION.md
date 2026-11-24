@@ -332,12 +332,34 @@ variant, loss on the last loop only, gradients flow through shared K/V.
 Variants: `perloop` (reference), `sharefirst`, `sharefirst_w64`, `pairs`, `mqa3` (per-loop with 3 KV heads, the
 same KV bytes as `sharefirst`), `noloop`; plus `perloop` seed 1 for seed noise.
 
-**Pre-registered rule (PROPOSED 2026-11-21, pending Sid's approval; fixed before any data).** Metric: final
-held-out loss on 13M tokens. Margin m = max(0.01 nats, 2 x |perloop seed 0 - seed 1|).
-1. A sharing rule matches per-loop caches if its loss <= `perloop` + m.
-2. It beats the standard KV reduction if its loss < `mqa3` - m.
-3. If `noloop` is not worse than `perloop` by more than m, looping is not shown to help at this scale, and
-   conclusions 1-2 are flagged as not transferable.
-4. All runs are recorded whatever they score. Zero-shot downstream evals (LAMBADA, ARC-E, PIQA, SciQ, HellaSwag)
-   are a later, separately pre-registered step. 2B tokens is about 1/10 of the papers' budgets: a null result
-   here does not rule out sharing at scale.
+**Review (2026-11-21, Week 6b session, before any data).** Changes to the first proposal:
+- Runs: `sharefirst` gets a second seed (it is the result the chip story hangs on; 2 seeds per side instead of a
+  noise estimate from one pair). `pairs` runs only if both `sharefirst` and `sharefirst_w64` fail rule 1 (it is the
+  fallback design, not needed otherwise). `noloop` stays: it is also the guard against a collapsed per-loop baseline,
+  which Monea et al. report and which would make sharing look good for the wrong reason.
+- Eval: the final loss is now on the first 400 x 32 consecutive non-overlapping 1024-token windows of `val.bin`
+  (13.1M distinct tokens); before, random windows overlapped (~9.6M distinct). Per-step wall time is logged (`sec`)
+  so the smoke run measures steady throughput, not compile time.
+- lr: a short probe (`w6b_lrprobe`, 200M tokens, `perloop` and `sharefirst` at lr 5e-4 / 1e-3 / 2e-3) picks the
+  lr for all main runs (below).
+- Not changed, on purpose: 2B tokens (25 tokens/param, compute-optimal for 81M params; the question is relative);
+  no compute-matched 24-layer transformer (answers "is looping worth it", not this question); no exit gate
+  (`sharefirst` is, if anything, *easier* with early exit: loop 1 always runs, so the shared cache is always
+  complete); `mqa3` vs `sharefirst_w64` KV mismatch (a 64-token window is < 1 % of an 8k cache);
+  `mqa3` has ~5M fewer looped params (smaller K/V projection), noted as a caveat.
+
+**Pre-registered rule (v2, proposed 2026-11-21; APPROVED by Sid 2026-11-23, before any data).**
+- lr: all main runs use the lr with the lowest final probe loss for `perloop`. If `sharefirst`'s best probe lr
+  differs, this is reported; the comparison is then tuned for the baseline, i.e. conservative against sharing.
+- Metric: final held-out loss L (above). For variants with two seeds, L is the mean of the seeds.
+  Seed gap d = max(|`perloop` s0 - s1|, |`sharefirst` s0 - s1|). Margin m = max(0.01 nats, 2 x d).
+- 0. If m > 0.03 nats, seed noise is too large for this budget: every comparison below is reported as
+     inconclusive (the numbers are still recorded).
+- 1. A sharing rule matches per-loop caches if L <= L(`perloop`) + m.
+- 2. It beats the standard KV reduction if L < L(`mqa3`) - m.
+- 3. If L(`noloop`) - L(`perloop`) <= m, looping is not shown to help at this scale (or the per-loop baseline
+     failed to train): conclusions 1-2 are flagged as not transferable.
+- 4. Reported for every variant, descriptive only: fraction of the looping benefit kept,
+     (L(`noloop`) - L) / (L(`noloop`) - L(`perloop`)).
+- 5. All runs are recorded whatever they score. Zero-shot downstream evals are a later, separately pre-registered
+     step. 2B tokens is about 1/10 of the papers' budgets: a null result here does not rule out sharing at scale.
