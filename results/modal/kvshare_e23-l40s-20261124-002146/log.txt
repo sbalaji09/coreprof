@@ -1,0 +1,55 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=kvshare_e23-l40s-20261124-002146
+git=bbcbb2c-dirty
+Tue Nov 24 08:21:53 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA L40S, GPU-cbf1d183-a71a-647e-fb56-68a05c34d930, 46068 MiB, 610.57.04
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ nvidia-smi --query-gpu=name --format=csv,noheader | grep -q L40S
+[exit 0]
+
+$ python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt
+[gpu torch.float32] 0/100 repeated matmuls differ  -> OK
+[gpu torch.bfloat16] 0/100 repeated matmuls differ  -> OK
+[model] identical prefills, max cache diff 0.00e+00  -> OK
+[ut_step=0] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=1] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=2] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+[ut_step=3] rel err hidden 0.00e+00, max abs err gate 0.00e+00  -> OK
+ALL OK
+[exit 0]
+
+$ python -m pytest -q tests/test_kv_store.py 2>&1 | tee $OUT/pytest_kv.txt
+....................                                                     [100%]
+20 passed in 1.69s
+[exit 0]
+
+$ python quality_check.py --n 8 --max-new-tokens 64 --q 1.0 0.5 --variants bf16 kvdec --out-dir $OUT
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+bf16 q=1.0: accuracy 50.0% (4/8, 95% CI 21.5-78.5), mean exit depth 4.00, exit loops 1/2/3/4 = 0.0 / 0.0 / 0.0 / 100.0 %, no '####': 4, fp8 clipped: 0, 5 s
+bf16 q=0.5: accuracy 50.0% (4/8, 95% CI 21.5-78.5), mean exit depth 3.27, exit loops 1/2/3/4 = 0.0 / 0.2 / 72.8 / 27.0 %, no '####': 4, fp8 clipped: 0, 4 s
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+kvdec q=1.0: accuracy 50.0% (4/8, 95% CI 21.5-78.5), mean exit depth 4.00, exit loops 1/2/3/4 = 0.0 / 0.0 / 0.0 / 100.0 %, no '####': 4, fp8 clipped: 0, 5 s
+  vs bf16: +0.0 pts (95% CI +0.0 to +0.0; only bf16 right 0, only kvdec right 0, McNemar p=1.000), same answer 6/8, depth +0.000 ± 0.000
+kvdec q=0.5: accuracy 50.0% (4/8, 95% CI 21.5-78.5), mean exit depth 2.97, exit loops 1/2/3/4 = 0.0 / 21.2 / 60.5 / 18.3 %, no '####': 4, fp8 clipped: 0, 4 s
+  vs bf16: +0.0 pts (95% CI +0.0 to +0.0; only bf16 right 0, only kvdec right 0, McNemar p=1.000), same answer 6/8, depth -0.298 ± 0.033
+wrote /vol/results/kvshare_e23-l40s-20261124-002146/quality_20261124-082213.json
+[exit 0]
+
+$ python quality_check.py --n 1319 --q 1.0 0.5 --variants bf16 kvdec --out-dir $OUT
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+bf16 q=1.0: accuracy 79.3% (1046/1319, 95% CI 77.0-81.4), mean exit depth 4.00, exit loops 1/2/3/4 = 0.0 / 0.0 / 0.0 / 100.0 %, no '####': 6, fp8 clipped: 0, 1331 s
+bf16 q=0.5: accuracy 77.8% (1026/1319, 95% CI 75.5-79.9), mean exit depth 3.23, exit loops 1/2/3/4 = 0.0 / 1.6 / 74.3 / 24.1 %, no '####': 15, fp8 clipped: 0, 1149 s
+WARNING: 100.0% of decode tokens ran all loops at q=1.0; CDB has almost nothing to gain at this threshold.
+kvdec q=1.0: accuracy 69.5% (917/1319, 95% CI 67.0-71.9), mean exit depth 4.00, exit loops 1/2/3/4 = 0.0 / 0.0 / 0.0 / 100.0 %, no '####': 7, fp8 clipped: 0, 1352 s
+  vs bf16: -9.8 pts (95% CI -12.0 to -7.5; only bf16 right 185, only kvdec right 56, McNemar p=0.000), same answer 941/1319, depth +0.000 ± 0.000
+kvdec q=0.5: accuracy 75.2% (992/1319, 95% CI 72.8-77.5), mean exit depth 3.02, exit loops 1/2/3/4 = 0.0 / 25.7 / 46.7 / 27.7 %, no '####': 8, fp8 clipped: 0, 1123 s
+  vs bf16: -2.6 pts (95% CI -4.6 to -0.5; only bf16 right 114, only kvdec right 80, McNemar p=0.018), same answer 1006/1319, depth -0.205 ± 0.007
+wrote /vol/results/kvshare_e23-l40s-20261124-002146/quality_20261124-082239.json
+[exit 0]

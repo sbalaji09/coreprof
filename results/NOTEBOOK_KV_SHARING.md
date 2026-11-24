@@ -397,3 +397,37 @@ Reading changes:
 - **Decision 3 (72eeeaf) now has two wrong figures** (not edited; flagged to Sid): B=16 shared co-located is 12 chips,
   not 10; the separate-KV-unit cost is per-loop 6-20 % / shared 1-6 % (row b) and 6-19 % / 1-5 % (row c), not
   6-22 % / 1-6 % and 6-22 % / 6-20 %.
+
+# E2 / E3 - results (run `kvshare_e23-l40s-20261124-002146`, NVIDIA L40S per env.txt and the task's GPU guard; git bbcbb2c-dirty, the dirty files being the other session's CALIBRATION.md / train_looped.py; selfcheck ALL OK; KV-store tests 20 passed on GPU; ~1.4 h of compute ≈ $3)
+All 1319 GSM8K test questions, 4-shot, greedy, 256 new tokens, CDB 32 slots, one container. Recorded as pre-registered.
+
+| variant | accuracy | change vs bf16 same q (95 % CI) | only bf16 / only variant right | McNemar p | exit depth (change) | rule |
+|---|---:|---:|---:|---:|---:|---|
+| bf16 q=1.0 | 79.3 % (1046) | – | – | – | 4.00 | reference |
+| bf16 q=0.5 | 77.8 % (1026) | – | – | – | 3.23 | reference (= Week 6's 77.8 %) |
+| **E2** kvdec q=1.0 | 69.5 % (917) | **−9.8 (−12.0 to −7.5)** | 185 / 56 | < 0.001 | 4.00 | **fail** |
+| **E3** kvdec q=0.5 | 75.2 % (992) | **−2.6 (−4.6 to −0.5)** | 114 / 80 | 0.018 | 3.02 (−0.205) | **fail**; depth changed |
+
+- E2 prediction (pass, −1.5 … +1) **refuted**. Ouro's Table 14 (last-step only 78.85 vs 78.92) does not reproduce in our
+  stack: our full-cache reference agrees with theirs (79.3 vs 78.92) but decode-only last-step sharing costs ~10 points.
+- E3 prediction (pass, −2.5 … +0.5, depth ±0.10) **refuted** narrowly: −2.6, lower bound −4.6; depth −0.21 (25.7 % of
+  tokens exit at loop 2 vs 1.6 % for bf16).
+- **Surprise: E3 loses less than E2** (−2.6 vs −9.8), the opposite of H2's prediction. Untested explanations: the exit
+  loop's KV (mostly loop 3) is closer to what loops 1-3 expect than loop 4's; or the gate exits earlier when the cache is
+  shared. Different references (each vs its own bf16), so not a paired E2-vs-E3 comparison.
+- Failure mode: not collapse. Of the 185 questions E2 loses, 1 is degenerate (word-repetition check); outputs are coherent
+  with arithmetic slips (e.g. "20 * 35 = $70" for $700). Lost questions have slightly longer answers (median 207 vs 187
+  characters), consistent with errors growing with the number of shared positions (untested).
+- E1 in hindsight: its "no degeneration, right on all 4" was true, but a 10-point loss is invisible at n = 8.
+
+Hypotheses after E1-E3:
+- H1 (prompt sharing causes the collapse): **supported**. Decode-only sharing does not collapse (69.5 % / 75.2 % vs kv1's
+  3.9 %). Its "nearly free" part is **refuted**.
+- H3 (any loop-4 reuse breaks Ouro): **partly supported**. It does not break it, but costs ~10 points at q = 1.0.
+- H2 (early-exit stale KV as an extra cost): **refuted in direction**. Early exit made sharing less harmful.
+- **Conclusion: Ouro-1.4B as trained passes the Week 6 rule with no form of cross-loop KV sharing we tested**: prompt +
+  decode (Week 6), decode-only with all loops (E2) or with early exit (E3). Untested forms: averaged reuse (Table 14:
+  78.73) and first-step reuse (18.73 in the paper, not worth testing). No further runs without a new pre-registration and
+  Sid's OK.
+- Not explained: why Table 14 differs. Their implementation is not public; differences we know of are 3-shot lm-eval vs
+  our 4-shot and our HF / CDB implementations (which agree with each other, E1 vs Week 6 references).

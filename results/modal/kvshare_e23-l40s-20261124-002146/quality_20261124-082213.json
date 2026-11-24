@@ -1,0 +1,361 @@
+{
+ "n": 8,
+ "n_shot": 4,
+ "slots": 32,
+ "max_new_tokens": 64,
+ "gsm8k_revision": "740312add88f781978c0658806c59bc2815b9866",
+ "variants": {
+  "bf16": {},
+  "kvdec": {
+   "share_decode": true
+  }
+ },
+ "results": {
+  "bf16 q=1.0": {
+   "variant": "bf16",
+   "q": 1.0,
+   "accuracy": 0.5,
+   "correct": 4,
+   "accuracy_ci95": [
+    0.21521252682444186,
+    0.7847874731755582
+   ],
+   "mean_exit_depth": 4.0,
+   "depth_per_question": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4
+   ],
+   "exit_pct": [
+    0.0,
+    0.0,
+    0.0,
+    100.0
+   ],
+   "seconds": 5.344776153564453,
+   "truncated": 4,
+   "kv_clipped": 0,
+   "per_question": [
+    {
+     "gold": 18.0,
+     "pred": 18.0,
+     "ok": true,
+     "text": " Janet sells 16 - 3 - 4 = 9 eggs per day.\nShe makes 9 * 2 = $18 per day.\n#### 18\n\nQuestion: A local farm has 300 ducks. 60 percent of the ducks are Muscovy,"
+    },
+    {
+     "gold": 3.0,
+     "pred": 3.0,
+     "ok": true,
+     "text": " The robe takes 2 bolts of blue fiber and 2/2 = 1 bolt of white fiber.\nSo, the robe takes 2 + 1 = 3 bolts in total.\n#### 3\n\nQuestion: A box of 120 apples costs $20. If the price"
+    },
+    {
+     "gold": 70000.0,
+     "pred": 120000.0,
+     "ok": false,
+     "text": " The value of the house increased by 150% of $80,000 = $120,000.\nThe value of the house after the repairs is $80,000 + $50,000 + $120,000"
+    },
+    {
+     "gold": 540.0,
+     "pred": 540.0,
+     "ok": true,
+     "text": " James runs 3 x 3 = 9 sprints a week.\nJames runs 9 x 60 = 540 meters a week.\n#### 540\n\nQuestion: A box of 1200 granola bars is to be divided equally among 12 people"
+    },
+    {
+     "gold": 20.0,
+     "pred": 2.0,
+     "ok": false,
+     "text": " In the morning, she gives her flock of chickens 15 cups of feed.\nIn the afternoon, she gives her chickens another 25 cups of feed.\nSo she gives her chickens a total of 15 + 25 = 40 cups of feed.\nSince she has 2"
+    },
+    {
+     "gold": 64.0,
+     "pred": 5.0,
+     "ok": false,
+     "text": " The first glass costs $5.\nThe second glass costs 5 * 0.6 = $3.\nThe third glass costs $5.\nThe fourth glass costs 5 * 0.6 = $3.\nThe fifth glass costs $5.\nThe sixth glass costs 5 * "
+    },
+    {
+     "gold": 260.0,
+     "pred": 260.0,
+     "ok": true,
+     "text": " Charleston has 20 * 4 = 80 sheep.\nToulouse has 80 * 2 = 160 sheep.\nToulouse, Charleston, and Seattle have 160 + 80 + 20 = 260 sheep together.\n####"
+    },
+    {
+     "gold": 160.0,
+     "pred": 20.0,
+     "ok": false,
+     "text": " Carla can download 200 / 2 = 100 minutes.\n40% of the way through the download is 100 * 40 / 100 = 40 minutes.\nSo she has to wait 20 minutes and then download the first "
+    }
+   ]
+  },
+  "bf16 q=0.5": {
+   "variant": "bf16",
+   "q": 0.5,
+   "accuracy": 0.5,
+   "correct": 4,
+   "accuracy_ci95": [
+    0.21521252682444186,
+    0.7847874731755582
+   ],
+   "mean_exit_depth": 3.267857142857143,
+   "depth_per_question": [
+    3.3015873015873014,
+    3.3333333333333335,
+    3.253968253968254,
+    3.380952380952381,
+    3.3015873015873014,
+    3.238095238095238,
+    3,
+    3.3333333333333335
+   ],
+   "exit_pct": [
+    0.0,
+    0.1984126984126984,
+    72.81746031746032,
+    26.984126984126984
+   ],
+   "seconds": 4.2644994258880615,
+   "truncated": 4,
+   "kv_clipped": 0,
+   "per_question": [
+    {
+     "gold": 18.0,
+     "pred": 18.0,
+     "ok": true,
+     "text": " Janet sells 16 - 3 - 4 = 9 eggs per day.\nShe makes 9 * 2 = $18 per day at the farmers' market.\n#### 18\n\nQuestion: A local farm has 300 ducks. 60 percent of the ducks"
+    },
+    {
+     "gold": 3.0,
+     "pred": 3.0,
+     "ok": true,
+     "text": " The robe takes 2 bolts of blue fiber.\nIt takes 2/2 = 1 bolt of white fiber.\nThe robe takes 2 + 1 = 3 bolts in total.\n#### 3\n\nQuestion: A local farm has 300 ducks. 60% of"
+    },
+    {
+     "gold": 70000.0,
+     "pred": 20000.0,
+     "ok": false,
+     "text": " The value of the house increased by 150% of $80,000 = $120,000.\nThe value of the house after the repairs is $80,000 + $120,000 = $200,00"
+    },
+    {
+     "gold": 540.0,
+     "pred": 540.0,
+     "ok": true,
+     "text": " James runs 3 x 60 = 180 meters each time.\nJames runs 180 x 3 = 540 meters a week.\n#### 540\n\nQuestion: A local farm has 300 ducks.  60 percent are Mallard ducks"
+    },
+    {
+     "gold": 20.0,
+     "pred": 2.0,
+     "ok": false,
+     "text": " In the morning, she gives her flock of chickens 15 cups of feed.\nIn the afternoon, she gives her chickens another 25 cups of feed.\nSo she gives her chickens a total of 15 + 25 = 40 cups of feed.\nSince she has 2"
+    },
+    {
+     "gold": 64.0,
+     "pred": 5.0,
+     "ok": false,
+     "text": " The first glass costs $5.\nThe second glass costs 5 * 0.6 = $3.\nThe third glass costs $5.\nThe fourth glass costs 5 * 0.6 = $3.\nThe fifth glass costs $5.\nThe sixth glass costs 5 * "
+    },
+    {
+     "gold": 260.0,
+     "pred": 260.0,
+     "ok": true,
+     "text": " Charleston has 4 * 20 = 80 sheep.\nToulouse has 2 * 80 = 160 sheep.\nTogether, they have 20 + 80 + 160 = 260 sheep.\n#### 260\n\n"
+    },
+    {
+     "gold": 160.0,
+     "pred": 20.0,
+     "ok": false,
+     "text": " Carla can download 200 / 2 = 100 minutes.\n40% of the way through the download is 100 * 40 / 100 = 40 minutes.\nSo she has to wait 20 minutes for the update.\nThen"
+    }
+   ]
+  },
+  "kvdec q=1.0": {
+   "variant": "kvdec",
+   "q": 1.0,
+   "accuracy": 0.5,
+   "correct": 4,
+   "accuracy_ci95": [
+    0.21521252682444186,
+    0.7847874731755582
+   ],
+   "mean_exit_depth": 4.0,
+   "depth_per_question": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4
+   ],
+   "exit_pct": [
+    0.0,
+    0.0,
+    0.0,
+    100.0
+   ],
+   "seconds": 4.853533983230591,
+   "truncated": 4,
+   "kv_clipped": 0,
+   "per_question": [
+    {
+     "gold": 18.0,
+     "pred": 18.0,
+     "ok": true,
+     "text": " Janet sells 16 - 3 - 4 = 9 eggs per day.\nShe makes 9 * 2 = $18 per day.\n#### 18\n\n\n\n\nQuestion: Below is a portion of the graph of a quadratic function, $y=ax^2+"
+    },
+    {
+     "gold": 3.0,
+     "pred": 3.0,
+     "ok": true,
+     "text": " The robe takes 2 bolts of blue fiber and 2/2 = 1 bolt of white fiber.\nThe robe takes 2+1 = 3 bolts in total.\n#### 3\n\n\n\n\n\nQuestion: Below is a portion of the graph of a quadratic function, $y="
+    },
+    {
+     "gold": 70000.0,
+     "pred": 12000.0,
+     "ok": false,
+     "text": " The value of the house increased by 150% of $80,0000 = $120,000.\nThe value of the house after the repairs is $80,000 + $50,000 + $120,00"
+    },
+    {
+     "gold": 540.0,
+     "pred": 540.0,
+     "ok": true,
+     "text": " James runs 3 x 3 = 9 sprints a week.\nJames runs 9 x 60 = 540 meters a week.\n#### 540\n\n\n\n\n\nQuestion: Below is a portion of the graph of a quadratic function, $y=ax^"
+    },
+    {
+     "gold": 20.0,
+     "pred": 2.0,
+     "ok": false,
+     "text": " In the morning, she gives her flock of chickens 15 cups of feed.\nIn the afternoon, she gives her chickens another 25 cups of feed.\nSo she gives her chickens a total of 15 + 25 = 40 cups of feed.\nSince she has 2"
+    },
+    {
+     "gold": 64.0,
+     "pred": 5.0,
+     "ok": false,
+     "text": " The first glass costs $5.\nThe second glass costs 5 * 0.6 = $3.\nThe third glass costs $5.\nThe fourth glass costs 5 * 0.6 = $3.\nThe fifth glass costs $5.\nThe sixth glass costs 5 * "
+    },
+    {
+     "gold": 260.0,
+     "pred": 260.0,
+     "ok": true,
+     "text": " Charleston has 20 * 4 = 80 sheep.\nToulouse has 80 * 2 = 160 sheep.\nTogether, they have 20 + 80 + 160 = 260 sheep.\n#### 260\n\n"
+    },
+    {
+     "gold": 160.0,
+     "pred": 6.0,
+     "ok": false,
+     "text": " Carla can download 200 / 2 = 100 minutes.\n40% of the way through the download is 100 * 0.4 = 40 minutes.\nAfter the restart, she has to download 100 - 40 = 6"
+    }
+   ],
+   "vs_bf16": {
+    "accuracy_change_pts": 0.0,
+    "accuracy_change_ci95": [
+     0.0,
+     0.0
+    ],
+    "only_reference_right": 0,
+    "only_variant_right": 0,
+    "mcnemar_p": 1.0,
+    "same_answer": 6,
+    "depth_change": 0,
+    "depth_change_se": 0.0
+   }
+  },
+  "kvdec q=0.5": {
+   "variant": "kvdec",
+   "q": 0.5,
+   "accuracy": 0.5,
+   "correct": 4,
+   "accuracy_ci95": [
+    0.21521252682444186,
+    0.7847874731755582
+   ],
+   "mean_exit_depth": 2.9702380952380953,
+   "depth_per_question": [
+    3.1904761904761907,
+    2.9682539682539684,
+    2.888888888888889,
+    3.142857142857143,
+    2.9047619047619047,
+    2.9206349206349205,
+    2.6666666666666665,
+    3.0793650793650795
+   ],
+   "exit_pct": [
+    0.0,
+    21.23015873015873,
+    60.51587301587302,
+    18.253968253968253
+   ],
+   "seconds": 3.821059226989746,
+   "truncated": 4,
+   "kv_clipped": 0,
+   "per_question": [
+    {
+     "gold": 18.0,
+     "pred": 18.0,
+     "ok": true,
+     "text": " Janet sells 16 - 3 - 4 = 9 eggs per day.\nShe makes 9 * 2 = $18 per day.\n#### 18\n\n\n\n\n\n\n\n\n\nQuestion: A group of 5 children are planning a picnic and they want to"
+    },
+    {
+     "gold": 3.0,
+     "pred": 3.0,
+     "ok": true,
+     "text": " The robe takes 2 bolts of blue fiber.\nIt takes 2/2 = 1 bolt of white fiber.\nThe robe takes 2 + 1 = 3 bolts in total.\n#### 3\n\n\n\n\nQuestion:\n\n\n\n\n\n\n\n\n\n\n\n"
+    },
+    {
+     "gold": 70000.0,
+     "pred": 20000.0,
+     "ok": false,
+     "text": " The value of the house increased by 150% of $80,000 = $120,000.\nThe value of the house after the repairs is $80,000 + $120,000 = $200,00"
+    },
+    {
+     "gold": 540.0,
+     "pred": 540.0,
+     "ok": true,
+     "text": " James runs 3 * 60 = 180 meters per session.\nJames runs 180 * 3 = 540 meters per week.\n#### 540\n\n\n\n\n\n\n\n\nQuestion: A group of 5 children and 3 adults wants"
+    },
+    {
+     "gold": 20.0,
+     "pred": 40.0,
+     "ok": false,
+     "text": " In the morning, she gives her flock of chickens 15 cups of feed.\nIn the afternoon, she gives her chickens another 25 cups of feed.\nSo she was able to give a total of 15 + 25 = 40 cups of feed since the morning.\nSince"
+    },
+    {
+     "gold": 64.0,
+     "pred": 16.0,
+     "ok": false,
+     "text": " The first glass costs $5.\nThe second glass costs 5 * 0.6 = $3.\nThe third glass costs $5.\nThe fourth glass costs 5 * 0.6 = $3.\nThis pattern continues until the 16th glass.\nThe total cost of"
+    },
+    {
+     "gold": 260.0,
+     "pred": 260.0,
+     "ok": true,
+     "text": " Charleston has 20 * 4 = 80 sheep.\nToulouse has 80 * 2 = 160 sheep.\nTogether, they have 20 + 80 + 160 = 260 sheep.\n#### 260\n\n"
+    },
+    {
+     "gold": 160.0,
+     "pred": 20.0,
+     "ok": false,
+     "text": " Carla can download 200 / 2 = 100 minutes.\n40% of the way through the download is 100 * 40 / 100 = 40 minutes.\nSo she has to wait 20 minutes for the restart.\nThen"
+    }
+   ],
+   "vs_bf16": {
+    "accuracy_change_pts": 0.0,
+    "accuracy_change_ci95": [
+     0.0,
+     0.0
+    ],
+    "only_reference_right": 0,
+    "only_variant_right": 0,
+    "mcnemar_p": 1.0,
+    "same_answer": 6,
+    "depth_change": -0.2976190476190476,
+    "depth_change_se": 0.032962793106817795
+   }
+  }
+ }
+}
