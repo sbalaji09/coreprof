@@ -152,34 +152,41 @@ def sized(m, hw, B, C):
     return replace(hw, n_chips=max(1, math.ceil(need / hw.sram_bytes_per_chip)))
 
 
-def kv_remote_fraction(m, hw, B, C):
-    """Fraction of the KV cache on KV-only chips: what doesn't fit in the spare SRAM of the fewest chips holding the
-    weights (+ LM head). 0 unless kv_on_chip."""
+def weight_chips(m, hw):
+    """The fewest chips holding the resident weights (+ LM head if on chip)."""
+    w, _, _ = fit_check(m, replace(hw, kv_on_chip=False, n_chips=1))
+    return math.ceil(w / hw.sram_bytes_per_chip), w
+
+
+def kv_remote_fraction(m, hw, seqs, C):
+    """Fraction of the KV cache of `seqs` sequences on KV-only chips: what doesn't fit in the (pooled) spare SRAM of the
+    weight chips. 0 unless kv_on_chip."""
     if not hw.kv_on_chip:
         return 0.0
-    w, _, _ = fit_check(m, replace(hw, kv_on_chip=False, n_chips=1))
-    spare = math.ceil(w / hw.sram_bytes_per_chip) * hw.sram_bytes_per_chip - w
-    kv = kv_footprint(m, hw, B, C)
+    n, w = weight_chips(m, hw)
+    spare = n * hw.sram_bytes_per_chip - w
+    kv = kv_footprint(m, hw, seqs, C)
     return max(0.0, kv - spare) / kv if kv else 0.0
 
 
-def kv_placement_s(m, hw, B, C):
-    """Extra seconds per loop step for remote KV (kv_placement "stream" or "near"; 0 for "aggregate").
-    stream: the remote share of this step's cache read crosses one chip-to-chip link at link_bw (prefetched, so
-            bandwidth-bound; hop latency hidden).
+def kv_placement_s(m, hw, B, C, seqs=None):
+    """Extra seconds per loop step for remote KV (kv_placement "stream" or "near"; 0 for "aggregate"). B = rows per step
+    (LoopSpec lanes for one sequence), seqs = sequences whose KV is stored (default B).
+    stream: the remote share of this step's cache read crosses the chip's links at link_bw (the chip's aggregate I/O;
+            prefetched, so bandwidth-bound; hop latency hidden). Each row reads its context.
     near:   whole layers' KV are remote (ceil(fraction x layers) of them); each such layer sends q to its KV chip and
             gets the attention output back (2 hops, not overlappable: o_proj waits for it)."""
-    r = kv_remote_fraction(m, hw, B, C)
+    if hw.kv_placement not in ("aggregate", "stream", "near"):
+        raise ValueError(f"kv_placement must be aggregate, stream or near, got {hw.kv_placement!r}")
+    r = kv_remote_fraction(m, hw, seqs or B, C)
     if hw.kv_placement == "aggregate" or r == 0:
         return 0.0
     if hw.kv_placement == "stream":
         return r * B * C * m.kv_elems_per_token_per_loop() * hw.kv_bytes / hw.link_bw
-    if hw.kv_placement == "near":
-        return math.ceil(r * m.n_layers) * 2 * (hw.hop_latency_s + B * m.d_model * hw.act_bytes / hw.link_bw)
-    raise ValueError(f"kv_placement must be aggregate, stream or near, got {hw.kv_placement!r}")
+    return math.ceil(r * m.n_layers) * 2 * (hw.hop_latency_s + B * m.d_model * hw.act_bytes / hw.link_bw)
 
 
-def step_terms(m, hw, B, C):
+def step_terms(m, hw, B, C, seqs=None):
     """Per-loop-step terms in seconds, for B sequences each with C cached tokens.
 
     Multi-chip pipeline, latency view: one step's tokens visit every chip in turn, so the per-chip SRAM
@@ -189,6 +196,9 @@ def step_terms(m, hw, B, C):
     core = m.core_params * hw.weight_bytes
     f = hw.resident_fraction
     hops = hw.n_chips if hw.n_chips > 1 else 0      # recirculation: last chip sends back to the first
+    if hw.kv_on_chip and hw.kv_placement != "aggregate":   # the token only visits the weight chips; KV-only chips
+        n_w = weight_chips(m, hw)[0]                       # are reached through kv_placement_s
+        hops = n_w if n_w > 1 else 0
     t = {
         "weights_sram": f * core / hw.weight_bw + hw.weight_kernels * hw.weight_kernel_s,
         "weights_ext": (1 - f) * core / hw.ext_bw,
@@ -196,7 +206,7 @@ def step_terms(m, hw, B, C):
                    + hw.per_seq_overhead_s * B,
         # each executed loop reads one cache of C tokens, whether caches are per loop or shared
         "kv": B * C * m.kv_elems_per_token_per_loop() * hw.kv_bytes / kv_bw(hw),
-        "link": hops * (hw.hop_latency_s + B * m.d_model * hw.act_bytes / hw.link_bw) + kv_placement_s(m, hw, B, C),
+        "link": hops * (hw.hop_latency_s + B * m.d_model * hw.act_bytes / hw.link_bw) + kv_placement_s(m, hw, B, C, seqs),
     }
     # resources: terms on the same one queue behind each other even when overlapped
     t["_by_resource"] = {
@@ -208,8 +218,8 @@ def step_terms(m, hw, B, C):
     return t
 
 
-def step_time(m, hw, B, C):
-    t = step_terms(m, hw, B, C)
+def step_time(m, hw, B, C, seqs=None):
+    t = step_terms(m, hw, B, C, seqs)
     res = t["_by_resource"]
     if hw.combine == "sum":
         busy = sum(res.values())
@@ -820,7 +830,8 @@ def loopspec_stats(gpu, mode="1:2", runs=LOOPSPEC_RUNS):
 
 def chip_token_time_loopspec(m, hw, C, stats, lanes, level):
     """B=1 token time of the chip running LoopSpec at full depth (m.total_loops), lanes rows per pass."""
-    t_pass, _ = step_time(m, replace(hw, overhead_s=m.n_layers * layer_latency_bottom_up(m, C, level, B=lanes)), lanes, C)
+    t_pass, _ = step_time(m, replace(hw, overhead_s=m.n_layers * layer_latency_bottom_up(m, C, level, B=lanes)), lanes, C,
+                          seqs=1)
     lm_bw = hw.weight_bw if hw.lmhead_on_chip else hw.ext_bw
     t_lm = m.lmhead_params * hw.weight_bytes / lm_bw + 2 * m.lmhead_params / hw.compute
     return stats["passes"] * t_pass + per_token_extras(m, hw, 1) + (stats["readouts"] - 1) * t_lm

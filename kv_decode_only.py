@@ -85,10 +85,17 @@ LINKS = {"optimistic (0.30 µs, 1.344 TB/s)": (0.30e-6, 1.344e12), "pessimistic 
          "1 µs hops (1.344 TB/s)": (1e-6, 1.344e12)}   # results/LATENCY_SOURCES.md, NOTEBOOK_KV_SHARING.md P1
 
 
-def colocated_fits(design, B):
-    """One layer's weights + that layer's KV fit on one chip (layers spread over all chips, KV beside its layer)."""
+def colocated_chips(design, B):
+    """Chips for the co-located layout: whole layers, each with its KV, packed per chip, plus the LM head on a chip
+    with room (else one more). None if one layer + its KV exceeds a chip."""
     _, kv = hw_for(design, B, C, 0, "install_int8_low", True)
-    return (m.core_params * base.weight_bytes + kv) / m.n_layers <= base.sram_bytes_per_chip
+    layer, sram = (m.core_params * base.weight_bytes + kv) / m.n_layers, base.sram_bytes_per_chip
+    per_chip = int(sram // layer)
+    if per_chip == 0:
+        return None
+    n = math.ceil(m.n_layers / per_chip)
+    fewest = m.n_layers - (n - 1) * per_chip          # layers on the least-full chip
+    return n if sram - fewest * layer >= m.lmhead_params * base.weight_bytes else n + 1
 
 
 def placement_table():
@@ -114,7 +121,12 @@ def placement_table():
                     for B in (1, 16):
                         hw, _ = hw_for(design, B, C, 0, level, on_chip)
                         hws[B] = replace(hw, kv_placement=place, hop_latency_s=hop, link_bw=bw)
-                    ok = {B: place != "aggregate" or not on_chip or colocated_fits(design, B) for B in (1, 16)}
+                    if place == "aggregate" and on_chip:      # co-located: chips from whole-layer packing
+                        n_co = {B: colocated_chips(design, B) for B in (1, 16)}
+                        hws = {B: replace(hws[B], n_chips=n_co[B] or hws[B].n_chips) for B in (1, 16)}
+                        ok = {B: n_co[B] is not None for B in (1, 16)}
+                    else:
+                        ok = {1: True, 16: True}
                     hw1, hw16 = hws[1], hws[16]
                     r1, r16 = (lm.kv_remote_fraction(m, hws[B], B, C) if place != "aggregate" else 0.0 for B in (1, 16))
                     if ok[1]:

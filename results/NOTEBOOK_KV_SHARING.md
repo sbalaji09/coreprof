@@ -364,3 +364,36 @@ Nits: an invalid kv_placement only raises when r > 0; no tests for kv_remote_fra
   chips 10 → 12, per chip / 1.2 (1.30-2.28 → ~1.07-1.89), speedup −< 1 %. Default reports must stay byte-identical.
 - Consequences flagged for Sid, not edited: decision 3 (72eeeaf) says shared B=16 "10 chips" (becomes 12) and quotes the
   separate-KV-unit cost from near rows that F1/F2 change.
+
+## R1 - fixes F1-F3 applied, results (table re-run: results/kv_placement_p1.txt replaced; model only)
+Checks: `--loopspec-table`, `--kv-levers` and the default report byte-identical before/after; tests/test_loopcore_model.py
+31 passed (+1 pre-existing xfail); the 3 new tests fail on the pre-fix model (checked) and pass after.
+Against the predictions (optimistic links unless stated):
+- F1 row (c): shared stream 3.7-6.2x → 8.3-15.1x (~2.4x, predicted ~2.4x); shared near 12.0-24.0 → 12.6-25.6x (+5-7 %,
+  pred. ~+7 %); per-loop stream 3.2-5.3 → 3.7-6.1x (+13-15 %, pred. ~+13 %); per-loop near +1-2 % (pred. ~+1 %). Matched.
+- F2: per-loop B=16 near 12.3-20.6 → 12.7-21.4x (+3-4 %), pessimistic 10.6-17.0 → 11.4-18.7x (+8-10 %); shared B=16 near
+  +1 % / +3 %; B=1 ≤ 1 %. Matched.
+- F3: shared co-located B=16 chips 10 → 12, per chip 1.30-2.28 → 1.08-1.90 (predicted ~1.07-1.89). Matched.
+
+Corrected table, sourced links (optimistic .. pessimistic), t_L 3.83-6.68 µs x eff 1.0-1.3:
+
+| design | chips 1x / 16x | (b) B=1 | /chip | (c) B=1 | /chip | B=16 | /chip |
+|---|---|---|---|---|---|---|---|
+| per-loop, HBM (as trained) | 3 / 3 | 3.8-7.1x | 1.28-2.37 | 5.8-9.9x | 1.92-3.31 | 3.1-4.3x | 1.03-1.42 |
+| per-loop, on-chip, co-located | 5 / – | 5.1-11.0x | 1.02-2.20 | 12.6-26.2x | 2.52-5.23 | does not fit | – |
+| per-loop, on-chip, near | 5 / 29 | 4.4-9.9x | 0.88-1.98 | 10.9-23.9x | 2.19-4.78 | 11.4-21.4x | 0.39-0.74 |
+| per-loop, on-chip, stream | 5 / 29 | 1.0-5.2x | 0.21-1.04 | 0.9-6.1x | 0.17-1.21 | 0.3-1.9x | 0.01-0.07 |
+| shared, on-chip, co-located | 4 / 12 | 5.1-11.0x | 1.27-2.76 | 12.6-26.2x | 3.16-6.56 | 13.0-22.8x | 1.08-1.90 |
+| shared, on-chip, near | 4 / 10 | 4.9-10.8x | 1.23-2.69 | 12.2-25.6x | 3.05-6.41 | 11.5-21.5x | 1.15-2.15 |
+| shared, on-chip, stream | 4 / 10 | 2.8-8.9x | 0.69-2.21 | 3.1-15.1x | 0.78-3.78 | 0.3-2.0x | 0.03-0.20 |
+
+Separate-KV-unit ("near") cost vs co-located at B=1, sourced links: per-loop 6-20 % (b), 6-19 % (c); shared 1-6 % (b),
+1-5 % (c). (1 µs hops: per-loop 18-26 %, shared 5-8 %.)
+
+Reading changes:
+- Not predicted: at 16x2048 shared "near" (10 chips) beats shared co-located (12 chips) per chip, 1.15-2.15 vs 1.08-1.90,
+  at slightly lower speedup (11.5-21.5x vs 13.0-22.8x). Per-loop stays the worst per chip (0.39-0.74).
+- Streaming still never pays: best case shared row (c) 15.1x vs co-located 26.2x; at B=16 ≤ 2.0x.
+- **Decision 3 (72eeeaf) now has two wrong figures** (not edited; flagged to Sid): B=16 shared co-located is 12 chips,
+  not 10; the separate-KV-unit cost is per-loop 6-20 % / shared 1-6 % (row b) and 6-19 % / 1-5 % (row c), not
+  6-22 % / 1-6 % and 6-22 % / 6-20 %.

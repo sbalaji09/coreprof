@@ -1,4 +1,5 @@
 """Unit tests for loopcore_model.py (pure Python, no GPU): python -m pytest -q tests/test_loopcore_model.py"""
+import math
 import statistics
 from dataclasses import replace
 
@@ -251,3 +252,32 @@ def test_unified_kernel_classes_l40s_list():
     n = lm.kernel_list("l40s", 1, 128)
     assert (n["weight_red"], n["o_proj"], n["attention"], sum(n.values())) == (72, 24, 24, 222)
     assert lm.kernel_list("l40s", 3, 512) == lm.kernel_list("l40s", 2, 128)
+
+
+def _shared_onchip(B, C, **kw):
+    D = lm.LOOPCORE_CONFIGS["D: 3 chips, 8-bit, all resident"]
+    return lm.sized(M, replace(D, kv_bytes=1.0, kv_caches=1, kv_on_chip=True, **kw), B, C)
+
+
+def test_remote_kv_fraction_counts_stored_sequences_not_rows():
+    # weights + LM head (1334 MB) on 3 x 500 MB chips leave 166 MB; one shared fp8 cache at 2048 is 201 MB
+    hw = _shared_onchip(1, 2048, kv_placement="near")
+    assert lm.kv_remote_fraction(M, hw, 1, 2048) == pytest.approx((201.3e6 - 166.0e6) / 201.3e6, rel=0.01)
+    # LoopSpec: 4 rows of one sequence read the KV of ONE sequence, so fewer remote layers than 4 sequences
+    assert lm.step_time(M, hw, 4, 2048, seqs=1)[0] < lm.step_time(M, hw, 4, 2048)[0]
+
+
+def test_near_placement_hops_skip_kv_only_chips():
+    hop = 1e-6
+    hw = replace(_shared_onchip(16, 2048, kv_placement="near"), hop_latency_s=hop, link_bw=float("inf"))
+    assert hw.n_chips == 10                                   # 3 weight chips + KV-only chips
+    r = lm.kv_remote_fraction(M, hw, 16, 2048)
+    expected = 3 * hop + math.ceil(r * M.n_layers) * 2 * hop   # pipeline over weight chips + 2 hops per remote layer
+    assert lm.step_terms(M, hw, 16, 2048)["link"] == pytest.approx(expected)
+    agg = replace(hw, kv_placement="aggregate")               # default layout: every chip is in the pipeline
+    assert lm.step_terms(M, agg, 16, 2048)["link"] == pytest.approx(10 * hop)
+
+
+def test_unknown_kv_placement_raises():
+    with pytest.raises(ValueError):
+        lm.step_time(M, _shared_onchip(1, 128, kv_placement="nearby"), 1, 128)
