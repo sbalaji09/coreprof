@@ -1,0 +1,57 @@
+
+$ { echo task=$RID; echo git=$GIT; date -u; nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv; lscpu | grep -E 'Model name|^CPU\(s\)'; nproc; python -c 'import torch,transformers;print("torch",torch.__version__,"transformers",transformers.__version__)'; } 2>&1 | tee $OUT/env.txt
+task=w6b_smoke-h100-20261124-121303
+git=ee9a78c-dirty
+Tue Nov 24 20:13:07 UTC 2026
+name, uuid, memory.total [MiB], driver_version
+NVIDIA H100 80GB HBM3, GPU-4314740f-4841-ab9d-d925-3698ce0b8b70, 81559 MiB, 620.70.06
+CPU(s):              24
+Model name:          unknown
+8
+torch 2.5.1+cu124 transformers 4.57.1
+[exit 0]
+
+$ nvidia-smi --query-gpu=name --format=csv,noheader | grep -q 'H100 80GB HBM3'
+[exit 0]
+
+$ python train_looped.py --variant perloop --tokens 5.3e6 --eval-every 5 --eval-batches 2 --final-eval-batches 2 --out-dir $OUT
+{"variant": "perloop", "kv_every": 1, "n_kv_heads": 12, "loops": 4, "params": 81074688, "steps": 10, "tokens_per_step": 524288, "args": {"variant": "perloop", "data": "/vol/data/fineweb_edu_gpt2", "out_dir": "/vol/results/w6b_smoke-h100-20261124-121303", "tokens": 5300000.0, "ctx": 1024, "micro_bsz": 32, "accum": 16, "lr": 0.001, "warmup": 200, "eval_every": 5, "eval_batches": 2, "final_eval_batches": 2, "seed": 0, "no_compile": false}, "gpu": "NVIDIA H100 80GB HBM3", "torch": "2.5.1+cu124"}
+{"step": 5, "train_loss": 10.11125373840332, "grad_norm": 7.777714252471924, "lr": 2.5e-05, "sec": 2.675, "val_loss": 9.88650131225586, "tok_per_s": 31928.964916417823}
+{"step": 10, "train_loss": 9.53158950805664, "grad_norm": 2.500678777694702, "lr": 5e-05, "sec": 2.674, "val_loss": 9.433302402496338, "tok_per_s": 53931.40044401137}
+{"variant": "perloop", "kv_every": 1, "n_kv_heads": 12, "loops": 4, "params": 81074688, "steps": 10, "tokens_per_step": 524288, "args": {"variant": "perloop", "data": "/vol/data/fineweb_edu_gpt2", "out_dir": "/vol/results/w6b_smoke-h100-20261124-121303", "tokens": 5300000.0, "ctx": 1024, "micro_bsz": 32, "accum": 16, "lr": 0.001, "warmup": 200, "eval_every": 5, "eval_batches": 2, "final_eval_batches": 2, "seed": 0, "no_compile": false}, "gpu": "NVIDIA H100 80GB HBM3", "torch": "2.5.1+cu124", "final_val_loss": 9.433302402496338, "final_val_ppl": 12497.7311959981, "hours": 0.02749618841542138}
+[exit 0]
+
+$ python train_looped.py --variant sharefirst --tokens 5.3e6 --eval-every 5 --eval-batches 2 --final-eval-batches 2 --out-dir $OUT
+{"variant": "sharefirst", "kv_every": 4, "n_kv_heads": 12, "loops": 4, "params": 81074688, "steps": 10, "tokens_per_step": 524288, "args": {"variant": "sharefirst", "data": "/vol/data/fineweb_edu_gpt2", "out_dir": "/vol/results/w6b_smoke-h100-20261124-121303", "tokens": 5300000.0, "ctx": 1024, "micro_bsz": 32, "accum": 16, "lr": 0.001, "warmup": 200, "eval_every": 5, "eval_batches": 2, "final_eval_batches": 2, "seed": 0, "no_compile": false}, "gpu": "NVIDIA H100 80GB HBM3", "torch": "2.5.1+cu124"}
+{"step": 5, "train_loss": 10.093924522399902, "grad_norm": 7.7154436111450195, "lr": 2.5e-05, "sec": 2.559, "val_loss": 9.874008655548096, "tok_per_s": 49439.301869583076}
+{"step": 10, "train_loss": 9.5375394821167, "grad_norm": 2.4429829120635986, "lr": 5e-05, "sec": 2.549, "val_loss": 9.439404487609863, "tok_per_s": 77783.95727452707}
+{"variant": "sharefirst", "kv_every": 4, "n_kv_heads": 12, "loops": 4, "params": 81074688, "steps": 10, "tokens_per_step": 524288, "args": {"variant": "sharefirst", "data": "/vol/data/fineweb_edu_gpt2", "out_dir": "/vol/results/w6b_smoke-h100-20261124-121303", "tokens": 5300000.0, "ctx": 1024, "micro_bsz": 32, "accum": 16, "lr": 0.001, "warmup": 200, "eval_every": 5, "eval_batches": 2, "final_eval_batches": 2, "seed": 0, "no_compile": false}, "gpu": "NVIDIA H100 80GB HBM3", "torch": "2.5.1+cu124", "final_val_loss": 9.439404487609863, "final_val_ppl": 12574.226568758286, "hours": 0.01921714100572798}
+[exit 0]
+
+$ python train_looped.py --variant sharefirst_w64 --tokens 5.3e6 --eval-every 5 --eval-batches 2 --final-eval-batches 2 --out-dir $OUT
+{"variant": "sharefirst_w64", "kv_every": 4, "n_kv_heads": 12, "loops": 4, "window": 64, "params": 81074688, "steps": 10, "tokens_per_step": 524288, "args": {"variant": "sharefirst_w64", "data": "/vol/data/fineweb_edu_gpt2", "out_dir": "/vol/results/w6b_smoke-h100-20261124-121303", "tokens": 5300000.0, "ctx": 1024, "micro_bsz": 32, "accum": 16, "lr": 0.001, "warmup": 200, "eval_every": 5, "eval_batches": 2, "final_eval_batches": 2, "seed": 0, "no_compile": false}, "gpu": "NVIDIA H100 80GB HBM3", "torch": "2.5.1+cu124"}
+{"step": 5, "train_loss": 10.096379280090332, "grad_norm": 7.7300496101379395, "lr": 2.5e-05, "sec": 4.661, "val_loss": 9.876008033752441, "tok_per_s": 33638.5200876899}
+{"step": 10, "train_loss": 9.536104202270508, "grad_norm": 2.449289083480835, "lr": 5e-05, "sec": 4.658, "val_loss": 9.43700122833252, "tok_per_s": 50934.00454589637}
+{"variant": "sharefirst_w64", "kv_every": 4, "n_kv_heads": 12, "loops": 4, "window": 64, "params": 81074688, "steps": 10, "tokens_per_step": 524288, "args": {"variant": "sharefirst_w64", "data": "/vol/data/fineweb_edu_gpt2", "out_dir": "/vol/results/w6b_smoke-h100-20261124-121303", "tokens": 5300000.0, "ctx": 1024, "micro_bsz": 32, "accum": 16, "lr": 0.001, "warmup": 200, "eval_every": 5, "eval_batches": 2, "final_eval_batches": 2, "seed": 0, "no_compile": false}, "gpu": "NVIDIA H100 80GB HBM3", "torch": "2.5.1+cu124", "final_val_loss": 9.43700122833252, "final_val_ppl": 12544.043725228, "hours": 0.029104724791314866}
+[exit 0]
+
+$ python train_looped.py --variant pairs --tokens 5.3e6 --eval-every 5 --eval-batches 2 --final-eval-batches 2 --out-dir $OUT
+{"variant": "pairs", "kv_every": 2, "n_kv_heads": 12, "loops": 4, "params": 81074688, "steps": 10, "tokens_per_step": 524288, "args": {"variant": "pairs", "data": "/vol/data/fineweb_edu_gpt2", "out_dir": "/vol/results/w6b_smoke-h100-20261124-121303", "tokens": 5300000.0, "ctx": 1024, "micro_bsz": 32, "accum": 16, "lr": 0.001, "warmup": 200, "eval_every": 5, "eval_batches": 2, "final_eval_batches": 2, "seed": 0, "no_compile": false}, "gpu": "NVIDIA H100 80GB HBM3", "torch": "2.5.1+cu124"}
+{"step": 5, "train_loss": 10.105802536010742, "grad_norm": 7.757202625274658, "lr": 2.5e-05, "sec": 2.578, "val_loss": 9.88181447982788, "tok_per_s": 48476.0711890846}
+{"step": 10, "train_loss": 9.532950401306152, "grad_norm": 2.4630286693573, "lr": 5e-05, "sec": 2.574, "val_loss": 9.43512487411499, "tok_per_s": 76438.69283320029}
+{"variant": "pairs", "kv_every": 2, "n_kv_heads": 12, "loops": 4, "params": 81074688, "steps": 10, "tokens_per_step": 524288, "args": {"variant": "pairs", "data": "/vol/data/fineweb_edu_gpt2", "out_dir": "/vol/results/w6b_smoke-h100-20261124-121303", "tokens": 5300000.0, "ctx": 1024, "micro_bsz": 32, "accum": 16, "lr": 0.001, "warmup": 200, "eval_every": 5, "eval_batches": 2, "final_eval_batches": 2, "seed": 0, "no_compile": false}, "gpu": "NVIDIA H100 80GB HBM3", "torch": "2.5.1+cu124", "final_val_loss": 9.43512487411499, "final_val_ppl": 12520.528724014264, "hours": 0.019542377127541435}
+[exit 0]
+
+$ python train_looped.py --variant mqa3 --tokens 5.3e6 --eval-every 5 --eval-batches 2 --final-eval-batches 2 --out-dir $OUT
+{"variant": "mqa3", "kv_every": 1, "n_kv_heads": 3, "loops": 4, "params": 75766272, "steps": 10, "tokens_per_step": 524288, "args": {"variant": "mqa3", "data": "/vol/data/fineweb_edu_gpt2", "out_dir": "/vol/results/w6b_smoke-h100-20261124-121303", "tokens": 5300000.0, "ctx": 1024, "micro_bsz": 32, "accum": 16, "lr": 0.001, "warmup": 200, "eval_every": 5, "eval_batches": 2, "final_eval_batches": 2, "seed": 0, "no_compile": false}, "gpu": "NVIDIA H100 80GB HBM3", "torch": "2.5.1+cu124"}
+{"step": 5, "train_loss": 10.073114395141602, "grad_norm": 7.913112163543701, "lr": 2.5e-05, "sec": 2.605, "val_loss": 9.880813121795654, "tok_per_s": 36734.8206185346}
+{"step": 10, "train_loss": 9.546699523925781, "grad_norm": 2.593592643737793, "lr": 5e-05, "sec": 2.601, "val_loss": 9.447303295135498, "tok_per_s": 60989.3903671236}
+{"variant": "mqa3", "kv_every": 1, "n_kv_heads": 3, "loops": 4, "params": 75766272, "steps": 10, "tokens_per_step": 524288, "args": {"variant": "mqa3", "data": "/vol/data/fineweb_edu_gpt2", "out_dir": "/vol/results/w6b_smoke-h100-20261124-121303", "tokens": 5300000.0, "ctx": 1024, "micro_bsz": 32, "accum": 16, "lr": 0.001, "warmup": 200, "eval_every": 5, "eval_batches": 2, "final_eval_batches": 2, "seed": 0, "no_compile": false}, "gpu": "NVIDIA H100 80GB HBM3", "torch": "2.5.1+cu124", "final_val_loss": 9.447303295135498, "final_val_ppl": 12673.941259340425, "hours": 0.02435195373164283}
+[exit 0]
+
+$ python train_looped.py --variant noloop --tokens 5.3e6 --eval-every 5 --eval-batches 2 --final-eval-batches 2 --out-dir $OUT
+{"variant": "noloop", "kv_every": 1, "n_kv_heads": 12, "loops": 1, "params": 81074688, "steps": 10, "tokens_per_step": 524288, "args": {"variant": "noloop", "data": "/vol/data/fineweb_edu_gpt2", "out_dir": "/vol/results/w6b_smoke-h100-20261124-121303", "tokens": 5300000.0, "ctx": 1024, "micro_bsz": 32, "accum": 16, "lr": 0.001, "warmup": 200, "eval_every": 5, "eval_batches": 2, "final_eval_batches": 2, "seed": 0, "no_compile": false}, "gpu": "NVIDIA H100 80GB HBM3", "torch": "2.5.1+cu124"}
+{"step": 5, "train_loss": 10.37033462524414, "grad_norm": 5.7783966064453125, "lr": 2.5e-05, "sec": 1.36, "val_loss": 10.145081996917725, "tok_per_s": 110618.28840075032}
+{"step": 10, "train_loss": 9.650835990905762, "grad_norm": 2.341273784637451, "lr": 5e-05, "sec": 1.363, "val_loss": 9.537892818450928, "tok_per_s": 162695.91392475407}
+{"variant": "noloop", "kv_every": 1, "n_kv_heads": 12, "loops": 1, "params": 81074688, "steps": 10, "tokens_per_step": 524288, "args": {"variant": "noloop", "data": "/vol/data/fineweb_edu_gpt2", "out_dir": "/vol/results/w6b_smoke-h100-20261124-121303", "tokens": 5300000.0, "ctx": 1024, "micro_bsz": 32, "accum": 16, "lr": 0.001, "warmup": 200, "eval_every": 5, "eval_batches": 2, "final_eval_batches": 2, "seed": 0, "no_compile": false}, "gpu": "NVIDIA H100 80GB HBM3", "torch": "2.5.1+cu124", "final_val_loss": 9.537892818450928, "final_val_ppl": 13875.678224304169, "hours": 0.009450847506523133}
+[exit 0]

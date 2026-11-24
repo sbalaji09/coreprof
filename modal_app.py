@@ -85,6 +85,8 @@ loopspec_image = (
 # $OUT is the run's output dir on the volume, $RID the run id.
 CHECK = ["python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt"]
 W6B_GPU = ["nvidia-smi --query-gpu=name --format=csv,noheader | grep -q 'H100 80GB HBM3'"]
+# main-run lr, picked by the approved rule from the w6b_lrprobe run (results/NOTEBOOK_W6B.md, E2)
+W6B_LR = "5e-4"
 W6B_VARIANTS = ["perloop", "sharefirst", "sharefirst_w64", "pairs", "mqa3", "noloop"]   # = train_looped.VARIANTS
 TASKS = {
     "check": CHECK + ["python smoke_test.py 2>&1 | tee $OUT/smoke_test.txt"],
@@ -165,13 +167,14 @@ TASKS = {
     "week6": CHECK + ["python quality_check.py --n 1319 --q 0.5 --variants "
                       "bf16 fp8kv int4kv kv2 kv1 int8w chip int4w --out-dir $OUT"],
     # Week 6b: small looped LMs trained from scratch (train_looped.py). Data once (~20-40 min, CPU-bound);
-    # smoke = 10 steps of every variant (compile, memory, throughput); then one task per variant (~2 h on an H100).
+    # smoke = 10 steps of every variant (compile, memory, throughput); then one task per variant
+    # (H100, smoke E1: ~2.8 h; sharefirst_w64 ~4.9 h; noloop ~1.4 h).
     "w6b_prep": ["python prep_data.py 2>&1 | tee $OUT/prep.txt"],
     # every w6b GPU task stops at once unless it got the H100 SXM it asked for (a request can land elsewhere)
     "w6b_smoke": W6B_GPU + [f"python train_looped.py --variant {v} --tokens 5.3e6 --eval-every 5 --eval-batches 2 "
                   f"--final-eval-batches 2 --out-dir $OUT" for v in W6B_VARIANTS],
-    **{f"w6b_{v}": W6B_GPU + [f"python train_looped.py --variant {v} --out-dir /vol/w6b"] for v in W6B_VARIANTS},
-    **{f"w6b_{v}_s1": W6B_GPU + [f"python train_looped.py --variant {v} --seed 1 --out-dir /vol/w6b"]
+    **{f"w6b_{v}": W6B_GPU + [f"python train_looped.py --variant {v} --lr {W6B_LR} --out-dir /vol/w6b"] for v in W6B_VARIANTS},
+    **{f"w6b_{v}_s1": W6B_GPU + [f"python train_looped.py --variant {v} --seed 1 --lr {W6B_LR} --out-dir /vol/w6b"]
        for v in ("perloop", "sharefirst")},
     # lr probe (rule approved 2026-11-23): 200M tokens each, perloop and sharefirst at 3 lrs; perloop's best lr is
     # used for every main run, sharefirst's best is reported. Scored on val windows 12801+, outside the final eval.

@@ -1,0 +1,30 @@
+{
+ "variant": "mqa3",
+ "kv_every": 1,
+ "n_kv_heads": 3,
+ "loops": 4,
+ "params": 75766272,
+ "steps": 10,
+ "tokens_per_step": 524288,
+ "args": {
+  "variant": "mqa3",
+  "data": "/vol/data/fineweb_edu_gpt2",
+  "out_dir": "/vol/results/w6b_smoke-h100-20261124-121303",
+  "tokens": 5300000.0,
+  "ctx": 1024,
+  "micro_bsz": 32,
+  "accum": 16,
+  "lr": 0.001,
+  "warmup": 200,
+  "eval_every": 5,
+  "eval_batches": 2,
+  "final_eval_batches": 2,
+  "seed": 0,
+  "no_compile": false
+ },
+ "gpu": "NVIDIA H100 80GB HBM3",
+ "torch": "2.5.1+cu124",
+ "final_val_loss": 9.447303295135498,
+ "final_val_ppl": 12673.941259340425,
+ "hours": 0.02435195373164283
+}
