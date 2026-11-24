@@ -6,8 +6,9 @@ Usage:
   .venv/bin/python watch_w6b.py -w 60    # refresh every 60 s (Ctrl-C to stop)
   .venv/bin/python watch_w6b.py -w 120 --guard   # also stop a main run that breaks a pre-registered spending check
 
-The bar moves at each eval: every 100 steps in the lr probe, every 250 in the main runs. The volume's log.jsonl
-can't be used live: the trainer holds it open, and Modal's background commits skip open files.
+Runs report at each eval (every 100 steps in the lr probe, every 250 in the main runs); between evals the bar shows
+"~" steps estimated from the last eval's log timestamp and step time. The volume's log.jsonl can't be used live:
+the trainer holds it open, and Modal's background commits skip open files.
 """
 import argparse
 import json
@@ -29,7 +30,11 @@ def modal(*args):
 def runs(app_id):
     """Parse the task id (env line) and train_looped.py's stdout: a meta line per run, eval records, a final line."""
     out, rid = [], None
-    for ln in modal("app", "logs", app_id).splitlines():
+    for ln in modal("app", "logs", "--timestamps", app_id).splitlines():
+        try:
+            ts, ln = datetime.fromisoformat(ln[:25]), ln[26:]
+        except ValueError:
+            ts = None
         if ln.startswith("task="):
             rid = ln[5:].strip()
         if not ln.startswith("{"):
@@ -46,6 +51,7 @@ def runs(app_id):
             out.append(dict(name=name, steps=r["steps"], smoke="smoke" in a["out_dir"], probe="w6b_lr" in a["out_dir"],
                             evals=[], last=None, final=None))
         elif out and "step" in r:
+            r["t"] = ts
             out[-1]["last"] = r
             out[-1]["evals"].append(r)
         elif out and "final_val_loss" in r:
@@ -64,6 +70,15 @@ def broken(r):
     return None
 
 
+def now_step(r):
+    """Steps done now: the last eval's step plus the time since that log line over the measured step time."""
+    last = r["last"]
+    if not last.get("t"):
+        return last["step"]
+    since = (datetime.now(last["t"].tzinfo) - last["t"]).total_seconds()
+    return min(r["steps"], last["step"] + int(since / last["sec"]))
+
+
 def time_left(app, rid, rs):
     """Elapsed, run k of n, and the time left for the whole task: the current run from its step time, each queued
     run at the length of a finished one (or the current run's projected length). Eval and compile time add ~5 %."""
@@ -77,7 +92,7 @@ def time_left(app, rid, rs):
     left = None
     if cur and cur["last"]:
         sec = cur["last"]["sec"]
-        left = (cur["steps"] - cur["last"]["step"]) * sec / 3600
+        left = (cur["steps"] - now_step(cur)) * sec / 3600
         per_run.append(cur["steps"] * sec / 3600)
     if per_run and (left is not None or not cur):
         left = (left or 0) + max(0, n - done - (1 if cur else 0)) * sum(per_run) / len(per_run)
@@ -105,9 +120,9 @@ def show(guard=False):
                 tail = f"done  final val {r['final']['final_val_loss']:.4f}  ({r['final']['hours']:.2f} h)"
                 done = n
             elif last:
-                tail = (f"val {last['val_loss']:.3f}  {last['tok_per_s'] / 1e3:.0f}k tok/s  "
-                        f"~{(n - last['step']) * last['sec'] / 3600:.1f} h left" if live else "STOPPED before finishing")
-                done = last["step"]
+                done = now_step(r) if live else last["step"]
+                tail = (f"~step {done}, val {last['val_loss']:.3f} @ {last['step']}  {last['tok_per_s'] / 1e3:.0f}k tok/s  "
+                        f"~{(n - done) * last['sec'] / 3600:.1f} h left" if live else "STOPPED before finishing")
             else:
                 tail, done = ("compiling / first steps" if live else "STOPPED before first eval"), 0
             print(f"  {r['name']:<28} {bar(done, n)}  {tail}")
