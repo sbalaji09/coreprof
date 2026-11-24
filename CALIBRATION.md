@@ -367,3 +367,10 @@ same KV bytes as `sharefirst`), `noloop`; plus `perloop` seed 1 for seed noise.
 **Pre-registered change (Sid, 2026-11-24, before any probe data).** The lr probe is scored on `val.bin` windows
 12801 onwards (100 x 32 windows, tokens 13.1M-16.4M), not on windows from the start, so the lr choice never sees
 the main runs' final-eval tokens (windows 0-12799 plus their last target token). The rule above is unchanged.
+
+**Pre-registered change (Sid, 2026-11-24, after the first probe, before any main-run data).** The first probe's best
+lr for both variants was 5e-4, the lowest lr tested, and `perloop` stalled at 1e-3 and 2e-3 (results/NOTEBOOK_W6B.md,
+E2). One more probe point: lr 2.5e-4 for `perloop` and `sharefirst`, 200M tokens, the same settings and held-out
+scoring (`w6b_lrprobe2`). The lr rule is unchanged and now covers all four lrs: the main runs use the lr with the lowest
+final probe loss for `perloop`. Spending checks during the main runs (they change no scoring): stop a run and ask Sid if
+its val loss is above 6.5 at step 500, or if its val loss rises by more than 0.5 nats from one eval to the next.

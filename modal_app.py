@@ -181,6 +181,10 @@ TASKS = {
     "w6b_lrprobe": W6B_GPU + [f"python train_looped.py --variant {v} --lr {lr} --tokens 2e8 --warmup 40 --eval-every 100 "
                     f"--final-eval-batches 100 --eval-offset 12801 --out-dir /vol/w6b_lr/lr{lr}"
                     for lr in ("5e-4", "1e-3", "2e-3") for v in ("perloop", "sharefirst")],
+    # second probe point (pre-registered 2026-11-24): 5e-4 was the edge of the first grid
+    "w6b_lrprobe2": W6B_GPU + [f"python train_looped.py --variant {v} --lr 2.5e-4 --tokens 2e8 --warmup 40 "
+                               f"--eval-every 100 --final-eval-batches 100 --eval-offset 12801 --out-dir /vol/w6b_lr/lr2.5e-4"
+                               for v in ("perloop", "sharefirst")],
     # LoopSpec vs normal decoding at B=1 in LoopSpec's SGLang stack (loopspec_image; no selfcheck: it tests our stack).
     "loopspec_smoke": ["python loopspec_bench.py --n 3 --warmup 1 --max-new-tokens 64 --out-dir $OUT"],
     "loopspec": ["python loopspec_bench.py --out-dir $OUT"],
