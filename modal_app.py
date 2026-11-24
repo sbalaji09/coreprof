@@ -84,6 +84,7 @@ loopspec_image = (
 # Each task is a list of shell commands run in order from the repo root.
 # $OUT is the run's output dir on the volume, $RID the run id.
 CHECK = ["python selfcheck.py 2>&1 | tee $OUT/selfcheck.txt; grep -q 'ALL OK' $OUT/selfcheck.txt"]
+W6B_GPU = ["nvidia-smi --query-gpu=name --format=csv,noheader | grep -q 'H100 80GB HBM3'"]
 W6B_VARIANTS = ["perloop", "sharefirst", "sharefirst_w64", "pairs", "mqa3", "noloop"]   # = train_looped.VARIANTS
 TASKS = {
     "check": CHECK + ["python smoke_test.py 2>&1 | tee $OUT/smoke_test.txt"],
@@ -166,14 +167,15 @@ TASKS = {
     # Week 6b: small looped LMs trained from scratch (train_looped.py). Data once (~20-40 min, CPU-bound);
     # smoke = 10 steps of every variant (compile, memory, throughput); then one task per variant (~2 h on an H100).
     "w6b_prep": ["python prep_data.py 2>&1 | tee $OUT/prep.txt"],
-    "w6b_smoke": [f"python train_looped.py --variant {v} --tokens 5.3e6 --eval-every 5 --eval-batches 2 "
+    # every w6b GPU task stops at once unless it got the H100 SXM it asked for (a request can land elsewhere)
+    "w6b_smoke": W6B_GPU + [f"python train_looped.py --variant {v} --tokens 5.3e6 --eval-every 5 --eval-batches 2 "
                   f"--final-eval-batches 2 --out-dir $OUT" for v in W6B_VARIANTS],
-    **{f"w6b_{v}": [f"python train_looped.py --variant {v} --out-dir /vol/w6b"] for v in W6B_VARIANTS},
-    **{f"w6b_{v}_s1": [f"python train_looped.py --variant {v} --seed 1 --out-dir /vol/w6b"]
+    **{f"w6b_{v}": W6B_GPU + [f"python train_looped.py --variant {v} --out-dir /vol/w6b"] for v in W6B_VARIANTS},
+    **{f"w6b_{v}_s1": W6B_GPU + [f"python train_looped.py --variant {v} --seed 1 --out-dir /vol/w6b"]
        for v in ("perloop", "sharefirst")},
-    # lr check (PROPOSED, pending approval): 200M tokens each, perloop and sharefirst at 3 lrs; asks only whether
-    # both variants prefer the same lr, i.e. whether lr 1e-3 could favour one of them
-    "w6b_lrprobe": [f"python train_looped.py --variant {v} --lr {lr} --tokens 2e8 --warmup 40 --eval-every 100 "
+    # lr probe (rule approved 2026-11-23): 200M tokens each, perloop and sharefirst at 3 lrs; perloop's best lr is
+    # used for every main run, sharefirst's best is reported
+    "w6b_lrprobe": W6B_GPU + [f"python train_looped.py --variant {v} --lr {lr} --tokens 2e8 --warmup 40 --eval-every 100 "
                     f"--final-eval-batches 100 --out-dir /vol/w6b_lr/lr{lr}"
                     for lr in ("5e-4", "1e-3", "2e-3") for v in ("perloop", "sharefirst")],
     # LoopSpec vs normal decoding at B=1 in LoopSpec's SGLang stack (loopspec_image; no selfcheck: it tests our stack).
