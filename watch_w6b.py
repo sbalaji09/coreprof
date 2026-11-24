@@ -1,4 +1,5 @@
-"""Week 6b training progress as bars, from the Modal container logs (no GPU, nothing downloaded).
+"""Week 6b training progress as bars, and time left per launched task, from the Modal container logs (no GPU,
+nothing downloaded).
 
 Usage:
   .venv/bin/python watch_w6b.py          # once
@@ -10,10 +11,12 @@ can't be used live: the trainer holds it open, and Modal's background commits sk
 """
 import argparse
 import json
+from datetime import datetime, timedelta
 import subprocess
 import time
 from pathlib import Path
 
+from modal_app import TASKS
 from watch_runs import bar
 
 MODAL = str(Path(__file__).resolve().parent / ".venv/bin/modal")
@@ -24,9 +27,11 @@ def modal(*args):
 
 
 def runs(app_id):
-    """Parse train_looped.py's stdout: a meta line per run, then eval records, then a final line."""
-    out = []
+    """Parse the task id (env line) and train_looped.py's stdout: a meta line per run, eval records, a final line."""
+    out, rid = [], None
     for ln in modal("app", "logs", app_id).splitlines():
+        if ln.startswith("task="):
+            rid = ln[5:].strip()
         if not ln.startswith("{"):
             continue
         try:
@@ -45,7 +50,7 @@ def runs(app_id):
             out[-1]["evals"].append(r)
         elif out and "final_val_loss" in r:
             out[-1]["final"] = r
-    return out
+    return rid, out
 
 
 def broken(r):
@@ -59,13 +64,39 @@ def broken(r):
     return None
 
 
+def time_left(app, rid, rs):
+    """Elapsed, run k of n, and the time left for the whole task: the current run from its step time, each queued
+    run at the length of a finished one (or the current run's projected length). Eval and compile time add ~5 %."""
+    start = datetime.fromisoformat(app["created_at"])
+    elapsed = (datetime.now(start.tzinfo) - start).total_seconds() / 3600
+    task = rid.rsplit("-", 3)[0]
+    n = sum("train_looped.py" in c for c in TASKS.get(task, []))
+    done = sum(1 for r in rs if r["final"])
+    cur = next((r for r in rs if not r["final"]), None)
+    per_run = [r["final"]["hours"] for r in rs if r["final"]]
+    left = None
+    if cur and cur["last"]:
+        sec = cur["last"]["sec"]
+        left = (cur["steps"] - cur["last"]["step"]) * sec / 3600
+        per_run.append(cur["steps"] * sec / 3600)
+    if per_run and (left is not None or not cur):
+        left = (left or 0) + max(0, n - done - (1 if cur else 0)) * sum(per_run) / len(per_run)
+    k = min(done + 1, n) if n else done + 1
+    est = f"~{left:.1f} h left (finish ~{(datetime.now() + timedelta(hours=left)).strftime('%H:%M')})" \
+        if left is not None else "time left: known after the current run's first eval"
+    return f"{rid}: {elapsed:.1f} h elapsed, run {k} of {n or '?'}, {est}"
+
+
 def show(guard=False):
     apps = json.loads(modal("app", "list", "--json") or "[]")
     print(time.strftime("%H:%M:%S"), "Week 6b runs (Modal apps listed:", len(apps), ")")
     shown = 0
     for app in apps:
         live = app["state"] != "stopped"
-        for r in runs(app["app_id"]):
+        rid, rs = runs(app["app_id"])
+        if live and rid:
+            print(time_left(app, rid, rs))
+        for r in rs:
             if r["smoke"]:
                 continue
             shown += 1
