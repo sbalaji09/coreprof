@@ -1,0 +1,84 @@
+"""results/NOTEBOOK_KV_SHARING.md, Step 1.4. KV size and speedup for per-loop / decode-only-shared / fully-shared KV, using loopcore_model.py as-is.
+Decode-only sharing: P prompt tokens keep 4 caches, G generated tokens share 1. KV read per loop step is C=P+G
+tokens in every design (step_terms), so only placement (on-chip vs HBM), chip count and KV writes differ.
+Footprint = kv_footprint(4 caches, P) + kv_footprint(1 cache, G); chips sized to hold weights + LM head + that."""
+import math
+from dataclasses import replace
+
+import loopcore_model as lm
+
+m, q, C = lm.OURO_1_4B, 0.5, 2048
+depth = lm.MEAN_DEPTH[q]
+D = lm.LOOPCORE_CONFIGS["D: 3 chips, 8-bit, all resident"]
+gpu = "h100"
+st = lm.loopspec_stats(gpu, "1:2", lm.LOOPSPEC_LONG_RUNS)
+hwg = lm.predict_gpu(lm.fit_gpu("l40s", m), gpu)
+i8 = lm.measured_steps(gpu, "int8")
+gpu_i8 = {B: depth * i8[(B, C)] * 1e-3 + lm.gpu_extras(m, hwg, gpu, B) for B in (1, 16)}
+gpu_ls = st["ms_per_token"] * 1e-3
+base = replace(D, kv_bytes=1.0)   # fp8 KV (passed Week 6)
+
+def footprint(design, B, P, G):
+    f4 = lm.kv_footprint(m, replace(base, kv_caches=0), B, 1)   # bytes per token, 4 caches
+    f1 = lm.kv_footprint(m, replace(base, kv_caches=1), B, 1)
+    return {"per-loop": f4 * (P + G), "decode-only": f4 * P + f1 * G, "full": f1 * (P + G)}[design]
+
+def chips_for(B, kv):
+    w, _, _ = lm.fit_check(m, replace(base, n_chips=1))
+    return max(1, math.ceil((w + kv) / base.sram_bytes_per_chip))
+
+def hw_for(design, B, P, G, level, on_chip):
+    kv = footprint(design, B, P, G)
+    caches = {"per-loop": 0, "decode-only": 1, "full": 1}[design]   # KV writes per new token
+    n = chips_for(B, kv) if on_chip else lm.sized(m, base, B, C).n_chips
+    tl = lm.layer_latency_bottom_up(m, C, level, B=B)
+    return replace(base, kv_caches=caches, kv_on_chip=on_chip, n_chips=n, overhead_s=m.n_layers * tl), kv
+
+print(f"H100 baselines at C={C}: int8 B=1 {gpu_i8[1]*1e3:.2f} ms, B=16 {gpu_i8[16]*1e3:.2f} ms; LoopSpec B=1 {gpu_ls*1e3:.2f} ms")
+print(f"SRAM {base.sram_bytes_per_chip/1e6:.0f} MB/chip; weights+LM head int8 {lm.fit_check(m, replace(base, n_chips=1))[0]/1e6:.0f} MB\n")
+for B in (1, 16):
+    for G in (128, 256, 512, 1024, 1792, 2048):
+        P = C - G
+        for design in ("per-loop", "decode-only", "full"):
+            for on_chip in (False, True):
+                if design != "per-loop" and not on_chip:
+                    continue
+                row = []
+                for level in ("install_int8_low", "install_int8_high"):
+                    hw, kv = hw_for(design, B, P, G, level, on_chip)
+                    t = lm.token_time(m, hw, B, C, depth)
+                    if B == 1:
+                        hw0 = replace(hw, overhead_s=0)
+                        ls = [lm.chip_token_time_loopspec(m, hw0, C, st, ln, level) for ln in st["lanes"]]
+                        row.append(f"b {gpu_ls/t:5.1f}x c {gpu_ls/ls[1]:5.1f}-{gpu_ls/ls[0]:5.1f}x")
+                    else:
+                        row.append(f"vs int8 {gpu_i8[16]/t:5.1f}x")
+                print(f"B={B:<2} P={P:<5} G={G:<5} {design:11s} {'on-chip' if on_chip else 'HBM    '} KV {kv/1e6:6.0f} MB chips {hw.n_chips:>3} | low: {row[0]} | high: {row[1]}")
+        print()
+
+
+def sweep():
+    """Per-layer latency across the sourced install range (20..40 cycles/install = 3.8..6.7 µs at B=1), eff 1.0/1.3,
+    for per-loop caches on-chip vs as trained (HBM) and full sharing on-chip; speedup and speedup per chip."""
+    designs = {"per-loop on-chip": ("per-loop", True), "per-loop HBM": ("per-loop", False), "full on-chip": ("full", True)}
+    print("\nC=2048, q=0.5. (b) chip vs GPU+LoopSpec, (c) both LoopSpec (lanes lo-hi), B=16 vs H100 int8. /chip = speedup / chips")
+    print(f"{'design':17s} {'cyc':>3} {'t_L B=1':>7} eff | chips B1 B16 | (b) B=1  /chip | (c) B=1       /chip     | B=16   /chip")
+    for name, (design, on_chip) in designs.items():
+        for cyc in (20, 25, 30, 35, 40):
+            level = f"install_int8_c{cyc}"
+            lm.LAYER_CYCLE_PARAMS[level] = dict(lm.LAYER_CYCLE_PARAMS["install_int8_low"], install_cycles=cyc)
+            for eff in (1.0, 1.3):
+                hw1, _ = hw_for(design, 1, C, 0, level, on_chip)
+                hw16, _ = hw_for(design, 16, C, 0, level, on_chip)
+                b = gpu_ls / (eff * lm.token_time(m, hw1, 1, C, depth))
+                ls = [eff * lm.chip_token_time_loopspec(m, replace(hw1, overhead_s=0), C, st, ln, level) for ln in st["lanes"]]
+                c_lo, c_hi = gpu_ls / ls[1], gpu_ls / ls[0]
+                s16 = gpu_i8[16] / (eff * lm.token_time(m, hw16, 16, C, depth))
+                n1, n16 = hw1.n_chips, hw16.n_chips
+                print(f"{name:17s} {cyc:>3} {lm.layer_latency_bottom_up(m, C, level) * 1e6:5.2f}µs {eff:3.1f} | "
+                      f"{n1:>6} {n16:>3} | {b:5.1f}x {b / n1:5.2f} | {c_lo:5.1f}-{c_hi:5.1f}x {c_lo / n1:5.2f}-{c_hi / n1:5.2f} | "
+                      f"{s16:5.1f}x {s16 / n16:5.2f}")
+        print()
+
+
+sweep()
