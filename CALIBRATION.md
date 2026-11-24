@@ -204,6 +204,17 @@ the existing kernel for any shape, so H100 int8 at B=2–16 remains a lower boun
 3. **Architecture outline:** a weight-stationary pipeline of chips (each layer's weights in
    on-chip SRAM, tokens recirculate once per loop) plus a separate attention/KV unit next to
    HBM. KV compression across loops is under evaluation.
+   **Amended 2026-11-24 (approved by Sid):** the paper's chip layout keeps each layer's KV cache beside that
+   layer's weights, on the same chip, for every on-chip KV design point:
+   - Batch 1 (1×2048): per-loop or shared KV beside its layer (5 or 4 chips).
+   - Batch 16 (16×2048): shared KV beside its layer (10 chips). Per-loop KV does not fit there (one layer's
+     weights + KV ≈ 51 + 537 MB > 500 MB per chip): it needs near-memory attention on 29 chips and is the worst
+     design per chip.
+   Alternative layout: weights on the fewest chips plus a separate KV unit, with attention run on the chip holding
+   the KV. At batch 1, with sourced link figures, it costs 6–22 % (per-loop) and 1–6 % (shared) against KV beside
+   its layer when only the GPU runs LoopSpec, and 6–22 % and 6–20 % when the chip runs LoopSpec too. Streaming KV over
+   chip-to-chip links instead never pays with sourced link figures (≤ 1.344 TB/s per chip vs 150 TB/s SRAM).
+   Model: `loopcore_model.py` `kv_placement`; numbers in `results/NOTEBOOK_KV_SHARING.md` (P1).
 4. **Baselines:** best-case GPU step (CUDA graph + static KV cache) on L40S and H100. Never
    compare against the eager HF path.
    **Amended 2026-11-16:** "best-case" means the fastest measured implementation at each

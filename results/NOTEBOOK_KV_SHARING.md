@@ -307,3 +307,18 @@ Reading:
    1.30-2.28 per chip. Sharing (Week 6b, or a trained-in form) is what makes on-chip KV pay at B=16.
 4. Old "per-loop on-chip" numbers (Step 1.4, sweep) stay withdrawn; the co-located row replaces them, with its layout
    condition stated.
+
+# Correction to "P1 - results", reading 2 (2026-11-24)
+Reading 2 says the separate-KV-unit ("near") layout costs per-loop "7-15 %" and shared "3-6 %" at B=1. I read those off a
+few endpoint rows by eye. Computed over every row of results/kv_placement_p1.txt (cost = 1 − near / co-located, same
+t_L, eff and links), the right ranges are:
+
+| links | per-loop, row b | per-loop, row c | shared, row b | shared, row c |
+|---|---|---|---|---|
+| optimistic (0.30 µs, 1.344 TB/s) | 6-11 % | 6-10 % | 1-4 % | 6-9 % |
+| pessimistic (0.722 µs, 235 GB/s) | 14-22 % | 16-22 % | 3-6 % | 13-20 % |
+| 1 µs hops (sensitivity) | 18-27 % | 18-26 % | 5-8 % | 17-24 % |
+
+Sourced range: per-loop 6-22 % (b and c); shared 1-6 % (b), 6-20 % (c). With LoopSpec on the chip the shared cost is
+larger because each extra lane's pass pays the remote layers' round trips too. Decision 3's amendment (CALIBRATION.md,
+2026-11-24) uses these corrected ranges, not the 7-15 % / 3-6 % Sid approved; flagged to him.
