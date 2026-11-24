@@ -162,3 +162,42 @@ Findings (model-derived, not measured):
 - **E3:** decode-only, q = 0.5 (generated positions hold the exit loop's KV: the chip-relevant form), vs bf16 q = 0.5.
   Separates H2 as an extra cost.
 - Optional E4: averaged reuse, only if E2 passes and E3 fails.
+
+# E1 - result (run `kvshare_e1-l40s-20261124-001132`, L40S checked in env.txt, git fc51386-dirty: the dirty files are the other session's CALIBRATION.md / train_looped.py, not used here; ~10 min, ≈ $0.35)
+Command: `./run_modal.sh --task kvshare_e1` = `python week6_share_check.py --e1 --n 8 --max-new-tokens 256`. HF reference,
+all 4 loops (q = 1.0), first 8 GSM8K test questions, 4-shot (prompts 496-580 tokens), greedy, 256 new tokens.
+
+| arm | correct | degenerate outputs | first token that differs from unshared |
+|---|---:|---:|---|
+| unshared | 4/8 | 0/8 | – |
+| full sharing (prompt + decode; Week 6 rule) | 0/8 | 8/8 (garbled numbers, "e c a c", repeated "#### e") | tokens 1-12 |
+| decode-only (prompt keeps 4 caches) | 5/8 | 0/8 | tokens 6-159 |
+
+- Decode-only is right on all 4 questions unshared gets right (4/4), plus q4 (unshared answered 2, decode-only 20 = gold).
+  Its 3 misses are questions unshared also misses (q2 same wrong answer 120000; q5 80 vs 60; q7 120 vs 100).
+- Its text drifts from unshared within 6-159 tokens, but every output stays coherent, ends with "#### <n>", and follows the
+  same reasoning steps. Full sharing reproduces the old collapse on all 8.
+
+**Verdict against the pre-registered rule: inconclusive (5/8 is in the 3-5/8 band).** The rule's thresholds were absolute
+and assumed the unshared arm would get ~6/8 (77.8 % overall); on these first 8 questions it got only 4/8, so "≥ 6/8"
+could not be reached even by a perfect copy of unshared. I wrote the rule badly; I am not reclassifying the result.
+What the data does show, without the rule: decode-only matched unshared on every question it got right and never
+degenerated; full sharing degenerated on every question. That is strong qualitative evidence for H1 and against H3
+(H3 predicted decode-only would collapse like full sharing). n = 8, so it is not an accuracy estimate: per the
+pre-registration, E2 runs only with Sid's OK.
+
+# Per-loop caches on-chip vs sharing, sourced latency range (kv_decode_only.py `sweep()`, model only, 2026-11-24)
+Config D, int8, fp8 KV, q = 0.5, C = 2048 (all prompt; sharing form doesn't change speed, only chips). t_L from
+`install_int8` with 20/25/30/35/40 cycles per install (3.83 / 4.54 / 5.25 / 5.97 / 6.68 µs at B=1). (b) chip vs H100 +
+LoopSpec 3.74 ms; (c) both LoopSpec; B=16 vs H100 int8 15.87 ms. Endpoints reproduce `--loopspec-table`.
+
+| design | chips B=1 / B=16 | (b) B=1, eff 1.0 → 1.3 over 3.83-6.68 µs | /chip | (c) B=1 | /chip | B=16 | /chip |
+|---|---|---|---|---|---|---|---|
+| per-loop, on-chip | 5 / 29 | 10.6 … 5.0x | 2.13 … 1.01 | 25.4 … 12.5x | 5.1 … 2.5 | 20.4 … 12.2x | 0.70 … 0.42 |
+| per-loop, HBM (as trained) | 3 / 3 | 7.0 … 3.8x | 2.34 … 1.27 | 9.9 … 5.7x | 3.3 … 1.9 | 4.3 … 3.1x | 1.42 … 1.03 |
+| full sharing, on-chip | 4 / 10 | 10.7 … 5.1x | 2.69 … 1.27 | 25.7 … 12.6x | 6.4 … 3.2 | 22.2 … 13.0x | 2.22 … 1.30 |
+
+Reading: at B=1, per-loop on-chip (no sharing, no training) costs one extra chip and gives within ~0.3x of full sharing;
+row (c) ≥ 12.5x across the whole sourced range. At B=16 it needs 29 chips and is the worst design per chip (0.42-0.70,
+below HBM's 1.0-1.4). Model caveats: extra chips cost only hop latency (1 µs each); cost, power and links not modelled.
+Proposed numbers only; no write-up changed.

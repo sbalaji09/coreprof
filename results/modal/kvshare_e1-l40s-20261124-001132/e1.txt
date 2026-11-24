@@ -1,0 +1,36 @@
+q0 gold 18.0, prompt 535 tokens
+   unshared    pred 18.0 ok True, first 256/256 tokens = unshared: " Janet sells 16 - 3 - 4 = 9 eggs per day.\nShe makes 9 * 2 = $18 per day at the farmers' market.\n#### 18\n\n"
+   full        pred 4.0 ok False, first 9/256 tokens = unshared: ' Janet sells 16 - 3 - e = 4 eggs per day.#### 4\n\n\n'
+   decode-only pred 18.0 ok True, first 32/256 tokens = unshared: ' Janet sells 16 - 3 - 4 = 9 eggs per day.\nShe makes 9 * 2 = $18 per day.\n#### 18\n\n\n\n\n'
+q1 gold 3.0, prompt 496 tokens
+   unshared    pred 3.0 ok True, first 256/256 tokens = unshared: ' The robe takes 2 bolts of blue fiber and 2/2 = 1 bolt of white fiber.\nSo the robe takes 2 + 1 = 3 bolts in total.\n#### 3\n\n'
+   full        pred None ok False, first 4/256 tokens = unshared: ' The robe takes   bolt of blue fiber and half that much white fiber.\n\n\nThe robe took a c bolt of blue fiber and half that much white fiber .\n\n\n\n\n\n\nThe robe took a cbolt of blue fiber and half that much white fiber .\n\n\n\n\n\n\n\n\n\nThe robe took a cbolt of blue fiber or half that much white fiber .\n\n\n\n\n\n\n\n'
+   decode-only pred 3.0 ok True, first 23/256 tokens = unshared: ' The robe takes 2 bolts of blue fiber and 2/2 = 1 bolt of white fiber.\nThe robe takes 2+1 = 3 bolts in total.\n#### 3\n\n\n\n\n\n'
+q2 gold 70000.0, prompt 527 tokens
+   unshared    pred 120000.0 ok False, first 256/256 tokens = unshared: ' The value of the house increased by 150% of $80,000 = $120,000.\nThe value of the house after the repairs is $80,000 + $50,000 + $120,000 = $250,000.\nThe profit is $250,000 - $80,000 - $50,000 = $120,000.\n#### 120000\n\n'
+   full        pred 60000.0 ok False, first 1/256 tokens = unshared: ' The house was worth $80,000 + $50,00 = $130,000.\n\n\nThe final value of the house was $130,000 * 1. 50 = $190,000.\n\n\nThe profit was $190,000 - $130,000 = $60,000..\n\n\nThe profit was $60, 0000...\n#### 60000\n\n\n'
+   decode-only pred 120000.0 ok False, first 20/256 tokens = unshared: ' The value of the house increased by 150% of $80,0000 = $120,000.\nThe value of the house after the repairs is $80,000 + $50,000 + $120,000 = $250,000.\nThe profit is $250,000 - $80,000 - $50,000 = $120,000.\n#### 120000\n\n\n\n\n\n'
+q3 gold 540.0, prompt 505 tokens
+   unshared    pred 540.0 ok True, first 256/256 tokens = unshared: ' James runs 3 x 60 = 180 meters per session.\nJames runs 180 x 3 = 540 meters per week.\n#### 540\n\n'
+   full        pred None ok False, first 3/256 tokens = unshared: ' James runs  total of  week:  meters.#### \n\n\n'
+   decode-only pred 540.0 ok True, first 6/256 tokens = unshared: ' James runs 3 x 3 = 9 sprints a week.\nJames runs 9 x 60 = 540 meters a week.\n#### 540\n\n\n\n\n\n'
+q4 gold 20.0, prompt 580 tokens
+   unshared    pred 2.0 ok False, first 256/256 tokens = unshared: ' In the morning, she gives her flock of chickens 15 cups of feed.\nIn the afternoon, she gives her chickens another 25 cups of feed.\nSo she gives her chickens a total of 15 + 25 = 40 cups of feed.\nSince she has 20 chickens, she needs to give each chicken 40 / 20 = 2 cups of feed.\n#### 2\n\n'
+   full        pred None ok False, first 1/256 tokens = unshared: ' Inhelon gives..\n\nQuestion\n\n#### \n\n#### \n\n\n#### e\n\n\n#### e\n\n\n#### e\n\n\n#### e\n\n#### e\n\n\n#### e\n\n\n\n#### e\n\n\n\n#### e\n\n#### e\n\n\n#### e\n\n\n#### e\n\n\n#### e\n\n\n#### e\n\n\n#### e\n\n\n#### e\n\n\n#### e\n\n\n#### e\n\n\n\n#### e\n\n\n#### e\n\n\n#### e\n\n\n#### e\n\n\n\n#### e\n\n\n#### e\n\n\n#### e\n\n#### e\n\n#### e\n\n\n#### e\n\n#### e\n\n\n#### e'
+   decode-only pred 20.0 ok True, first 68/256 tokens = unshared: ' In the morning, she gives her flock of chickens 15 cups of feed.\nIn the afternoon, she gives her chickens another 25 cups of feed.\nSo she gives her chickens a total of 15 + 25 = 40 cups of feed.\nSince she has 20 chickens, she gives each chicken 40/20 = 2 cups of feed.\nSince she wants to give each c'
+q5 gold 64.0, prompt 526 tokens
+   unshared    pred 60.0 ok False, first 256/256 tokens = unshared: ' The first glass costs $5.\nThe second glass costs 5 * 0.6 = $3.\nThe third glass costs $5.\nThe fourth glass costs 5 * 0.6 = $3.\nThe fifth glass costs $5.\nThe sixth glass costs 5 * 0.6 = $3.\nThe seventh glass costs $5.\nThe eighth glass costs 5 * 0.6 = $3.\nThe ninth glass costs $5.\nThe tenth glass cost'
+   full        pred 4.0 ok False, first 12/256 tokens = unshared: ' The first glass costs $5.\nThe second glass costs $5 *  4. The third glass costs $5 * a e4 o The fourth glass costs $5 * a e4 o The fifth glass costs $5 * a e4 o The sixth glass costs $5 * a e4 o The seventh glass costs $5 * a e4 oThe eighth glass costs $5 * a e4 o The ninth glass costs $5 * a e4 o '
+   decode-only pred 80.0 ok False, first 159/256 tokens = unshared: ' The first glass costs $5.\nThe second glass costs 5 * 0.6 = $3.\nThe third glass costs $5.\nThe fourth glass costs 5 * 0.6 = $3.\nThe fifth glass costs $5.\nThe sixth glass costs 5 * 0.6 = $3.\nThe seventh glass costs $5.\nThe eighth glass costs 5 * 0.6 = $3.\nThe ninth glass costs $5.\nThe tenth glass cost'
+q6 gold 260.0, prompt 514 tokens
+   unshared    pred 260.0 ok True, first 256/256 tokens = unshared: ' Charleston has 20 * 4 = 80 sheep.\nToulouse has 80 * 2 = 160 sheep.\nTogether, they have 20 + 80 + 160 = 260 sheep.\n#### 260\n\n'
+   full        pred None ok False, first 3/256 tokens = unshared: ' Charleston has    c has  c a c  c a c  c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a c e c a '
+   decode-only pred 260.0 ok True, first 64/256 tokens = unshared: ' Charleston has 20 * 4 = 80 sheep.\nToulouse has 80 * 2 = 160 sheep.\nTogether, they have 20 + 80 + 160 = 260 sheep.\n#### 260\n\n\n\n\n'
+q7 gold 160.0, prompt 541 tokens
+   unshared    pred 100.0 ok False, first 256/256 tokens = unshared: ' Carla can download 200 / 2 = 100 minutes.\n40% of the way through the download is 100 * 40 / 100 = 40 minutes.\nSo she has to wait 20 minutes and then download the first 40 minutes again.\nThe total time is 40 + 20 + 40 = 100 minutes.\n#### 100\n\n'
+   full        pred 20.0 ok False, first 5/256 tokens = unshared: ' Carla can download  200 / 200 = 10 minutes.\n\nThe finale 40% of the way through the download, download is  20 minutes.\n\nThe final e    g    e  g e  e e g e g e g e g e g e g e g e g e g e g e g e g e g e g e g e g e g e g e g e g e g e g e e g e g e g e g e g e g e g e g e e g e g e g e g e g e g e '
+   decode-only pred 120.0 ok False, first 35/256 tokens = unshared: ' Carla can download 200 / 2 = 100 minutes.\n40% of the way through the download is 100 * 0.4 = 40 minutes.\nAfter the restart, she has to download 100 - 40 = 60 minutes.\nThe total time is 40 + 20 + 60 = 120 minutes.\n#### 120\n\n\n\n\n'
+E1 unshared: 4/8 correct
+E1 full: 0/8 correct
+E1 decode-only: 5/8 correct
+E1 decode-only right where unshared right: 4/4
