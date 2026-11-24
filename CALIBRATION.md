@@ -363,3 +363,7 @@ same KV bytes as `sharefirst`), `noloop`; plus `perloop` seed 1 for seed noise.
      (L(`noloop`) - L) / (L(`noloop`) - L(`perloop`)).
 - 5. All runs are recorded whatever they score. Zero-shot downstream evals are a later, separately pre-registered
      step. 2B tokens is about 1/10 of the papers' budgets: a null result here does not rule out sharing at scale.
+
+**Pre-registered change (Sid, 2026-11-24, before any probe data).** The lr probe is scored on `val.bin` windows
+12801 onwards (100 x 32 windows, tokens 13.1M-16.4M), not on windows from the start, so the lr choice never sees
+the main runs' final-eval tokens (windows 0-12799 plus their last target token). The rule above is unchanged.

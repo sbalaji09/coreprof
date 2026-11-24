@@ -174,9 +174,9 @@ TASKS = {
     **{f"w6b_{v}_s1": W6B_GPU + [f"python train_looped.py --variant {v} --seed 1 --out-dir /vol/w6b"]
        for v in ("perloop", "sharefirst")},
     # lr probe (rule approved 2026-11-23): 200M tokens each, perloop and sharefirst at 3 lrs; perloop's best lr is
-    # used for every main run, sharefirst's best is reported
+    # used for every main run, sharefirst's best is reported. Scored on val windows 12801+, outside the final eval.
     "w6b_lrprobe": W6B_GPU + [f"python train_looped.py --variant {v} --lr {lr} --tokens 2e8 --warmup 40 --eval-every 100 "
-                    f"--final-eval-batches 100 --out-dir /vol/w6b_lr/lr{lr}"
+                    f"--final-eval-batches 100 --eval-offset 12801 --out-dir /vol/w6b_lr/lr{lr}"
                     for lr in ("5e-4", "1e-3", "2e-3") for v in ("perloop", "sharefirst")],
     # LoopSpec vs normal decoding at B=1 in LoopSpec's SGLang stack (loopspec_image; no selfcheck: it tests our stack).
     "loopspec_smoke": ["python loopspec_bench.py --n 3 --warmup 1 --max-new-tokens 64 --out-dir $OUT"],

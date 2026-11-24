@@ -134,11 +134,11 @@ def batch(data, rng, bsz, ctx, device):
 
 
 @torch.no_grad()
-def evaluate(model, val, n_batches, bsz, ctx):
-    tot = 0.0      # consecutive non-overlapping held-out windows from the start of val: the same for every variant
-    assert (n_batches * bsz + 1) * ctx < len(val), "val.bin too small for this many eval batches"
+def evaluate(model, val, n_batches, bsz, ctx, offset=0):
+    tot = 0.0      # consecutive non-overlapping held-out windows from window `offset` of val: the same for every variant
+    assert ((offset + n_batches * bsz) + 1) * ctx < len(val), "val.bin too small for this many eval batches"
     for j in range(n_batches):
-        ix = (np.arange(bsz) + j * bsz) * ctx
+        ix = (np.arange(bsz) + offset + j * bsz) * ctx
         b = torch.from_numpy(np.stack([val[i:i + ctx + 1] for i in ix]).astype(np.int64)).cuda()
         x, y = b[:, :-1], b[:, 1:]
         with torch.autocast("cuda", torch.bfloat16):
@@ -161,6 +161,8 @@ def main():
     ap.add_argument("--eval-batches", type=int, default=50)
     ap.add_argument("--final-eval-batches", type=int, default=400)   # 13.1M distinct held-out tokens
     ap.add_argument("--seed", type=int, default=0)
+    # lr probe: 12801 = past the 400 x 32 windows (+ last target token) of the main runs' final eval, so the lr choice never sees them
+    ap.add_argument("--eval-offset", type=int, default=0)
     ap.add_argument("--no-compile", action="store_true")
     args = ap.parse_args()
 
@@ -216,7 +218,7 @@ def main():
         rec = dict(step=step + 1, train_loss=tot, grad_norm=gn, lr=lr_at(step), sec=round(time.time() - ts, 3))
         if (step + 1) % args.eval_every == 0 or step + 1 == steps:
             model.eval()
-            rec["val_loss"] = evaluate(fwd, val, args.eval_batches, args.micro_bsz, args.ctx)
+            rec["val_loss"] = evaluate(fwd, val, args.eval_batches, args.micro_bsz, args.ctx, args.eval_offset)
             model.train()
             rec["tok_per_s"] = (step + 1 - start) * meta["tokens_per_step"] / (time.time() - t0)
             torch.save(dict(model=model.state_dict(), opt=opt.state_dict(), step=step + 1), ckpt)
@@ -224,7 +226,7 @@ def main():
         log.write(json.dumps(rec) + "\n")
         log.flush()
     model.eval()
-    final = evaluate(fwd, val, args.final_eval_batches, args.micro_bsz, args.ctx)
+    final = evaluate(fwd, val, args.final_eval_batches, args.micro_bsz, args.ctx, args.eval_offset)
     res = dict(meta, final_val_loss=final, final_val_ppl=math.exp(final), hours=(time.time() - t0) / 3600)
     json.dump(res, open(os.path.join(out, "final.json"), "w"), indent=1)
     print(json.dumps(res), flush=True)
