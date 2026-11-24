@@ -89,3 +89,11 @@ Why / what I learned:
 - 5e-4 is the lowest lr tested, so the best lr could be lower; for 2B tokens I expect it is not much lower. Caveat.
 - The 0.09-nat sharefirst lead is one seed at 10 % of the budget; it is not evidence for the main question.
 Follow-up: watch the main runs' early evals for the same plateau (perloop at 5e-4 was at 6.04 by step 100 here).
+
+## E3 - second lr probe point, 2.5e-4 (pre-registered a698ff0; launched before any of its data)
+Command: `./run_modal.sh --task w6b_lrprobe2 --gpu H100`; same settings and held-out scoring as E2.
+Decision: main-run lr = perloop's lowest final probe loss over {2.5e-4, 5e-4, 1e-3, 2e-3}.
+Expected cost: 2 x ~0.3 h = ~0.65 h, ~$2.6.
+Prediction: perloop at 2.5e-4 ends worse than at 5e-4 (4.70), around 4.85-5.0: with only 381 steps the lower lr
+learns more slowly, and E2's 5e-4 curve showed no sign of instability. So the main lr stays 5e-4. Same for sharefirst.
+If 2.5e-4 wins, the probe's short horizon is favouring low lr less than I think, and 2.5e-4 is again an edge.
