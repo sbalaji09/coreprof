@@ -81,4 +81,60 @@ def sweep():
         print()
 
 
-sweep()
+LINKS = {"optimistic (0.30 µs, 1.344 TB/s)": (0.30e-6, 1.344e12), "pessimistic (0.722 µs, 235 GB/s)": (0.722e-6, 0.235e12),
+         "1 µs hops (1.344 TB/s)": (1e-6, 1.344e12)}   # results/LATENCY_SOURCES.md, NOTEBOOK_KV_SHARING.md P1
+
+
+def colocated_fits(design, B):
+    """One layer's weights + that layer's KV fit on one chip (layers spread over all chips, KV beside its layer)."""
+    _, kv = hw_for(design, B, C, 0, "install_int8_low", True)
+    return (m.core_params * base.weight_bytes + kv) / m.n_layers <= base.sram_bytes_per_chip
+
+
+def placement_table():
+    """P1: speedups with the KV placement term, sourced link parameters, t_L 3.83-6.68 µs, eff 1.0 / 1.3."""
+    designs = [("per-loop, HBM", "per-loop", False, "aggregate"),
+               ("per-loop, on-chip, near", "per-loop", True, "near"),
+               ("per-loop, on-chip, stream", "per-loop", True, "stream"),
+               ("per-loop, on-chip, co-located", "per-loop", True, "aggregate"),
+               ("shared, on-chip, near", "full", True, "near"),
+               ("shared, on-chip, stream", "full", True, "stream"),
+               ("shared, on-chip, co-located", "full", True, "aggregate")]
+    print("\nP1. C=2048, q=0.5. b = chip vs GPU+LoopSpec (B=1), c = both LoopSpec (lanes lo-hi), B=16 vs H100 int8. "
+          "/chip = speedup / chips. 'n/a' = co-located layout does not fit (one layer's weights + KV > 500 MB).")
+    for link, (hop, bw) in LINKS.items():
+        print(f"\n== links: {link}")
+        print(f"{'design':30s} {'t_L':>6} eff | chips B1 B16 | r B1  r B16 | (b) B=1 /chip | (c) B=1        /chip      | B=16  /chip")
+        for name, design, on_chip, place in designs:
+            for cyc in (20, 25, 30, 35, 40):
+                level = f"install_int8_c{cyc}"
+                lm.LAYER_CYCLE_PARAMS[level] = dict(lm.LAYER_CYCLE_PARAMS["install_int8_low"], install_cycles=cyc)
+                for eff in (1.0, 1.3):
+                    hws = {}
+                    for B in (1, 16):
+                        hw, _ = hw_for(design, B, C, 0, level, on_chip)
+                        hws[B] = replace(hw, kv_placement=place, hop_latency_s=hop, link_bw=bw)
+                    ok = {B: place != "aggregate" or not on_chip or colocated_fits(design, B) for B in (1, 16)}
+                    hw1, hw16 = hws[1], hws[16]
+                    r1, r16 = (lm.kv_remote_fraction(m, hws[B], B, C) if place != "aggregate" else 0.0 for B in (1, 16))
+                    if ok[1]:
+                        b = gpu_ls / (eff * lm.token_time(m, hw1, 1, C, depth))
+                        ls = [eff * lm.chip_token_time_loopspec(m, replace(hw1, overhead_s=0), C, st, ln, level) for ln in st["lanes"]]
+                        c_lo, c_hi = gpu_ls / ls[1], gpu_ls / ls[0]
+                        n1 = hw1.n_chips
+                        s1 = f"{b:5.1f}x {b / n1:4.2f} | {c_lo:5.1f}-{c_hi:5.1f}x {c_lo / n1:4.2f}-{c_hi / n1:4.2f}"
+                    else:
+                        s1 = f"{'n/a':>11} | {'n/a':>25}"
+                    if ok[16]:
+                        s16 = gpu_i8[16] / (eff * lm.token_time(m, hw16, 16, C, depth))
+                        s2 = f"{s16:5.1f}x {s16 / hw16.n_chips:4.2f}"
+                    else:
+                        s2 = "  n/a"
+                    print(f"{name:30s} {lm.layer_latency_bottom_up(m, C, level) * 1e6:4.2f}µ {eff:3.1f} | {hw1.n_chips:>6} {hw16.n_chips:>3} | "
+                          f"{r1:4.2f} {r16:5.2f} | {s1} | {s2}")
+            print()
+
+
+if __name__ == "__main__":
+    sweep()
+    placement_table()

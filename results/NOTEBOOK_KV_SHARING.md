@@ -262,3 +262,48 @@ with KV-only chips beside them (decision 3's separate KV unit). A different layo
 keeps each layer's KV beside its weights (r = 0; "aggregate" numbers become real), possible only where one layer's
 weights + KV fit one chip: 1x2048 per-loop 51 + 34 MB (fits), 16x2048 per-loop 51 + 537 MB (does not), 16x2048 shared
 51 + 134 MB (fits). The table will show this co-located row where it fits.
+
+# P1 - results (`python kv_decode_only.py` → results/kv_placement_p1.txt; model only, proposed numbers)
+Ranges over t_L 3.83-6.68 µs (install_int8, 20-40 cycles) x eff 1.0-1.3; (b) chip vs H100 + LoopSpec 3.74 ms, (c) both
+LoopSpec, B=16 vs H100 int8 15.87 ms; 1x2048 / 16x2048. Remote fraction r: per-loop 0.79 / 0.99, shared 0.18 / 0.95.
+Check: with 1 µs hops the co-located rows reproduce the old aggregate numbers (they are the same model); the per-loop
+HBM rows are unchanged by link parameters except the per-chip hop term (≤ 0.1x).
+
+Sourced links, optimistic (0.30 µs, 1.344 TB/s) .. pessimistic (0.722 µs, 235 GB/s):
+
+| design | chips 1x / 16x | (b) B=1 | /chip | (c) B=1 | /chip | B=16 | /chip |
+|---|---|---|---|---|---|---|---|
+| per-loop, HBM (as trained) | 3 / 3 | 3.8-7.1x | 1.28-2.37 | 5.8-9.9x | 1.92-3.31 | 3.1-4.3x | 1.03-1.42 |
+| per-loop, on-chip, near | 5 / 29 | 4.3-9.9x | 0.87-1.97 | 10.6-23.5x | 2.13-4.69 | 10.6-20.6x | 0.37-0.71 |
+| per-loop, on-chip, stream | 5 / 29 | 1.0-5.2x | 0.21-1.04 | 0.7-5.3x | 0.14-1.06 | 0.3-1.9x | 0.01-0.07 |
+| per-loop, on-chip, co-located | 5 / – | 5.1-11.0x | 1.02-2.20 | 12.6-26.2x | 2.52-5.23 | does not fit (588 MB/layer) | – |
+| shared, on-chip, near | 4 / 10 | 4.9-10.7x | 1.22-2.68 | 10.9-24.0x | 2.72-5.99 | 11.3-21.3x | 1.13-2.13 |
+| shared, on-chip, stream | 4 / 10 | 2.7-8.8x | 0.69-2.21 | 0.8-6.2x | 0.21-1.56 | 0.3-2.0x | 0.03-0.20 |
+| shared, on-chip, co-located | 4 / 10 | 5.1-11.0x | 1.27-2.76 | 12.6-26.2x | 3.16-6.56 | 13.0-22.8x | 1.30-2.28 |
+
+1 µs hops (sensitivity, 1.344 TB/s): per-loop near (b) 4.1-7.8x, (c) 10.2-18.7x, B=16 10.5-16.8x (0.36-0.58/chip);
+shared near (b) 4.8-9.8x, (c) 10.5-19.7x, B=16 11.2-18.2x (1.12-1.82/chip); co-located rows as optimistic within 0.4x.
+
+Against the predictions:
+- per-loop stream B=1 below HBM at every sourced bandwidth: **matched** (5.2x at best vs HBM 7.1x; predicted ~4.5 .. 1.5x,
+  got 5.2 .. 1.5x).
+- per-loop near B=1, t_L 3.83, eff 1: predicted ~9-10 / ~8 / 7.5-8x (opt / pess / 1 µs); got 9.9 / 8.5 / 7.8x: **matched**.
+- shared near B=1 within ~5 % of co-located: got −3 % (opt), −6 % (pess), −8 % (1 µs): **roughly**, slightly worse.
+- shared stream B=1 ~8 .. ~4x: got 8.8 .. 4.5x: matched. B=16 stream collapses below HBM: matched (0.3-2.0x).
+- B=16 near loses ~10-20 %: shared 22.8 → 21.3 (opt), 22.2 → 18.4 (pess): matched. Per-chip ordering at B=16
+  shared (1.1-2.3) ≫ HBM (1.0-1.4) > per-loop (0.4-0.7): matched.
+- **Not predicted:** with LoopSpec on the chip (row c) "stream" collapses even for shared KV (0.8-6.2x), because each
+  lane re-reads its context and every lane's remote share crosses the link. Near/co-located are unaffected.
+
+Reading:
+1. Streaming KV over chip-to-chip links is never viable with sourced links (≤ 1.344 TB/s vs 150 TB/s SRAM). Remote KV
+   must be read where it lives: attention on the KV chip, or KV beside its layer.
+2. **Layout decides the B=1 per-loop cost, not sharing.** My earlier warning (b) assumed weights packed on 3 chips plus
+   KV-only chips. At 1x2048 one layer's weights + per-loop KV (51 + 34 MB) fit on one chip, so spreading the 24 layers
+   over 5 chips with each layer's KV beside it costs nothing extra: 5.1-11.0x (b), 12.6-26.2x (c), within 0.1x of shared
+   co-located on 4 chips. With a separate KV unit ("near") per-loop loses 7-15 % at B=1 (row b) vs shared's 3-6 %.
+3. At 16x2048 per-loop cannot be co-located (51 + 537 MB per layer > 500 MB), so it needs near-memory attention on 29
+   chips: 10.6-20.6x but 0.37-0.71 per chip, the worst of all designs per chip. Shared co-located: 13.0-22.8x at
+   1.30-2.28 per chip. Sharing (Week 6b, or a trained-in form) is what makes on-chip KV pay at B=16.
+4. Old "per-loop on-chip" numbers (Step 1.4, sweep) stay withdrawn; the co-located row replaces them, with its layout
+   condition stated.
