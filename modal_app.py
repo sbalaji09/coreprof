@@ -155,6 +155,12 @@ TASKS = {
     "week6_share_check": ["python week6_share_check.py 2>&1 | tee $OUT/share_check.txt"],
     # KV sharing E1 (results/NOTEBOOK_KV_SHARING.md): unshared / full / decode-only HF reference, 8 questions (~10 min).
     "kvshare_e1": ["python week6_share_check.py --e1 --n 8 --max-new-tokens 256 2>&1 | tee $OUT/e1.txt"],
+    # KV sharing E2 (q=1.0) / E3 (q=0.5): decode-only sharing (quality_check variant kvdec) vs bf16 at the same q, all
+    # 1319 questions; stops at once unless the GPU is an L40S. Smoke on 8 questions first (~2.5 h total).
+    "kvshare_e23": ["nvidia-smi --query-gpu=name --format=csv,noheader | grep -q L40S"] + CHECK + [
+        "python -m pytest -q tests/test_kv_store.py 2>&1 | tee $OUT/pytest_kv.txt",
+        "python quality_check.py --n 8 --max-new-tokens 64 --q 1.0 0.5 --variants bf16 kvdec --out-dir $OUT",
+        "python quality_check.py --n 1319 --q 1.0 0.5 --variants bf16 kvdec --out-dir $OUT"],
     "week6": CHECK + ["python quality_check.py --n 1319 --q 0.5 --variants "
                       "bf16 fp8kv int4kv kv2 kv1 int8w chip int4w --out-dir $OUT"],
     # Week 6b: small looped LMs trained from scratch (train_looped.py). Data once (~20-40 min, CPU-bound);

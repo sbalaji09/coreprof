@@ -39,6 +39,7 @@ VARIANTS = {
     "kv2": dict(n_caches=2),
     "kv1": dict(n_caches=1),
     "chip": dict(weights="int8", kv_quant="fp8", n_caches=1),   # LoopCore's assumed design point
+    "kvdec": dict(share_decode=True),   # decode-only sharing, prompt keeps 4 caches (NOTEBOOK_KV_SHARING.md E2/E3)
 }
 NUM = re.compile(r"-?\d[\d,]*\.?\d*")
 
@@ -138,7 +139,8 @@ def main():
         key = str(q) if args.variants == ["bf16"] else f"{v} q={q}"    # old key format for plain runs
         t0 = time.time()
         res = cdb.run(prompts, args.max_new_tokens, args.slots, q, "bf16", model=model,
-                      n_caches=cfg.get("n_caches"), kv_quant=cfg.get("kv_quant", "none"))
+                      n_caches=cfg.get("n_caches"), kv_quant=cfg.get("kv_quant", "none"),
+                      share_decode=cfg.get("share_decode", False))
         texts = [tok.decode(o, skip_special_tokens=True) for o in res.outputs]
         preds = [extract(t) for t in texts]
         correct = [p is not None and g is not None and abs(p - g) < 1e-6 for p, g in zip(preds, gold)]

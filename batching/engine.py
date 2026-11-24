@@ -25,7 +25,7 @@ class Slot:
 
 class Engine:
     def __init__(self, model, prompts, max_new_tokens, max_slots, exit_threshold, dtype, batcher,
-                 exit_rule=None, record_logits=False, time_calls=False, n_caches=None, kv_quant="none"):
+                 exit_rule=None, record_logits=False, time_calls=False, n_caches=None, kv_quant="none", share_decode=False):
         dims = model_dims(model)
         self.model, self.prompts = model, [list(p) for p in prompts]
         self.max_new = per_request(max_new_tokens, len(prompts))
@@ -34,7 +34,8 @@ class Engine:
         self.record_logits, self.time_calls = record_logits, time_calls
         max_len = max(len(p) for p in self.prompts) + max(self.max_new)
         self.store = KVStore(dims["n_loops"], dims["n_layers"], max_slots, dims["kv_heads"],
-                             max_len, dims["head_dim"], model.dtype, n_caches=n_caches, kv_quant=kv_quant)
+                             max_len, dims["head_dim"], model.dtype, n_caches=n_caches, kv_quant=kv_quant,
+                             share_decode=share_decode)
         self.hidden = torch.zeros(max_slots, 1, model.config.hidden_size, dtype=model.dtype, device="cuda")
         self.survival = torch.ones(max_slots, device="cuda")
         self.slots: list[Optional[Slot]] = [None] * max_slots

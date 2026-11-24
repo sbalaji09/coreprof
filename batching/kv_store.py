@@ -10,6 +10,10 @@ Week 6 KV variants (accuracy only; the values are rounded, the storage stays in 
               that wrote it (the token's exit loop, or the last loop of the group after copy-forward);
               the prompt loads the last loop of each group. Each loop still writes its own fresh KV
               before attending, so the token in flight always sees its own current-loop KV.
+  share_decode - decode-only sharing (Ouro arXiv 2510.25741 §5.4.2, "last-step only"; results/NOTEBOOK_KV_SHARING.md):
+              the prompt keeps one cache per loop; every decode write goes to all caches, so a generated position holds
+              the KV of the last loop that wrote it (loop 4 at q=1.0, the exit loop under early exit), as one shared
+              cache would. Needs one cache per loop; storage stays 4x (accuracy only).
   kv_quant  - "fp8": e4m3, no scale (clipped at +-448, counted in .clipped); "int4": symmetric, one
               scale per 32 values along head_dim. Applied to every value written (prompt and decode).
 """
@@ -35,9 +39,11 @@ def fake_quant(x, kind):
 
 class KVStore:
     def __init__(self, n_loops, n_layers, n_slots, kv_heads, max_len, head_dim, dtype, device="cuda",
-                 n_caches=None, kv_quant="none"):
+                 n_caches=None, kv_quant="none", share_decode=False):
         self.n_caches = n_caches or n_loops
         assert 1 <= self.n_caches <= n_loops
+        assert not share_decode or self.n_caches == n_loops, "share_decode needs one cache per loop"
+        self.share_decode = share_decode
         shape = (self.n_caches, n_layers, n_slots, kv_heads, max_len, head_dim)
         self.k = torch.zeros(shape, dtype=dtype, device=device)
         self.v = torch.zeros(shape, dtype=dtype, device=device)
@@ -70,9 +76,14 @@ class KVStore:
 
     def write(self, layer, loop_idx, slot_idx, pos_idx, k_new, v_new):
         """Scatter one new k/v per row. loop_idx/slot_idx/pos_idx: [R] long; k_new/v_new: [R, H, D]."""
+        k_new, v_new = self._q(k_new), self._q(v_new)
+        if self.share_decode:
+            self.k[:, layer][:, slot_idx, :, pos_idx] = k_new[:, None]    # indexed view is [R, caches, H, D]
+            self.v[:, layer][:, slot_idx, :, pos_idx] = v_new[:, None]
+            return
         c = self._cache_idx[loop_idx]
-        self.k[:, layer][c, slot_idx, :, pos_idx] = self._q(k_new)
-        self.v[:, layer][c, slot_idx, :, pos_idx] = self._q(v_new)
+        self.k[:, layer][c, slot_idx, :, pos_idx] = k_new
+        self.v[:, layer][c, slot_idx, :, pos_idx] = v_new
 
     def read(self, layer, loop_idx, slot_idx, length):
         """Gather each row's (loop, slot) cache, positions [0, length): returns [R, H, length, D] twice."""

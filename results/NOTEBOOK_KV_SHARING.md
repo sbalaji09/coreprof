@@ -201,3 +201,26 @@ Reading: at B=1, per-loop on-chip (no sharing, no training) costs one extra chip
 row (c) ≥ 12.5x across the whole sourced range. At B=16 it needs 29 chips and is the worst design per chip (0.42-0.70,
 below HBM's 1.0-1.4). Model caveats: extra chips cost only hop latency (1 µs each); cost, power and links not modelled.
 Proposed numbers only; no write-up changed.
+
+# Pre-registration: E2 and E3 (approved by Sid 2026-11-24, ~$4-5; written and committed before any data)
+- **Code:** `KVStore(share_decode=True)` (quality_check variant `kvdec`). The prompt keeps its 4 per-loop caches
+  (`load_prefill` unchanged). Every decode write goes to all 4 caches, so a generated position holds the KV of the last
+  loop that wrote it and every loop of later tokens reads that (one shared cache for generated tokens); the token in
+  flight sees its own current-loop KV. Storage stays 4x (accuracy only). CPU tests: `tests/test_kv_store.py`
+  (`test_share_decode_*`; the multi-row test fails on a first version that broadcast wrongly, checked).
+- **Run:** Modal task `kvshare_e23`, one L40S container (stops unless `nvidia-smi` says L40S; I also check env.txt):
+  selfcheck, KV-store tests on GPU, 8-question smoke, then all 1319 GSM8K test questions, 4-shot, greedy, 256 new tokens,
+  CDB 32 slots, in this order: bf16 q=1.0, bf16 q=0.5, kvdec q=1.0, kvdec q=0.5. Each kvdec is paired with bf16 at
+  the same q.
+- **Rule (Week 6 rule, unchanged):** pass if the lower end of the 95 % interval on the paired accuracy change vs bf16
+  is above −2 points; exact McNemar p, question-by-question counts and exit depth reported; depth change > 0.10 loops
+  means LoopCore claims for that form use the measured depth.
+- **E2 (kvdec, q=1.0; the paper's setup: last-step KV, all loops).** Prediction (H1): pass, change within −1.5 … +1
+  points (paper: −0.07). Pass → Ouro-1.4B as trained can share generated tokens' KV in the paper's form. Fail → H1's
+  "near free" is refuted at scale in our stack, whatever E1 suggested; the paper's Table 14 does not reproduce.
+- **E3 (kvdec, q=0.5; the chip's form: generated positions hold the exit loop's KV).** Prediction: pass but with a
+  larger cost than E2, change −2.5 … +0.5 points (I am ~60 % on pass); exit depth within ±0.10 of bf16. Meaning:
+  pass → the chip can use decode-only sharing with early exit. E2 pass + E3 fail → H2 survives as an extra cost:
+  non-final-loop KV read as final hurts, and decode-only sharing on the chip would need all 4 loops for KV (losing early
+  exit's savings) or a different rule. Both fail → decode-only sharing is not usable on Ouro as trained.
+- No variant is re-tuned or re-run on failure without a new entry here.

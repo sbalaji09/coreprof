@@ -116,6 +116,39 @@ def test_shared_cache_keeps_last_write_and_each_loop_sees_it():
     assert torch.equal(st.k[0, 0, 1, :, 2], torch.full((H, D), 3.0))   # last loop's KV stays
 
 
+def test_share_decode_keeps_prompt_per_loop_and_shares_generated_positions():
+    class FakeHFCache:
+        key_cache = [torch.full((1, H, 6, D), float(i)) for i in range(U * L)]
+        value_cache = key_cache
+    st = KVStore(U, L, S, H, T, D, torch.float32, device="cpu", share_decode=True)
+    st.load_prefill(0, FakeHFCache, 6)
+    one = lambda x: torch.tensor([x])
+    for u in range(3):                       # a token at position 6 exits after loop 3 (0-based 2)
+        k_new = torch.full((1, H, D), 100.0 + u)
+        st.write(0, one(u), one(0), one(6), k_new, k_new)
+        k, _ = st.read(0, one(u), one(0), 7)
+        assert torch.equal(k[0, :, 6], k_new[0])                                    # in flight: own fresh KV
+        assert torch.equal(k[0, :, :6], FakeHFCache.key_cache[u * L][0])            # prompt: own loop's KV
+    st.fill_skipped([0], [6], [2])
+    for c in range(U):                       # every loop of a later token reads the exit loop's KV there
+        assert torch.equal(st.k[c, 0, 0, :, 6], torch.full((H, D), 102.0))
+        assert torch.equal(st.k[c, 0, 0, :, :6], FakeHFCache.key_cache[c * L][0])
+
+
+def test_share_decode_writes_several_rows_to_every_cache():
+    st = KVStore(U, L, S, H, T, D, torch.float32, device="cpu", share_decode=True)
+    st.k.normal_()
+    before = st.k.clone()
+    loops, slots, poss = [0, 3, 1], [4, 0, 2], [7, 0, 9]
+    k_new = torch.randn(3, H, D)
+    st.write(1, torch.tensor(loops), torch.tensor(slots), torch.tensor(poss), k_new, k_new)
+    for r, (s, p) in enumerate(zip(slots, poss)):
+        for c in range(U):
+            assert torch.equal(st.k[c, 1, s, :, p], k_new[r])
+            before[c, 1, s, :, p] = k_new[r]
+    assert torch.equal(st.k, before)                                           # nothing else moved
+
+
 def test_pairs_copy_forward_from_exit_group():
     st = _cpu_store(2)
     st.k.normal_()
