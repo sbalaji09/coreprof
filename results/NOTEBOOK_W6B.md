@@ -97,3 +97,21 @@ Expected cost: 2 x ~0.3 h = ~0.65 h, ~$2.6.
 Prediction: perloop at 2.5e-4 ends worse than at 5e-4 (4.70), around 4.85-5.0: with only 381 steps the lower lr
 learns more slowly, and E2's 5e-4 curve showed no sign of instability. So the main lr stays 5e-4. Same for sharefirst.
 If 2.5e-4 wins, the probe's short horizon is favouring low lr less than I think, and 2.5e-4 is again an edge.
+Result (run w6b_lrprobe2-h100-20261124-145136, H100 80GB HBM3, all 4 commands exit 0, 0.31 + 0.29 h, ~$2.5):
+perloop 2.5e-4: final 4.9408 (val 5.99/5.30/5.04/4.96 at steps 100/200/300/381);
+sharefirst 2.5e-4: final 4.9298 (5.98/5.28/5.02/4.95). No spikes, grad norms 0.46-1.01.
+Full grid, final probe loss: perloop 4.9408 / 4.6995 / 7.1306 / 7.6682 and sharefirst 4.9298 / 4.6097 / 5.8263 /
+5.3197 at lr 2.5e-4 / 5e-4 / 1e-3 / 2e-3.
+Decision (rule): perloop's best is 5e-4, now an interior point of the grid; main lr stays 5e-4. sharefirst agrees.
+Verdict vs prediction: SUPPORTED (2.5e-4 worse than 5e-4, 4.94 predicted 4.85-5.0, same for sharefirst).
+Note: at 2.5e-4 the two variants are 0.011 apart, at 5e-4 0.090. With one seed, the 5e-4 lead is not a finding.
+
+## E4 - main runs (launched 2026-11-24 15:22-15:24, lr 5e-4, no further approval needed per Sid)
+Runs (one Modal app each, all H100 80GB HBM3 per logs; meta lines confirm lr 5e-4, 3814 steps, warmup 200):
+w6b_perloop-h100-20261124-152246, w6b_perloop_s1-h100-20261124-152259, w6b_sharefirst-h100-20261124-152312,
+w6b_sharefirst_s1-h100-20261124-152325, w6b_sharefirst_w64-h100-20261124-152338, w6b_mqa3-h100-20261124-152351,
+w6b_noloop-h100-20261124-152404. Expected ~21 GPU-h, ~$85. Spending checks run by `watch_w6b.py -w 120 --guard`.
+Predictions (before any main-run data): seed gap d < 0.01 nats, so m = 0.01-0.02 and rule 0 does not trigger;
+noloop worse than perloop by > 0.1 nats (looping helps); sharefirst within m of perloop (rule 1 pass), as in MoR
+(+0.006-0.016 nats) and Monea; sharefirst_w64 at or below sharefirst; mqa3 within ~0.03 of perloop, so rule 2
+(sharefirst beats mqa3 by > m) is uncertain, ~40 %.
