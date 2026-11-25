@@ -150,3 +150,39 @@ Correction: at 19:38 I told Sid looping helps by "about 0.1 nats". That compared
 with perloop's periodic eval (1.6M tokens), the mismatch I had just warned about. Like for like it is 0.043.
 Prediction check: sharefirst within m (predicted pass) REFUTED by 0.0008 nats; d < 0.01 supported; noloop worse by
 > 0.1 REFUTED (0.043); rule 2 (I gave ~40 %) passed.
+
+## E4 final scoring (2026-11-24 ~22:00, all runs in; applied mechanically under the approved rule v2)
+Source: /vol/w6b/<variant>/final.json, copied to results/w6b/ with each log.jsonl. Every run: lr 5e-4, 3814 steps,
+final eval offset 0 x 400 batches (the same 13.1M tokens), NVIDIA H100 80GB HBM3.
+
+| variant | final loss (s0 / s1) | L | vs perloop | rule 1 (<= 3.4088) | rule 2 (< 3.4123) | looping benefit kept |
+|---|---|---|---|---|---|---|
+| perloop | 3.3995 / 3.3981 | 3.3988 | - | - | - | 100 % |
+| sharefirst | 3.4101 / 3.4091 | 3.4096 | +0.0108 | FAIL (by 0.0008) | PASS | 75 % |
+| sharefirst_w64 | 3.3914 | 3.3914 | -0.0074 | PASS | PASS | 117 % |
+| mqa3 | 3.4223 | 3.4223 | +0.0235 | - | - | 46 % |
+| noloop | 3.4420 | 3.4420 | +0.0432 | - | - | 0 % |
+
+d = 0.0014, m = 0.0100. Rule 0: not inconclusive. Rule 3: noloop - perloop = 0.0432 > m, conclusions not flagged.
+pairs: not run (it runs only if both sharing variants fail rule 1; sharefirst_w64 passes).
+Verdict: one shared KV cache trained in from the start (first loop's K/V) plus a 64-token own-loop window MATCHES
+per-loop caches under the rule (its -0.0074 is inside m, so "matches", not "beats"). Plain first-loop sharing narrowly
+fails (+0.0108 vs m 0.0100) but beats the same-memory MQA baseline.
+Prediction check: sharefirst pass REFUTED (by 0.0008); w64 <= sharefirst SUPPORTED; d < 0.01 SUPPORTED;
+rule 2 PASSED (I gave ~40 %); noloop > 0.1 worse REFUTED (0.043).
+
+Referee checks (self, separate pass):
+1. Did the spend-limit interruption change the results? log.jsonl holds both passes of the steps redone after the
+   last checkpoint. Same batches, train loss 1st vs 2nd pass: max |diff| 0.0001 (perloop, perloop_s1, sharefirst,
+   sharefirst_s1, mqa3; 35-198 steps each), sharefirst_w64 mean 0.0007, max 0.0052 over 152 steps (masked,
+   non-flash attention is less deterministic). Resume reproduced the run; no effect at the 0.01 scale.
+2. Is w64's result one lucky seed? One seed only. Its distance to the rule-1 limit is 0.0174, 12x the largest seed
+   gap measured (0.0014). A sign flip from seed noise is very unlikely; its lead over perloop (0.0074) is not claimed.
+3. Is w64 comparable? Not compute-matched: later loops also compute their own K/V and attend to 2T keys, 1.74x
+   training time (smoke E1). Its params equal perloop's. At decode the extra work is 64 keys + one K/V projection
+   per later loop per layer. Rule 1 compares loss at equal params and data, which is what the rule asks.
+Threats to validity: 81M params, 1024 context, 2B tokens, one dataset; loss only (no downstream evals); no early
+exit; the 64-token window is 6 % of a 1024 context but < 1 % of 8k, so it may help less at long context; w64 n=1.
+
+Cost (H100 at ~$4/h, from app wall time, not a Modal bill): smoke 0.3 h, probes 1.8 + 0.65 h, main runs ~21.6 GPU-h
+(~11.1 before the cut + 1.5 noloop + ~9.0 resumed). Main ~$86 (inside the approved $85-90); Week 6b total ~$98.

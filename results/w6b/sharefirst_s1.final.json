@@ -1,0 +1,31 @@
+{
+ "variant": "sharefirst",
+ "kv_every": 4,
+ "n_kv_heads": 12,
+ "loops": 4,
+ "params": 81074688,
+ "steps": 3814,
+ "tokens_per_step": 524288,
+ "args": {
+  "variant": "sharefirst",
+  "data": "/vol/data/fineweb_edu_gpt2",
+  "out_dir": "/vol/w6b",
+  "tokens": 2000000000.0,
+  "ctx": 1024,
+  "micro_bsz": 32,
+  "accum": 16,
+  "lr": 0.0005,
+  "warmup": 200,
+  "eval_every": 250,
+  "eval_batches": 50,
+  "final_eval_batches": 400,
+  "seed": 1,
+  "eval_offset": 0,
+  "no_compile": false
+ },
+ "gpu": "NVIDIA H100 80GB HBM3",
+ "torch": "2.5.1+cu124",
+ "final_val_loss": 3.409119120836258,
+ "final_val_ppl": 30.238595975028776,
+ "hours": 0.9565867178969913
+}
