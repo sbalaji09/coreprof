@@ -186,3 +186,13 @@ exit; the 64-token window is 6 % of a 1024 context but < 1 % of 8k, so it may he
 
 Cost (H100 at ~$4/h, from app wall time, not a Modal bill): smoke 0.3 h, probes 1.8 + 0.65 h, main runs ~21.6 GPU-h
 (~11.1 before the cut + 1.5 noloop + ~9.0 resumed). Main ~$86 (inside the approved $85-90); Week 6b total ~$98.
+
+## Check: which lr did the main runs use, and did the 2.5e-4 probe run? (2026-11-24, records only, no compute)
+- Main runs: **lr 5e-4, warmup 200, 3814 steps** in all seven. Checked in the raw files, not the notes above:
+  `args.lr` = 0.0005 in every results/w6b/*.final.json (perloop, perloop_s1, sharefirst, sharefirst_s1,
+  sharefirst_w64, mqa3, noloop), and the largest `lr` logged in each results/w6b/*.log.jsonl is 5e-4.
+  modal_app.py: `W6B_LR = "5e-4"`, used by every `w6b_<variant>` and `_s1` task.
+- The 2.5e-4 probe point (Sid's request) **did run**: E3 above, run w6b_lrprobe2-h100-20261124-145136, pre-registered
+  in a698ff0. perloop 4.9408, sharefirst 4.9298, both worse than 5e-4 (4.6995 / 4.6097), so 5e-4 is an interior best
+  and the main-run lr stood. Caveat: that run's raw logs are not in this repo (results/modal/ holds only the w6b smoke
+  run); the E2/E3 numbers come from this notebook, written at the time from the volume (/vol/w6b_lr/).
