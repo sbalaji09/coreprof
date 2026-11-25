@@ -29,7 +29,7 @@ def modal(*args):
 
 def runs(app_id):
     """Parse the task id (env line) and train_looped.py's stdout: a meta line per run, eval records, a final line."""
-    out, rid = [], None
+    out, rid, resumed = [], None, 0
     for ln in modal("app", "logs", "--timestamps", app_id).splitlines():
         try:
             ts, ln = datetime.fromisoformat(ln[:25]), ln[26:]
@@ -37,6 +37,8 @@ def runs(app_id):
             ts = None
         if ln.startswith("task="):
             rid = ln[5:].strip()
+        if ln.startswith("resumed at step "):
+            resumed = int(ln.split()[-1])
         if not ln.startswith("{"):
             continue
         try:
@@ -49,7 +51,8 @@ def runs(app_id):
             if "w6b_lr" in a["out_dir"]:
                 name = f"probe lr {a['lr']:g} {name}"
             out.append(dict(name=name, steps=r["steps"], smoke="smoke" in a["out_dir"], probe="w6b_lr" in a["out_dir"],
-                            evals=[], last=None, final=None))
+                            every=a["eval_every"], t0=ts, resumed=resumed, evals=[], last=None, final=None))
+            resumed = 0
         elif out and "step" in r:
             r["t"] = ts
             out[-1]["last"] = r
@@ -79,6 +82,17 @@ def now_step(r):
     return min(r["steps"], last["step"] + int(since / last["sec"]))
 
 
+def silent(r):
+    """A live run with no eval for twice its usual interval (or 45 min with none yet) has probably died: on 2026-11-24 a
+    Modal spend limit killed six runs and nothing else flagged it for an hour."""
+    last = r["last"]
+    t, limit = (last["t"], 2 * r["every"] * last["sec"] / 60) if last and last.get("t") else (r["t0"], 45)
+    if not t:
+        return None
+    mins = (datetime.now(t.tzinfo) - t).total_seconds() / 60
+    return f"no new eval for {mins:.0f} min (limit {limit:.0f})" if mins > limit else None
+
+
 def time_left(app, rid, rs):
     """Elapsed, run k of n, and the time left for the whole task: the current run from its step time, each queued
     run at the length of a finished one (or the current run's projected length). Eval and compile time add ~5 %."""
@@ -105,14 +119,14 @@ def time_left(app, rid, rs):
 def show(guard=False):
     apps = json.loads(modal("app", "list", "--json") or "[]")
     print(time.strftime("%H:%M:%S"), "Week 6b runs (Modal apps listed:", len(apps), ")")
-    shown = 0
-    for app in apps:
+    shown, parsed = 0, [(app, *runs(app["app_id"])) for app in apps]
+    running = {r["name"] for app, _, rs in parsed if app["state"] != "stopped" for r in rs}
+    for app, rid, rs in parsed:
         live = app["state"] != "stopped"
-        rid, rs = runs(app["app_id"])
         if live and rid:
             print(time_left(app, rid, rs))
         for r in rs:
-            if r["smoke"]:
+            if r["smoke"] or (not live and not r["final"] and r["name"] in running):   # superseded by a resumed run
                 continue
             shown += 1
             last, n = r["last"], r["steps"]
@@ -124,8 +138,13 @@ def show(guard=False):
                 tail = (f"~step {done}, val {last['val_loss']:.3f} @ {last['step']}  {last['tok_per_s'] / 1e3:.0f}k tok/s  "
                         f"~{(n - done) * last['sec'] / 3600:.1f} h left" if live else "STOPPED before finishing")
             else:
-                tail, done = ("compiling / first steps" if live else "STOPPED before first eval"), 0
+                done = r["resumed"]
+                tail = ((f"resumed at step {done}, compiling" if done else "compiling / first steps") if live
+                        else "STOPPED before first eval")
             print(f"  {r['name']:<28} {bar(done, n)}  {tail}")
+            quiet = live and not r["final"] and silent(r)
+            if quiet:
+                print(f"  ALERT {r['name']} ({app['app_id']}): {quiet}; check `modal container list` and the app logs")
             why = broken(r)
             if why and not r["probe"] and not r["final"]:
                 print(f"  ALERT {r['name']} ({app['app_id']}): {why}")
