@@ -115,3 +115,20 @@ Predictions (before any main-run data): seed gap d < 0.01 nats, so m = 0.01-0.02
 noloop worse than perloop by > 0.1 nats (looping helps); sharefirst within m of perloop (rule 1 pass), as in MoR
 (+0.006-0.016 nats) and Monea; sharefirst_w64 at or below sharefirst; mqa3 within ~0.03 of perloop, so rule 2
 (sharefirst beats mqa3 by > m) is uncertain, ~40 %.
+Ops note (17:20): the guard (`watch_w6b.py -w 120 --guard`, on the laptop) did not refresh from 16:43 to 17:20: the
+Mac slept and time.sleep does not count sleep. Training on Modal was unaffected. A one-off check at 17:20 over every
+run's full eval history found no spending-check violation. Fix: `caffeinate -dims -w <guard pid>` keeps the Mac awake
+while the guard runs.
+noloop finished: final 3.4420 (1.48 h, H100 80GB HBM3), evals 4.96 (250) -> 3.37 (3814), smooth.
+
+## E4 interruption (found 18:25)
+All six unfinished main runs stopped together at ~17:14: last log lines 17:05-17:12, no error in the logs, no
+containers left, Modal call status FAILURE with no result. Cause: the Modal workspace hit its spend limit
+("Workspace ... has exceeded its spend limit" on relaunch at ~18:30). Nothing has billed since.
+State kept on the volume (/vol/w6b/<variant>/ckpt.pt, complete 972,940,918-byte files, mqa3 909,239,926):
+perloop and perloop_s1 last ckpt 17:05-17:07 (step 2250), sharefirst and sharefirst_s1 17:11-17:13 (step 2500),
+mqa3 17:05 (step 2250), sharefirst_w64 17:02 (step ~1250-1500). noloop had finished (16:54).
+I stopped the six dead apps (so a late Modal retry can't race a resumed run on the same checkpoint dir).
+Resume plan: relaunch the same six tasks; train_looped.py resumes from ckpt.pt and draws batches from (seed, step),
+so a resumed run sees the same data as an uninterrupted one. log.jsonl will hold duplicate records for the steps
+redone after the last checkpoint; analysis keeps the last record per step. Remaining cost ~8.5 GPU-h, ~$35.
