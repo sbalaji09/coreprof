@@ -120,13 +120,13 @@ def show(guard=False):
     apps = json.loads(modal("app", "list", "--json") or "[]")
     print(time.strftime("%H:%M:%S"), "Week 6b runs (Modal apps listed:", len(apps), ")")
     shown, parsed = 0, [(app, *runs(app["app_id"])) for app in apps]
-    running = {r["name"] for app, _, rs in parsed if app["state"] != "stopped" for r in rs}
+    resumed = {r["name"] for app, _, rs in parsed for r in rs if app["state"] != "stopped" or r["final"]}
     for app, rid, rs in parsed:
         live = app["state"] != "stopped"
         if live and rid:
             print(time_left(app, rid, rs))
         for r in rs:
-            if r["smoke"] or (not live and not r["final"] and r["name"] in running):   # superseded by a resumed run
+            if r["smoke"] or (not live and not r["final"] and r["name"] in resumed):   # superseded by a resumed run
                 continue
             shown += 1
             last, n = r["last"], r["steps"]
