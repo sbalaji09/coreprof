@@ -99,6 +99,8 @@ class Hardware:
     kv_bytes: float = 2.0         # bytes per KV element: 2 = bf16, 1 = fp8, 0.5 = int4
     kv_caches: int = 0            # distinct KV caches across loops: 0 = one per loop (Ouro as shipped),
                                   # 1 = one cache shared by all loops, 2 = one per pair of loops, ...
+    kv_window: int = 0            # with kv_caches = 1: each other loop also keeps its own last kv_window tokens per
+                                  # layer (sharefirst_w64, results/NOTEBOOK_W6B.md E4); counted in the footprint only
     kv_on_chip: bool = False      # KV cache held in SRAM (read/written at weight_bw) instead of external memory
     kv_placement: str = "aggregate"  # with kv_on_chip, where KV sits (results/NOTEBOOK_KV_SHARING.md, P1):
                                   # "aggregate" = anywhere in the chips' SRAM, read at weight_bw, no link cost (the
@@ -130,8 +132,9 @@ def kv_bw(hw):
 
 
 def kv_footprint(m, hw, B, C):
-    """KV cache bytes for B sequences of C tokens, all caches."""
-    return B * C * m.kv_elems_per_token_per_loop() * hw.kv_bytes * n_kv_caches(m, hw)
+    """KV cache bytes for B sequences of C tokens, all caches (+ the own-loop windows of a shared cache)."""
+    window = min(C, hw.kv_window) * (m.total_loops - 1) if hw.kv_caches == 1 else 0
+    return B * (C * n_kv_caches(m, hw) + window) * m.kv_elems_per_token_per_loop() * hw.kv_bytes
 
 
 def fit_check(m, hw, B=0, C=0):

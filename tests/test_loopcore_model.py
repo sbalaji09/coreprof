@@ -149,6 +149,15 @@ def test_shared_cache_cuts_footprint_and_writes_not_reads():
     assert kv_write(one) == pytest.approx(kv_write(D) / 4)
 
 
+def test_kv_window_adds_own_loop_tokens_to_shared_cache_only():
+    # sharefirst_w64: loops 2-4 each keep their last 64 tokens on top of the shared cache (NOTEBOOK_W6B.md E4)
+    tok = M.kv_elems_per_token_per_loop() * D.kv_bytes
+    one = replace(D, kv_caches=1)
+    assert lm.kv_footprint(M, replace(one, kv_window=64), 16, 2048) - lm.kv_footprint(M, one, 16, 2048) == 16 * 3 * 64 * tok
+    assert lm.kv_footprint(M, replace(one, kv_window=64), 1, 32) == 32 * 4 * tok        # window capped at C
+    assert lm.kv_footprint(M, replace(D, kv_window=64), 1, 2048) == lm.kv_footprint(M, D, 1, 2048)   # per-loop: no-op
+
+
 def test_fp8_kv_halves_kv_time():
     fp8 = replace(D, kv_bytes=1.0)
     assert lm.step_terms(M, fp8, 8, 4096)["kv"] == pytest.approx(lm.step_terms(M, D, 8, 4096)["kv"] / 2)

@@ -17,11 +17,13 @@ i8 = lm.measured_steps(gpu, "int8")
 gpu_i8 = {B: depth * i8[(B, C)] * 1e-3 + lm.gpu_extras(m, hwg, gpu, B) for B in (1, 16)}
 gpu_ls = st["ms_per_token"] * 1e-3
 base = replace(D, kv_bytes=1.0)   # fp8 KV (passed Week 6)
+WINDOW = 0   # --window N: shared designs also keep N own-loop tokens per later loop (sharefirst_w64, NOTEBOOK_CHIP_COST.md)
 
 def footprint(design, B, P, G):
     f4 = lm.kv_footprint(m, replace(base, kv_caches=0), B, 1)   # bytes per token, 4 caches
     f1 = lm.kv_footprint(m, replace(base, kv_caches=1), B, 1)
-    return {"per-loop": f4 * (P + G), "decode-only": f4 * P + f1 * G, "full": f1 * (P + G)}[design]
+    win = lm.kv_footprint(m, replace(base, kv_caches=1, kv_window=WINDOW), B, P + G) - f1 * (P + G)
+    return {"per-loop": f4 * (P + G), "decode-only": f4 * P + f1 * G, "full": f1 * (P + G) + win}[design]
 
 def chips_for(B, kv):
     w, _, _ = lm.fit_check(m, replace(base, n_chips=1))
@@ -32,7 +34,8 @@ def hw_for(design, B, P, G, level, on_chip):
     caches = {"per-loop": 0, "decode-only": 1, "full": 1}[design]   # KV writes per new token
     n = chips_for(B, kv) if on_chip else lm.sized(m, base, B, C).n_chips
     tl = lm.layer_latency_bottom_up(m, C, level, B=B)
-    return replace(base, kv_caches=caches, kv_on_chip=on_chip, n_chips=n, overhead_s=m.n_layers * tl), kv
+    return replace(base, kv_caches=caches, kv_window=WINDOW if design == "full" else 0, kv_on_chip=on_chip, n_chips=n,
+                   overhead_s=m.n_layers * tl), kv
 
 print(f"H100 baselines at C={C}: int8 B=1 {gpu_i8[1]*1e3:.2f} ms, B=16 {gpu_i8[16]*1e3:.2f} ms; LoopSpec B=1 {gpu_ls*1e3:.2f} ms")
 print(f"SRAM {base.sram_bytes_per_chip/1e6:.0f} MB/chip; weights+LM head int8 {lm.fit_check(m, replace(base, n_chips=1))[0]/1e6:.0f} MB\n")
@@ -147,6 +150,34 @@ def placement_table():
             print()
 
 
+def window_chips():
+    """Chip counts of the shared designs with and without the own-loop window, at 1/16 sequences x 2048/8192."""
+    global WINDOW
+    print("\nShared KV: chips without / with a 64-token own-loop window (sized = near/stream; co-located = whole layers)")
+    for B, Cx in ((1, 2048), (16, 2048), (1, 8192), (16, 8192)):
+        row = []
+        for WINDOW in (0, 64):
+            kv = footprint("full", B, Cx, 0)
+            layer = (m.core_params * base.weight_bytes + kv) / m.n_layers
+            per = int(base.sram_bytes_per_chip // layer)
+            n_co = None
+            if per:
+                n = math.ceil(m.n_layers / per)
+                n_co = n if base.sram_bytes_per_chip - (m.n_layers - (n - 1) * per) * layer >= m.lmhead_params else n + 1
+            row.append((kv, chips_for(B, kv), n_co))
+        (k0, s0, c0), (k1, s1, c1) = row
+        print(f"{B:>2}x{Cx:<5} KV {k0 / 1e6:7.0f} -> {k1 / 1e6:7.0f} MB (+{100 * (k1 / k0 - 1):.1f} %) | "
+              f"sized {s0} -> {s1} | co-located {c0} -> {c1}")
+    WINDOW = 0
+
+
 if __name__ == "__main__":
-    sweep()
-    placement_table()
+    import sys
+    if "--window" in sys.argv:
+        WINDOW = int(sys.argv[sys.argv.index("--window") + 1])
+        placement_table()
+    elif "--window-chips" in sys.argv:
+        window_chips()
+    else:
+        sweep()
+        placement_table()

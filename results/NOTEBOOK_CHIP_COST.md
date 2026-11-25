@@ -83,3 +83,22 @@ term, 3 % at 2048 (stated as a known omission). Defaults and every existing repo
   (104 MB spare vs 100.7 MB), 12 chips (unchanged). 16x8192 shared: 14.22 → 14.52 GB, 29 → 30 chips (+1).
 - Speedups: unchanged at the table's resolution where the chip count is unchanged; −< 1 % where "near" gains a remote
   layer.
+
+# W1 - results: shared-cache KV window (model option `Hardware.kv_window`; proposed numbers, defaults unchanged)
+Code: `kv_footprint` adds B x min(C, kv_window) x (loops - 1) tokens per layer when kv_caches = 1; kv_decode_only.py
+`--window 64` reruns the placement table with it (results/kv_placement_p1_w64.txt), `--window-chips` prints the counts.
+Checks: default report, `--loopspec-table`, `--kv-levers` and `python kv_decode_only.py` byte-identical before/after;
+tests/test_loopcore_model.py 32 passed (+1 pre-existing xfail); the new test fails on the pre-change model (checked).
+
+| shared KV, fp8 | KV MB without -> with window | chips, sized (near/stream) | chips, co-located |
+|---|---|---|---|
+| 1x2048 | 201 -> 220 (+9.4 %) | 4 -> 4 | 4 -> 4 |
+| 16x2048 | 3,221 -> 3,523 (+9.4 %) | 10 -> 10 | 12 -> 12 |
+| 1x8192 | 805 -> 824 (+2.3 %) | 5 -> 5 | 5 -> 5 |
+| 16x8192 | 12,885 -> 13,187 (+2.3 %) | 29 -> 30 | does not fit either way |
+
+Against the predictions: KV +9.4 % / +2.3 %, chip counts unchanged at 2048, 16x8192 29 -> 30: **all matched**.
+Speedups (diff of the two placement tables): co-located rows identical; B=16 rows identical; shared near B=1 −0-1 %
+(remote fraction 0.18 -> 0.25 at 1x2048; predicted −< 1 %: matched). **Not predicted:** shared *stream* at B=1 loses
+6-8 % (row b) and 14-22 % (row c), because the extra remote KV crosses the links every step. Stream was already
+never the best design, so no conclusion changes. Not modelled: reading/writing the window (≤ 3 % of the KV term at 2048).
