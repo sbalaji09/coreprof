@@ -132,3 +132,21 @@ I stopped the six dead apps (so a late Modal retry can't race a resumed run on t
 Resume plan: relaunch the same six tasks; train_looped.py resumes from ckpt.pt and draws batches from (seed, step),
 so a resumed run sees the same data as an uninterrupted one. log.jsonl will hold duplicate records for the steps
 redone after the last checkpoint; analysis keeps the last record per step. Remaining cost ~8.5 GPU-h, ~$35.
+Resumed 18:29-18:30 after Sid raised the spend limit: w6b_perloop-h100-20261124-182905, w6b_perloop_s1-...-182918,
+w6b_sharefirst-...-182931, w6b_sharefirst_s1-...-182944, w6b_sharefirst_w64-...-182957, w6b_mqa3-...-183010.
+All H100 80GB HBM3; "resumed at step" 2250 / 2250 / 2500 / 2500 / 1250 / 2250, matching the checkpoints.
+The guard now also alerts when a live run stops reporting (ecdaa26).
+
+## E4 interim scoring (19:45; sharefirst_w64 still running, so not final)
+Final held-out loss (13.1M tokens): perloop 3.3995 / 3.3981 (s0/s1), sharefirst 3.4101 / 3.4091, mqa3 3.4223,
+noloop 3.4420. L(perloop) = 3.3988, L(sharefirst) = 3.4096. Seed gap d = 0.0014, so m = max(0.01, 2d) = 0.0100.
+- Rule 0: m = 0.010 <= 0.03, comparisons are decisive.
+- Rule 1, sharefirst: 3.4096 vs limit 3.4088: FAIL by 0.0008 nats (cost +0.0108 nats, +0.32 %).
+- Rule 2, sharefirst vs mqa3: 3.4096 < 3.4123: PASS (sharefirst beats the same-KV-bytes MQA by 0.0127).
+- Rule 3: noloop - perloop = 0.0432 > m: looping helps; conclusions not flagged.
+- Rule 4 (descriptive): looping benefit kept: sharefirst 75 %, mqa3 46 %.
+- pairs: runs only if sharefirst_w64 also fails rule 1.
+Correction: at 19:38 I told Sid looping helps by "about 0.1 nats". That compared noloop's final loss (13.1M tokens)
+with perloop's periodic eval (1.6M tokens), the mismatch I had just warned about. Like for like it is 0.043.
+Prediction check: sharefirst within m (predicted pass) REFUTED by 0.0008 nats; d < 0.01 supported; noloop worse by
+> 0.1 REFUTED (0.043); rule 2 (I gave ~40 %) passed.
